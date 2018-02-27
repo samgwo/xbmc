@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -55,6 +55,16 @@ class CSettings;
 class IAE;
 class CFavouritesService;
 class CInputManager;
+class CFileExtensionProvider;
+class CNetwork;
+class CWinSystemBase;
+class CRenderSystemBase;
+class CPowerManager;
+class CWeatherManager;
+class CPlayerCoreFactory;
+class CDatabaseManager;
+class CProfilesManager;
+class CEventLog;
 
 namespace KODI
 {
@@ -62,6 +72,11 @@ namespace GAME
 {
   class CControllerManager;
   class CGameServices;
+}
+
+namespace RETRO
+{
+  class CGUIGameRenderManager;
 }
 }
 
@@ -87,10 +102,22 @@ public:
   static CSettings& GetSettings();
   static KODI::GAME::CControllerManager& GetGameControllerManager();
   static KODI::GAME::CGameServices& GetGameServices();
+  static KODI::RETRO::CGUIGameRenderManager& GetGameRenderManager();
   static PERIPHERALS::CPeripherals& GetPeripherals();
   static CFavouritesService& GetFavouritesService();
   static ADDON::CServiceAddonManager& GetServiceAddons();
   static ADDON::CRepositoryUpdater& GetRepositoryUpdater();
   static CInputManager& GetInputManager();
+  static CFileExtensionProvider &GetFileExtensionProvider();
   static bool IsBinaryAddonCacheUp();
+  static bool IsServiceManagerUp();
+  static CNetwork& GetNetwork();
+  static CWinSystemBase& GetWinSystem();
+  static CRenderSystemBase& GetRenderSystem();
+  static CPowerManager& GetPowerManager();
+  static CWeatherManager& GetWeatherManager();
+  static CPlayerCoreFactory &GetPlayerCoreFactory();
+  static CDatabaseManager &GetDatabaseManager();
+  static CProfilesManager &GetProfileManager();
+  static CEventLog &GetEventLog();
 };

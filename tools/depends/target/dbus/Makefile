@@ -11,9 +11,7 @@ ARCHIVE=$(SOURCE).tar.gz
 CONFIGURE=./configure --prefix=$(PREFIX) \
   --without-x --disable-xml-docs --disable-doxygen-docs
 
-LIBDYLIB=$(PLATFORM)/$(LIBNAME)/.libs/$(LIBNAME).so
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
+LIBDYLIB=$(PLATFORM)/$(LIBNAME)/.libs/lib$(LIBNAME)-1.so
 
 all: $(LIBDYLIB) .installed-$(PLATFORM)
 

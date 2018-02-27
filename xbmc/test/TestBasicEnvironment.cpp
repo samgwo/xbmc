@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,49 +20,38 @@
 
 #include "TestBasicEnvironment.h"
 #include "TestUtils.h"
-#include "cores/DataCacheCore.h"
-#include "cores/AudioEngine/Engines/ActiveAE/AudioDSPAddons/ActiveAEDSP.h"
-#include "cores/AudioEngine/Interfaces/AE.h"
 #include "ServiceBroker.h"
 #include "filesystem/Directory.h"
 #include "filesystem/File.h"
 #include "filesystem/SpecialProtocol.h"
-#include "powermanagement/PowerManager.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
-#include "Util.h"
 #include "Application.h"
-#include "PlayListPlayer.h"
-#include "interfaces/AnnouncementManager.h"
-#include "addons/BinaryAddonCache.h"
-#include "interfaces/python/XBPython.h"
-#include "pvr/PVRManager.h"
 #include "AppParamParser.h"
+#include "windowing/WinSystem.h"
+#include "platform/Filesystem.h"
 
-#if defined(TARGET_WINDOWS)
-#include "platform/win32/WIN32Util.h"
-#include "platform/win32/CharsetConverter.h"
+#ifdef TARGET_DARWIN
+#include "Util.h"
 #endif
 
 #include <cstdio>
 #include <cstdlib>
 #include <climits>
+#include <system_error>
+
+namespace fs = KODI::PLATFORM::FILESYSTEM;
 
 void TestBasicEnvironment::SetUp()
 {
   XFILE::CFile *f;
-
-  g_application.m_ServiceManager.reset(new CServiceManager());
-  if (!g_application.m_ServiceManager->InitStageOne())
-    exit(1);
 
   /* NOTE: The below is done to fix memleak warning about uninitialized variable
    * in xbmcutil::GlobalsSingleton<CAdvancedSettings>::getInstance().
    */
   g_advancedSettings.Initialize();
 
-  // Need to configure the network as some tests access the network member
-  g_application.SetupNetwork();
+  g_application.m_ServiceManager.reset(new CServiceManager());
 
   if (!CXBMCTestUtils::Instance().SetReferenceFileBasePath())
     SetUpError();
@@ -84,29 +73,19 @@ void TestBasicEnvironment::SetUp()
   /* Create a temporary directory and set it to be used throughout the
    * test suite run.
    */
-#ifdef TARGET_WINDOWS
-  using KODI::PLATFORM::WINDOWS::FromW;
-  std::wstring xbmcTempPath;
-  TCHAR lpTempPathBuffer[MAX_PATH];
-  if (!GetTempPath(MAX_PATH, lpTempPathBuffer))
+
+  g_application.EnablePlatformDirectories(false);
+
+  std::error_code ec;
+  m_tempPath = fs::create_temp_directory(ec);
+  if (ec)
+  {
+    TearDown();
     SetUpError();
-  xbmcTempPath = lpTempPathBuffer;
-  if (!GetTempFileName(xbmcTempPath.c_str(), L"xbmctempdir", 0, lpTempPathBuffer))
-    SetUpError();
-  DeleteFile(lpTempPathBuffer);
-  if (!CreateDirectory(lpTempPathBuffer, NULL))
-    SetUpError();
-  CSpecialProtocol::SetTempPath(FromW(lpTempPathBuffer));
-  CSpecialProtocol::SetProfilePath(FromW(lpTempPathBuffer));
-#else
-  char buf[MAX_PATH];
-  char *tmp;
-  strcpy(buf, "/tmp/xbmctempdirXXXXXX");
-  if ((tmp = mkdtemp(buf)) == NULL)
-    SetUpError();
-  CSpecialProtocol::SetTempPath(tmp);
-  CSpecialProtocol::SetProfilePath(tmp);
-#endif
+  }
+
+  CSpecialProtocol::SetTempPath(m_tempPath);
+  CSpecialProtocol::SetProfilePath(m_tempPath);
 
   /* Create and delete a tempfile to initialize the VFS (really to initialize
    * CLibcdio). This is done so that the initialization of the VFS does not
@@ -121,24 +100,19 @@ void TestBasicEnvironment::SetUp()
     TearDown();
     SetUpError();
   }
-  g_powerManager.Initialize();
-  g_application.m_ServiceManager->CreateAudioEngine();
-  CServiceBroker::GetSettings().Initialize();
 
-  if (!g_application.m_ServiceManager->InitStageTwo(CAppParamParser()))
+  if (!g_application.m_ServiceManager->InitForTesting())
     exit(1);
 
-  g_application.m_ServiceManager->StartAudioEngine();
+  CServiceBroker::GetSettings().Initialize();
 }
 
 void TestBasicEnvironment::TearDown()
 {
-  g_application.m_ServiceManager->DeinitStageTwo();
-  g_application.m_ServiceManager->DestroyAudioEngine();
-  std::string xbmcTempPath = CSpecialProtocol::TranslatePath("special://temp/");
-  XFILE::CDirectory::Remove(xbmcTempPath);
+  XFILE::CDirectory::RemoveRecursive(m_tempPath);
+
   CServiceBroker::GetSettings().Uninitialize();
-  g_application.m_ServiceManager->DeinitStageOne();
+  g_application.m_ServiceManager->DeinitTesting();
 }
 
 void TestBasicEnvironment::SetUpError()

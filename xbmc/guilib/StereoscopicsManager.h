@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -80,6 +80,7 @@ public:
   CAction ConvertActionCommandToAction(const std::string &command, const std::string &parameter);
   std::string NormalizeStereoMode(const std::string &mode);
   void OnSettingChanged(std::shared_ptr<const CSetting> setting) override;
+  void OnStreamChange();
   bool OnMessage(CGUIMessage &message) override;
   /*!
    * @brief Handle 3D specific cActions
@@ -90,7 +91,6 @@ public:
 
 private:
   void ApplyStereoMode(const RENDER_STEREO_MODE &mode, bool notify = true);
-  void OnPlaybackStarted(void);
   void OnPlaybackStopped(void);
   std::string GetVideoStereoMode();
   bool IsVideoStereoscopic();

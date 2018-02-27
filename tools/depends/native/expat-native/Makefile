@@ -5,7 +5,7 @@ DEPS=../../Makefile.include Makefile
 
 # lib name, version
 LIBNAME=expat
-VERSION=2.2.0
+VERSION=2.2.5
 SOURCE=$(LIBNAME)-$(VERSION)
 ARCHIVE=$(SOURCE).tar.bz2
 
@@ -13,8 +13,6 @@ ARCHIVE=$(SOURCE).tar.bz2
 CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) ./conftools; ./configure --prefix=$(PREFIX) --disable-shared
 
 LIBDYLIB=$(PLATFORM)/.libs/lib$(LIBNAME).a
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: .installed-$(PLATFORM)
 

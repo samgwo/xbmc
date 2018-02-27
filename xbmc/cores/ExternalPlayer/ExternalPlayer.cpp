@@ -19,11 +19,10 @@
  */
 
 #include "threads/SystemClock.h"
-#include "system.h"
 #include "CompileInfo.h"
 #include "threads/SingleLock.h"
 #include "ExternalPlayer.h"
-#include "windowing/WindowingFactory.h"
+#include "windowing/WinSystem.h"
 #include "dialogs/GUIDialogOK.h"
 #include "guilib/GUIWindowManager.h"
 #include "Application.h"
@@ -58,7 +57,7 @@
 
 using namespace XFILE;
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
 extern HWND g_hWnd;
 #endif
 
@@ -68,10 +67,8 @@ CExternalPlayer::CExternalPlayer(IPlayerCallback& callback)
 {
   m_bAbortRequest = false;
   m_bIsPlaying = false;
-  m_paused = false;
   m_playbackStartTime = 0;
   m_speed = 1;
-  m_totalTime = 1;
   m_time = 0;
 
   m_hideconsole = false;
@@ -82,12 +79,10 @@ CExternalPlayer::CExternalPlayer(IPlayerCallback& callback)
   m_playOneStackItem = false;
 
   m_dialog = NULL;
-  m_hwndXbmc = NULL;
+#if defined(TARGET_WINDOWS_DESKTOP)
   m_xPos = 0;
   m_yPos = 0;
 
-
-#if defined(TARGET_WINDOWS)
   memset(&m_processInfo, 0, sizeof(m_processInfo));
 #endif
 }
@@ -125,7 +120,7 @@ bool CExternalPlayer::CloseFile(bool reopen)
 
   if (m_dialog && m_dialog->IsActive()) m_dialog->Close();
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   if (m_bIsPlaying && m_processInfo.hProcess)
   {
     TerminateProcess(m_processInfo.hProcess, 1);
@@ -228,7 +223,7 @@ void CExternalPlayer::Process()
   // make sure we surround the arguments with quotes where necessary
   std::string strFName;
   std::string strFArgs;
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   // W32 batch-file handline
   if (StringUtils::EndsWith(m_filename, ".bat") || StringUtils::EndsWith(m_filename, ".cmd"))
   {
@@ -259,7 +254,7 @@ void CExternalPlayer::Process()
     strFArgs.append("\"");
   }
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   if (m_warpcursor)
   {
     GetCursorPos(&m_ptCursorpos);
@@ -290,9 +285,9 @@ void CExternalPlayer::Process()
   if (m_hidexbmc && !m_islauncher)
   {
     CLog::Log(LOGNOTICE, "%s: Hiding %s window", __FUNCTION__, CCompileInfo::GetAppName());
-    g_Windowing.Hide();
+    CServiceBroker::GetWinSystem().Hide();
   }
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   else if (currentStyle & WS_EX_TOPMOST)
   {
     CLog::Log(LOGNOTICE, "%s: Lowering %s window", __FUNCTION__, CCompileInfo::GetAppName());
@@ -322,11 +317,11 @@ void CExternalPlayer::Process()
   m_callback.OnPlayBackStarted(m_file);
 
   bool ret = true;
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   ret = ExecuteAppW32(strFName.c_str(),strFArgs.c_str());
 #elif defined(TARGET_ANDROID)
   ret = ExecuteAppAndroid(m_filename.c_str(), mainFile.c_str());
-#elif defined(TARGET_POSIX) || defined(TARGET_DARWIN_OSX)
+#elif (defined(TARGET_POSIX) && !defined(TARGET_DARWIN_IOS)) || defined(TARGET_DARWIN_OSX)
   ret = ExecuteAppLinux(strFArgs.c_str());
 #endif
   int64_t elapsedMillis = XbmcThreads::SystemClockMillis() - m_playbackStartTime;
@@ -336,11 +331,10 @@ void CExternalPlayer::Process()
     if (m_hidexbmc)
     {
       CLog::Log(LOGNOTICE, "%s: %s cannot stay hidden for a launcher process", __FUNCTION__, CCompileInfo::GetAppName());
-      g_Windowing.Show(false);
+      CServiceBroker::GetWinSystem().Show(false);
     }
 
     {
-      CSingleLock lock(g_graphicsContext);
       m_dialog = g_windowManager.GetWindow<CGUIDialogOK>(WINDOW_DIALOG_OK);
       m_dialog->SetHeading(CVariant{23100});
       m_dialog->SetLine(1, CVariant{23104});
@@ -355,8 +349,8 @@ void CExternalPlayer::Process()
   m_bIsPlaying = false;
   CLog::Log(LOGNOTICE, "%s: Stop", __FUNCTION__);
 
-#if defined(TARGET_WINDOWS)
-  g_Windowing.Restore();
+#if defined(TARGET_WINDOWS_DESKTOP)
+  CServiceBroker::GetWinSystem().Restore();
 
   if (currentStyle & WS_EX_TOPMOST)
   {
@@ -368,10 +362,10 @@ void CExternalPlayer::Process()
 #endif
   {
     CLog::Log(LOGNOTICE, "%s: Showing %s window", __FUNCTION__, CCompileInfo::GetAppName());
-    g_Windowing.Show();
+    CServiceBroker::GetWinSystem().Show();
   }
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   if (m_warpcursor)
   {
     m_xPos = 0;
@@ -402,7 +396,7 @@ void CExternalPlayer::Process()
     m_callback.OnPlayBackEnded();
 }
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
 bool CExternalPlayer::ExecuteAppW32(const char* strPath, const char* strSwitches)
 {
   CLog::Log(LOGNOTICE, "%s: %s %s", __FUNCTION__, strPath, strSwitches);
@@ -458,7 +452,7 @@ bool CExternalPlayer::ExecuteAppW32(const char* strPath, const char* strSwitches
 }
 #endif
 
-#if !defined(TARGET_ANDROID) && (defined(TARGET_POSIX) || defined(TARGET_DARWIN_OSX))
+#if !defined(TARGET_ANDROID) && !defined(TARGET_DARWIN_IOS) && (defined(TARGET_POSIX) || defined(TARGET_DARWIN_OSX))
 bool CExternalPlayer::ExecuteAppLinux(const char* strSwitches)
 {
   CLog::Log(LOGNOTICE, "%s: %s", __FUNCTION__, strSwitches);
@@ -523,20 +517,6 @@ void CExternalPlayer::SeekPercentage(float iPercent)
 {
 }
 
-float CExternalPlayer::GetPercentage()
-{
-  int64_t iTime = 0;
-  int64_t iTotalTime = 0;
-
-  if (iTotalTime != 0)
-  {
-    CLog::Log(LOGDEBUG, "Percentage is %f", (iTime * 100 / (float)iTotalTime));
-    return iTime * 100 / (float)iTotalTime;
-  }
-
-  return 0.0f;
-}
-
 void CExternalPlayer::SetAVDelay(float fValue)
 {
 }
@@ -596,7 +576,7 @@ bool CExternalPlayer::Initialize(TiXmlElement* pConfig)
   XMLUtils::GetBoolean(pConfig, "hidexbmc", m_hidexbmc);
   if (!XMLUtils::GetBoolean(pConfig, "hideconsole", m_hideconsole))
   {
-#ifdef TARGET_WINDOWS
+#ifdef TARGET_WINDOWS_DESKTOP
     // Default depends on whether player is a batch file
     m_hideconsole = StringUtils::EndsWith(m_filename, ".bat");
 #endif
@@ -629,7 +609,7 @@ bool CExternalPlayer::Initialize(TiXmlElement* pConfig)
           m_islauncher ? "true" : "false",
           warpCursor.c_str());
 
-#ifdef TARGET_WINDOWS
+#ifdef TARGET_WINDOWS_DESKTOP
   m_filenameReplacers.push_back("^smb:// , / , \\\\ , g");
   m_filenameReplacers.push_back("^smb:\\\\\\\\ , smb:(\\\\\\\\[^\\\\]*\\\\) , \\1 , ");
 #endif

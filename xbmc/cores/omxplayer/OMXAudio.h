@@ -25,7 +25,8 @@
 #include "cores/AudioEngine/Utils/AEAudioFormat.h"
 #include "cores/AudioEngine/Utils/AEUtil.h"
 #include "cores/AudioEngine/Interfaces/AEStream.h"
-#include "linux/PlatformDefs.h"
+#include "cores/VideoPlayer/Process/ProcessInfo.h"
+#include "platform/linux/PlatformDefs.h"
 #include "DVDStreamInfo.h"
 
 #include "OMXClock.h"
@@ -44,20 +45,20 @@ extern "C" {
 typedef struct tGUID
 {
   DWORD Data1;
-  WORD  Data2, Data3;
-  BYTE  Data4[8];
+  unsigned short  Data2, Data3;
+  unsigned char  Data4[8];
 } __attribute__((__packed__)) GUID;
 
 // Audio stuff
 typedef struct tWAVEFORMATEX
 {
-  WORD    wFormatTag;
-  WORD    nChannels;
+  unsigned short wFormatTag;
+  unsigned short nChannels;
   DWORD   nSamplesPerSec;
   DWORD   nAvgBytesPerSec;
-  WORD    nBlockAlign;
-  WORD    wBitsPerSample;
-  WORD    cbSize;
+  unsigned short nBlockAlign;
+  unsigned short wBitsPerSample;
+  unsigned short cbSize;
  } __attribute__((__packed__)) WAVEFORMATEX, *PWAVEFORMATEX, *LPWAVEFORMATEX;
 
  #define WAVE_FORMAT_UNKNOWN           0x0000
@@ -71,9 +72,9 @@ typedef struct tWAVEFORMATEXTENSIBLE
   WAVEFORMATEX Format;
   union
   {
-    WORD wValidBitsPerSample;
-    WORD wSamplesPerBlock;
-    WORD wReserved;
+    unsigned short wValidBitsPerSample;
+    unsigned short wSamplesPerBlock;
+    unsigned short wReserved;
   } Samples;
   DWORD dwChannelMask;
   GUID SubFormat;
@@ -86,7 +87,7 @@ public:
   float GetDelay();
   float GetCacheTime();
   float GetCacheTotal();
-  COMXAudio();
+  COMXAudio(CProcessInfo &processInfo);
   bool Initialize(AEAudioFormat format, OMXClock *clock, CDVDStreamInfo &hints, CAEChannelInfo channelMap, bool bUsePassthrough);
   bool PortSettingsChanged();
   ~COMXAudio();
@@ -165,6 +166,7 @@ private:
   OMX_AUDIO_PARAM_DTSTYPE     m_dtsParam;
   WAVEFORMATEXTENSIBLE        m_wave_header;
   IAEStream *m_pAudioStream;
+  CProcessInfo&     m_processInfo;
 protected:
   COMXCoreComponent m_omx_render_analog;
   COMXCoreComponent m_omx_render_hdmi;

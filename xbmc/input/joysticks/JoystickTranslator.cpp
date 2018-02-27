@@ -21,6 +21,7 @@
 #include "JoystickTranslator.h"
 #include "guilib/LocalizeStrings.h"
 #include "input/joysticks/DriverPrimitive.h"
+#include "input/mouse/MouseStat.h"
 #include "utils/StringUtils.h"
 
 using namespace KODI;
@@ -38,7 +39,6 @@ const char* CJoystickTranslator::HatStateToString(HAT_STATE state)
     case HAT_STATE::RIGHTDOWN: return "DOWN RIGHT";
     case HAT_STATE::LEFTUP:    return "UP LEFT";
     case HAT_STATE::LEFTDOWN:  return "DOWN LEFT";
-    case HAT_STATE::UNPRESSED:
     default:
       break;
   }
@@ -46,7 +46,7 @@ const char* CJoystickTranslator::HatStateToString(HAT_STATE state)
   return "RELEASED";
 }
 
-const char* CJoystickTranslator::TranslateDirection(ANALOG_STICK_DIRECTION dir)
+const char* CJoystickTranslator::TranslateAnalogStickDirection(ANALOG_STICK_DIRECTION dir)
 {
   switch (dir)
   {
@@ -61,14 +61,56 @@ const char* CJoystickTranslator::TranslateDirection(ANALOG_STICK_DIRECTION dir)
   return "";
 }
 
-ANALOG_STICK_DIRECTION CJoystickTranslator::TranslateDirection(const std::string &dir)
+ANALOG_STICK_DIRECTION CJoystickTranslator::TranslateAnalogStickDirection(const std::string &dir)
 {
   if (dir == "up")    return ANALOG_STICK_DIRECTION::UP;
   if (dir == "down")  return ANALOG_STICK_DIRECTION::DOWN;
   if (dir == "right") return ANALOG_STICK_DIRECTION::RIGHT;
   if (dir == "left")  return ANALOG_STICK_DIRECTION::LEFT;
 
-  return ANALOG_STICK_DIRECTION::UNKNOWN;
+  return ANALOG_STICK_DIRECTION::NONE;
+}
+
+const char* CJoystickTranslator::TranslateWheelDirection(WHEEL_DIRECTION dir)
+{
+  switch (dir)
+  {
+    case WHEEL_DIRECTION::RIGHT: return "right";
+    case WHEEL_DIRECTION::LEFT:  return "left";
+    default:
+      break;
+  }
+
+  return "";
+}
+
+WHEEL_DIRECTION CJoystickTranslator::TranslateWheelDirection(const std::string &dir)
+{
+  if (dir == "right") return WHEEL_DIRECTION::RIGHT;
+  if (dir == "left")  return WHEEL_DIRECTION::LEFT;
+
+  return WHEEL_DIRECTION::NONE;
+}
+
+const char* CJoystickTranslator::TranslateThrottleDirection(THROTTLE_DIRECTION dir)
+{
+  switch (dir)
+  {
+    case THROTTLE_DIRECTION::UP:    return "up";
+    case THROTTLE_DIRECTION::DOWN:  return "down";
+    default:
+      break;
+  }
+
+  return "";
+}
+
+THROTTLE_DIRECTION CJoystickTranslator::TranslateThrottleDirection(const std::string &dir)
+{
+  if (dir == "up")    return THROTTLE_DIRECTION::UP;
+  if (dir == "down")  return THROTTLE_DIRECTION::DOWN;
+
+  return THROTTLE_DIRECTION::NONE;
 }
 
 SEMIAXIS_DIRECTION CJoystickTranslator::PositionToSemiAxisDirection(float position)
@@ -79,14 +121,20 @@ SEMIAXIS_DIRECTION CJoystickTranslator::PositionToSemiAxisDirection(float positi
   return SEMIAXIS_DIRECTION::ZERO;
 }
 
-ANALOG_STICK_DIRECTION CJoystickTranslator::VectorToAnalogStickDirection(float x, float y)
+WHEEL_DIRECTION CJoystickTranslator::PositionToWheelDirection(float position)
 {
-  if      (y >= x && y >  -x) return ANALOG_STICK_DIRECTION::UP;
-  else if (y <  x && y >= -x) return ANALOG_STICK_DIRECTION::RIGHT;
-  else if (y <= x && y <  -x) return ANALOG_STICK_DIRECTION::DOWN;
-  else if (y >  x && y <= -x) return ANALOG_STICK_DIRECTION::LEFT;
+  if      (position > 0.0f) return WHEEL_DIRECTION::RIGHT;
+  else if (position < 0.0f) return WHEEL_DIRECTION::LEFT;
 
-  return ANALOG_STICK_DIRECTION::UNKNOWN;
+  return WHEEL_DIRECTION::NONE;
+}
+
+THROTTLE_DIRECTION CJoystickTranslator::PositionToThrottleDirection(float position)
+{
+  if      (position > 0.0f) return THROTTLE_DIRECTION::UP;
+  else if (position < 0.0f) return THROTTLE_DIRECTION::DOWN;
+
+  return THROTTLE_DIRECTION::NONE;
 }
 
 std::string CJoystickTranslator::GetPrimitiveName(const CDriverPrimitive& primitive)

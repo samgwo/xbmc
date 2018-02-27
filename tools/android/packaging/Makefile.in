@@ -1,7 +1,9 @@
 include ../../depends/Makefile.include
 
-OBJS = libcurl.so \
-  libplist.so libshairplay.so \
+BUILD_TYPE:=@CMAKE_BUILD_TYPE@
+BUILD_TYPE_LC:=$(shell echo $(BUILD_TYPE) | tr A-Z a-z)
+
+OBJS = libplist.so libshairplay.so \
   libnfs.so libass.so \
   libbluray.so libsmbclient.so
 
@@ -41,6 +43,9 @@ else ifeq ($(findstring arm,$(CPU)),arm)
   CPU=armeabi-v7a
 endif
 
+# libc++
+STLLIB=$(TOOLCHAIN)/$(HOST)/lib/libc++_shared.so
+
 #older ndk x86
 GDBPATH=$(NDKROOT)/toolchains/$(ARCH)-$(GCC_VERSION)/prebuilt/gdbserver
 
@@ -64,7 +69,7 @@ ifeq ($(JAVA8),yes)
   JAVAC_EXTRA_ARGS = -source 1.7 -target 1.7
 endif
 
-SRCLIBS = $(addprefix $(PREFIX)/lib/,$(OBJS)) $(addprefix $(PREFIX)/lib/$(SDK_PLATFORM)/,$(PLATFORM_OBJS))
+SRCLIBS = $(addprefix $(PREFIX)/lib/,$(OBJS))
 DSTLIBS = $(CPU)/lib/lib@APP_NAME_LC@.so $(addprefix $(CPU)/lib/,$(OBJS)) $(addprefix $(CPU)/lib/,$(PLATFORM_OBJS))
 libs= $(DSTLIBS)
 
@@ -111,24 +116,21 @@ python: | xbmc/assets
 	cd xbmc/assets/python2.7/lib/python2.7/; rm -rf test config lib-dynload
 
 res:
-	mkdir -p xbmc/gen/$(APP_PACKAGE_DIR) xbmc/res xbmc/res/raw xbmc/res/values images
+	mkdir -p xbmc/res xbmc/res/raw xbmc/res/values images
 	@echo "native_arch=$(CPU)" > xbmc/res/raw/xbmc.properties
-	cp -fp $(CMAKE_SOURCE_DIR)/media/Splash.png xbmc/res/drawable/splash.png
+	cp -fp $(CMAKE_SOURCE_DIR)/media/splash.* xbmc/res/drawable/
 	cp -fp media/drawable-hdpi/ic_launcher.png xbmc/res/drawable-hdpi/ic_launcher.png
 	cp -fp media/drawable-ldpi/ic_launcher.png xbmc/res/drawable-ldpi/ic_launcher.png
 	cp -fp media/drawable-mdpi/ic_launcher.png xbmc/res/drawable-mdpi/ic_launcher.png
 	cp -fp media/drawable-xhdpi/ic_launcher.png xbmc/res/drawable-xhdpi/ic_launcher.png
 	cp -fp media/drawable-xxhdpi/ic_launcher.png xbmc/res/drawable-xxhdpi/ic_launcher.png
-	cp -fp $(CMAKE_SOURCE_DIR)/media/Splash.png xbmc/res/drawable-xxxhdpi/splash.png
+	cp -fp $(CMAKE_SOURCE_DIR)/media/splash.* xbmc/res/drawable-xxxhdpi/
 	cp -fp media/drawable-xxxhdpi/ic_launcher.png xbmc/res/drawable-xxxhdpi/ic_launcher.png
 	cp -fp media/drawable-xhdpi/banner.png xbmc/res/drawable-xhdpi/banner.png
+	cp -fp $(CMAKE_SOURCE_DIR)/media/icon80x80.png xbmc/res/drawable/ic_recommendation_80dp.png
 	cp xbmc/strings.xml xbmc/res/values/
 	cp xbmc/colors.xml xbmc/res/values/
-	cp xbmc/activity_main.xml xbmc/res/layout/
 	cp xbmc/searchable.xml xbmc/res/xml/
-	mkdir -p tmp/res; $(AAPT) c -S xbmc/res -C tmp/res; cp -r -n xbmc/res tmp/ || true
-	$(AAPT) p -f -I $(SDKROOT)/platforms/$(SDK_PLATFORM)/android.jar -S tmp/res/ -M xbmc/AndroidManifest.xml -F images/@APP_NAME_LC@app-debug-skeleton.apk -J xbmc/gen/$(APP_PACKAGE_DIR)
-	@rm -rf tmp/
 
 libs: $(PREFIX)/lib/@APP_NAME_LC@/lib@APP_NAME_LC@.so
 	rm -rf xbmc/lib/$(CPU) xbmc/obj/local/$(CPU)
@@ -144,22 +146,20 @@ libs: $(PREFIX)/lib/@APP_NAME_LC@/lib@APP_NAME_LC@.so
 	cd xbmc/obj/local/$(CPU)/; find . -name "*.so" -not -name "lib*.so" | sed "s/\.\///" | xargs -I@ mv @ lib@
 	cp -fp xbmc/obj/local/$(CPU)/*.so xbmc/lib/$(CPU)/
 	$(STRIP) --strip-unneeded xbmc/lib/$(CPU)/*.so
+	(test -s $(STLLIB) && install -p $(STLLIB) ./xbmc/lib/$(CPU)/) || true
 	install -p $(GDBPATH) ./xbmc/lib/$(CPU)/gdbserver
 	echo "set solib-search-path ./obj/local/$(CPU)" > ./xbmc/lib/$(CPU)/gdb.setup
 	echo "directory $(TOOLCHAIN)/sysroot/usr/include $(NDKROOT)/sources/android/native_app_glue" \
              "$(NDKROOT)/sources/cxx-stl/gnu-libstdc++/$(GCC_VERSION)/include $(CORE_SOURCE_DIR)  $(PREFIX)/include jni" >> ./xbmc/lib/$(CPU)/gdb.setup
 
-xbmc/classes.dex: res
-	mkdir -p xbmc/java/$(APP_PACKAGE_DIR) xbmc/java/$(APP_PACKAGE_DIR)/interfaces xbmc/obj
-	@cp xbmc/src/*.java xbmc/java/$(APP_PACKAGE_DIR)/
-	@cp xbmc/src/interfaces/*.java xbmc/java/$(APP_PACKAGE_DIR)/interfaces/
-	@javac -classpath $(SDKROOT)/platforms/$(SDK_PLATFORM)/android.jar:xbmc/obj -d xbmc/obj -sourcepath xbmc/src xbmc/gen/$(APP_PACKAGE_DIR)/*.java xbmc/java/$(APP_PACKAGE_DIR)/*.java xbmc/java/$(APP_PACKAGE_DIR)/interfaces/*.java $(JAVAC_EXTRA_ARGS)
-	@$(DX) --dex --output=xbmc/classes.dex xbmc/obj xbmc/lib
+java: res
+	mkdir -p xbmc/java/$(APP_PACKAGE_DIR) xbmc/obj
+	@cp -R xbmc/src/* xbmc/java/$(APP_PACKAGE_DIR)/
 
-package: libs python xbmc/classes.dex
-	@echo "Creating package..."
-	@cp images/@APP_NAME_LC@app-debug-skeleton.apk images/@APP_NAME_LC@app-debug-$(CPU)-unaligned.apk
-	@cd xbmc; $(ZIP) -r -q ../images/@APP_NAME_LC@app-debug-$(CPU)-unaligned.apk lib/$(CPU) assets classes.dex
+package: libs python java
+	@echo "Gradle build..."
+	ANDROID_HOME=$(SDKROOT) ./gradlew assemble$(BUILD_TYPE)Unsigned
+	@cp xbmc/build/outputs/apk/xbmc-$(BUILD_TYPE_LC)Unsigned-unsigned.apk images/@APP_NAME_LC@app-debug-$(CPU)-unaligned.apk
 
 apk-sign:
 	@echo "Signing..."
@@ -176,15 +176,13 @@ $(SRCLIBS):
 apk-clean:
 	rm -rf images
 	rm -rf xbmc/java
-	rm -rf xbmc/gen
 	rm -rf xbmc/lib
 	rm -rf xbmc/assets
 	rm -rf xbmc/obj
 	rm -rf xbmc/res/raw
 	rm -rf xbmc/res/values
-	rm -rf tmp
-	rm -f xbmc/res/drawable/splash.png
-	rm -f xbmc/classes.dex
+	rm -f xbmc/res/drawable/splash.*
+	rm -f xbmc/res/drawable-xxxhdpi/splash.*
 	rm -rf assets
 
 .PHONY: force libs assets python sharedapk sharedobb res package

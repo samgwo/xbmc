@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2016 Christian Browet
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@
 #include "DVDCodecs/DVDFactoryCodec.h"
 #include "utils/log.h"
 #include "settings/AdvancedSettings.h"
-#include "cores/VideoPlayer/DVDDemuxers/DemuxCrypto.h"
+#include "cores/VideoPlayer/Interface/Addon/DemuxCrypto.h"
 
 #include <androidjni/ByteBuffer.h>
 #include <androidjni/MediaCodec.h>
@@ -578,4 +578,3 @@ void CDVDAudioCodecAndroidMediaCodec::ConfigureOutputFormat(CJNIMediaFormat* med
   if (xbmc_jnienv()->ExceptionCheck())
     xbmc_jnienv()->ExceptionClear();
 }
-

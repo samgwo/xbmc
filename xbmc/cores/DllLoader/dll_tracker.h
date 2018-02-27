@@ -23,7 +23,9 @@
 #include "threads/CriticalSection.h"
 #include "PlatformDefs.h"
 #ifdef TARGET_WINDOWS
-#include "system.h" // for SOCKET
+#if defined(TARGET_WINDOWS_STORE)
+#include <WinSock2.h>
+#endif
 #endif
 
 #include <list>

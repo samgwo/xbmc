@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,11 @@ uint64_t str2uint64(const std::string &str, uint64_t fallback = 0);
 uint64_t str2uint64(const std::wstring &str, uint64_t fallback = 0);
 double str2double(const std::string &str, double fallback = 0.0);
 double str2double(const std::wstring &str, double fallback = 0.0);
+
+#ifdef TARGET_WINDOWS_STORE
+#pragma pack(push)
+#pragma pack(8)
+#endif
 
 class CVariant
 {
@@ -88,7 +93,9 @@ public:
   VariantType type() const;
 
   int64_t asInteger(int64_t fallback = 0) const;
+  int32_t asInteger32(int32_t fallback = 0) const;
   uint64_t asUnsignedInteger(uint64_t fallback = 0u) const;
+  uint32_t asUnsignedInteger32(uint32_t fallback = 0u) const;
   bool asBoolean(bool fallback = false) const;
   std::string asString(const std::string &fallback = "") const;
   std::wstring asWideString(const std::wstring &fallback = L"") const;
@@ -165,3 +172,8 @@ private:
   static VariantArray EMPTY_ARRAY;
   static VariantMap EMPTY_MAP;
 };
+
+#ifdef TARGET_WINDOWS_STORE
+#pragma pack(pop)
+#endif
+

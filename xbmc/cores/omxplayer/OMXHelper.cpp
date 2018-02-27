@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
  *
  */
 
-#include "system.h"
-
 #include "VideoPlayer.h"
 #include "ServiceBroker.h"
 #include "settings/Settings.h"
@@ -35,14 +33,7 @@
       return (lh) > (rh); \
   } while(0)
 
-static bool PredicateVideoPriority(const SelectionStream& lh, const SelectionStream& rh)
-{
-  PREDICATE_RETURN(lh.flags & CDemuxStream::FLAG_DEFAULT
-                 , rh.flags & CDemuxStream::FLAG_DEFAULT);
-  return false;
-}
-
-bool OMXPlayerUnsuitable(bool m_HasVideo, bool m_HasAudio, CDVDDemux* m_pDemuxer, CDVDInputStream* m_pInputStream, CSelectionStreams &m_SelectionStreams)
+bool OMXPlayerUnsuitable(bool m_HasVideo, bool m_HasAudio, CDVDDemux* m_pDemuxer, std::shared_ptr<CDVDInputStream> m_pInputStream, CSelectionStreams &m_SelectionStreams)
 {
   // if no OMXPlayer acceleration then it is not suitable
   if (!CServiceBroker::GetSettings().GetBool(CSettings::SETTING_VIDEOPLAYER_USEOMXPLAYER))
@@ -70,11 +61,9 @@ bool OMXPlayerUnsuitable(bool m_HasVideo, bool m_HasAudio, CDVDDemux* m_pDemuxer
     // find video stream
     int num_supported = 0, num_unsupported = 0;
     AVCodecID codec = AV_CODEC_ID_NONE;
-    SelectionStreams streams = m_SelectionStreams.Get(STREAM_VIDEO, PredicateVideoPriority);
-    for(SelectionStreams::iterator it = streams.begin(); it != streams.end(); ++it)
+    for (const auto &it : m_SelectionStreams.Get(STREAM_VIDEO))
     {
-      int iStream = it->id;
-      CDemuxStream *stream = m_pDemuxer->GetStream(it->demuxerId, iStream);
+      CDemuxStream *stream = m_pDemuxer->GetStream(it.demuxerId, it.id);
       if(!stream || stream->disabled || stream->flags & AV_DISPOSITION_ATTACHED_PIC)
         continue;
       CDVDStreamInfo hint(*stream, true);
@@ -109,7 +98,7 @@ bool OMXPlayerUnsuitable(bool m_HasVideo, bool m_HasAudio, CDVDDemux* m_pDemuxer
 }
 
 bool OMXDoProcessing(struct SOmxPlayerState &m_OmxPlayerState, int m_playSpeed, IDVDStreamPlayerVideo *m_VideoPlayerVideo, IDVDStreamPlayerAudio *m_VideoPlayerAudio,
-                     CCurrentStream m_CurrentAudio, CCurrentStream m_CurrentVideo, bool m_HasVideo, bool m_HasAudio, CRenderManager& m_renderManager)
+                     CCurrentStream m_CurrentAudio, CCurrentStream m_CurrentVideo, bool m_HasVideo, bool m_HasAudio, CProcessInfo &processInfo)
 {
   bool reopen_stream = false;
   unsigned int now = XbmcThreads::SystemClockMillis();
@@ -130,15 +119,15 @@ bool OMXDoProcessing(struct SOmxPlayerState &m_OmxPlayerState, int m_playSpeed, 
     bool audio_fifo_low = false, video_fifo_low = false, audio_fifo_high = false, video_fifo_high = false;
 
     if (m_OmxPlayerState.interlace_method == VS_INTERLACEMETHOD_MAX)
-      m_OmxPlayerState.interlace_method = CMediaSettings::GetInstance().GetCurrentVideoSettings().m_InterlaceMethod;
+      m_OmxPlayerState.interlace_method = processInfo.GetVideoSettings().m_InterlaceMethod;
 
     // if deinterlace setting has changed, we should close and open video
-    if (m_OmxPlayerState.interlace_method != CMediaSettings::GetInstance().GetCurrentVideoSettings().m_InterlaceMethod)
+    if (m_OmxPlayerState.interlace_method != processInfo.GetVideoSettings().m_InterlaceMethod)
     {
       CLog::Log(LOGNOTICE, "%s - Reopen stream due to interlace change (%d,%d)", __FUNCTION__,
-        m_OmxPlayerState.interlace_method, CMediaSettings::GetInstance().GetCurrentVideoSettings().m_InterlaceMethod);
+        m_OmxPlayerState.interlace_method, processInfo.GetVideoSettings().m_InterlaceMethod);
 
-      m_OmxPlayerState.interlace_method    = CMediaSettings::GetInstance().GetCurrentVideoSettings().m_InterlaceMethod;
+      m_OmxPlayerState.interlace_method    = processInfo.GetVideoSettings().m_InterlaceMethod;
       reopen_stream = true;
     }
 

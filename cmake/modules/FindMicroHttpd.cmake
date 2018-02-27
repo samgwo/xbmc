@@ -15,7 +15,7 @@
 #   MicroHttpd::MicroHttpd   - The MicroHttpd library
 
 if(PKG_CONFIG_FOUND)
-  pkg_check_modules(PC_MICROHTTPD libmicrohttpd>=0.4 QUIET)
+  pkg_check_modules(PC_MICROHTTPD libmicrohttpd>=0.9.40 QUIET)
 endif()
 
 find_path(MICROHTTPD_INCLUDE_DIR NAMES microhttpd.h
@@ -33,7 +33,7 @@ find_package_handle_standard_args(MicroHttpd
 if(MICROHTTPD_FOUND)
   set(MICROHTTPD_LIBRARIES ${MICROHTTPD_LIBRARY})
   set(MICROHTTPD_INCLUDE_DIRS ${MICROHTTPD_INCLUDE_DIR})
-  set(MICROHTTPD_DEFINITIONS -DHAVE_LIBMICROHTTPD=1)
+  set(MICROHTTPD_DEFINITIONS -DHAS_WEB_SERVER=1 -DHAS_WEB_INTERFACE=1)
 
   if(KODI_DEPENDSBUILD AND NOT WIN32)
     find_library(GCRYPT_LIBRARY gcrypt)

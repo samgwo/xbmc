@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,8 +20,9 @@
 #pragma once
 
 #include "rendering/gles/RenderSystemGLES.h"
-#include "utils/GlobalsHandling.h"
 #include "WinSystemWaylandEGLContext.h"
+
+class CVaapiProxy;
 
 namespace KODI
 {
@@ -35,14 +36,17 @@ class CWinSystemWaylandEGLContextGLES : public CWinSystemWaylandEGLContext, publ
 public:
   bool InitWindowSystem() override;
 protected:
+  bool CreateContext() override;
   void SetContextSize(CSizeInt size) override;
   void SetVSyncImpl(bool enable) override;
   void PresentRenderImpl(bool rendered) override;
+  struct delete_CVaapiProxy
+  {
+    void operator()(CVaapiProxy *p) const;
+  };
+  std::unique_ptr<CVaapiProxy, delete_CVaapiProxy> m_vaapiProxy;
 };
 
 }
 }
 }
-
-XBMC_GLOBAL_REF(KODI::WINDOWING::WAYLAND::CWinSystemWaylandEGLContextGLES, g_Windowing);
-#define g_Windowing XBMC_GLOBAL_USE(KODI::WINDOWING::WAYLAND::CWinSystemWaylandEGLContextGLES)

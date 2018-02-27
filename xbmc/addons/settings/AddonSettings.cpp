@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include "AddonSettings.h"
 #include "FileItem.h"
 #include "GUIInfoManager.h"
+#include "ServiceBroker.h"
 #include "addons/Addon.h"
 #include "addons/settings/GUIDialogAddonSettings.h"
 #include "addons/settings/SettingUrlEncodedString.h"
@@ -42,6 +43,7 @@
 #include "settings/lib/SettingsManager.h"
 #include "storage/MediaManager.h"
 #include "threads/SingleLock.h"
+#include "utils/FileExtensionProvider.h"
 #include "utils/log.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
@@ -311,7 +313,12 @@ bool CAddonSettings::Load(const CXBMCTinyXML& doc)
     }
 
     // try to load the old setting value
-    if (!newSetting->FromString(setting.second))
+    if (!newSetting)
+    {
+      CLog::Log(LOGERROR, "CAddonSettings[%s]: had null newSetting for value \"%s\" for setting %s",
+        m_addonId.c_str(), setting.second.c_str(), setting.first.c_str());
+    }
+    else if (!newSetting->FromString(setting.second))
     {
       CLog::Log(LOGWARNING, "CAddonSettings[%s]: failed to load value \"%s\" for setting %s",
         m_addonId.c_str(), setting.second.c_str(), setting.first.c_str());
@@ -844,9 +851,9 @@ SettingPtr CAddonSettings::InitializeFromOldSettingPath(const std::string& setti
     setting->SetSources({ source });
 
   // setup masking
-  const auto audioMask = g_advancedSettings.GetMusicExtensions();
-  const auto videoMask = g_advancedSettings.m_videoExtensions;
-  const auto imageMask = g_advancedSettings.GetPictureExtensions();
+  const auto audioMask = CServiceBroker::GetFileExtensionProvider().GetMusicExtensions();
+  const auto videoMask = CServiceBroker::GetFileExtensionProvider().GetVideoExtensions();
+  const auto imageMask = CServiceBroker::GetFileExtensionProvider().GetPictureExtensions();
   auto execMask = "";
 #if defined(TARGET_WINDOWS)
   execMask = ".exe|.bat|.cmd|.py";
@@ -1460,7 +1467,6 @@ bool CAddonSettings::ParseOldCondition(std::shared_ptr<const CSetting> setting, 
 
 bool CAddonSettings::ParseOldConditionExpression(std::string str, ConditionExpression& expression)
 {
-  StringUtils::ToLower(str);
   StringUtils::Trim(str);
 
   size_t posOpen = str.find('(');

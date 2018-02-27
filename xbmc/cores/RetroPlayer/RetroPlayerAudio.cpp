@@ -20,32 +20,29 @@
 
 #include "ServiceBroker.h"
 #include "RetroPlayerAudio.h"
-#include "RetroPlayerDefines.h"
 #include "cores/AudioEngine/Interfaces/AE.h"
 #include "cores/AudioEngine/Interfaces/AEStream.h"
 #include "cores/AudioEngine/Utils/AEChannelInfo.h"
 #include "cores/AudioEngine/Utils/AEUtil.h"
-#include "cores/VideoPlayer/DVDCodecs/Audio/DVDAudioCodec.h"
-#include "cores/VideoPlayer/DVDCodecs/DVDFactoryCodec.h"
-#include "cores/VideoPlayer/DVDDemuxers/DVDDemux.h"
-#include "cores/VideoPlayer/DVDClock.h"
-#include "cores/VideoPlayer/DVDStreamInfo.h"
-#include "cores/VideoPlayer/Process/ProcessInfo.h"
+#include "cores/RetroPlayer/process/RPProcessInfo.h"
 #include "threads/Thread.h"
 #include "utils/log.h"
 
 using namespace KODI;
 using namespace RETRO;
 
-CRetroPlayerAudio::CRetroPlayerAudio(CProcessInfo& processInfo) :
+CRetroPlayerAudio::CRetroPlayerAudio(CRPProcessInfo& processInfo) :
   m_processInfo(processInfo),
   m_pAudioStream(nullptr),
   m_bAudioEnabled(true)
 {
+  CLog::Log(LOGDEBUG, "RetroPlayer[AUDIO]: Initializing audio");
 }
 
 CRetroPlayerAudio::~CRetroPlayerAudio()
 {
+  CLog::Log(LOGDEBUG, "RetroPlayer[AUDIO]: Deinitializing audio");
+
   CloseStream();
 }
 
@@ -80,12 +77,12 @@ bool CRetroPlayerAudio::OpenPCMStream(AEDataFormat format, unsigned int samplera
   if (m_pAudioStream != nullptr)
     CloseStream();
 
-  CLog::Log(LOGINFO, "RetroPlayerAudio: Creating audio stream, sample rate = %d", samplerate);
+  CLog::Log(LOGINFO, "RetroPlayer[AUDIO]: Creating audio stream, sample rate = %d", samplerate);
 
   // Resampling is not supported
   if (NormalizeSamplerate(samplerate) != samplerate)
   {
-    CLog::Log(LOGERROR, "RetroPlayerAudio: Resampling to %d not supported", NormalizeSamplerate(samplerate));
+    CLog::Log(LOGERROR, "RetroPlayer[AUDIO]: Resampling to %d not supported", NormalizeSamplerate(samplerate));
     return false;
   }
 
@@ -97,74 +94,29 @@ bool CRetroPlayerAudio::OpenPCMStream(AEDataFormat format, unsigned int samplera
 
   if (!m_pAudioStream)
   {
-    CLog::Log(LOGERROR, "RetroPlayerAudio: Failed to create audio stream");
+    CLog::Log(LOGERROR, "RetroPlayer[AUDIO]: Failed to create audio stream");
     return false;
   }
+
+  m_processInfo.SetAudioChannels(audioFormat.m_channelLayout);
+  m_processInfo.SetAudioSampleRate(audioFormat.m_sampleRate);
+  m_processInfo.SetAudioBitsPerSample(CAEUtil::DataFormatToUsedBits(audioFormat.m_dataFormat));
 
   return true;
 }
 
 bool CRetroPlayerAudio::OpenEncodedStream(AVCodecID codec, unsigned int samplerate, const CAEChannelInfo& channelLayout)
 {
-  CDemuxStreamAudio audioStream;
+  CLog::Log(LOGERROR, "RetroPlayer[AUDIO]: Encoded audio stream not supported");
 
-  // Stream
-  audioStream.uniqueId = GAME_STREAM_AUDIO_ID;
-  audioStream.codec = codec;
-  audioStream.type = STREAM_AUDIO;
-  audioStream.source = STREAM_SOURCE_DEMUX;
-  audioStream.realtime = true;
-
-  // Audio
-  audioStream.iChannels = channelLayout.Count();
-  audioStream.iSampleRate = samplerate;
-  audioStream.iChannelLayout = CAEUtil::GetAVChannelLayout(channelLayout);
-
-  CDVDStreamInfo hint(audioStream);
-  m_pAudioCodec.reset(CDVDFactoryCodec::CreateAudioCodec(hint, m_processInfo, false, false, CAEStreamInfo::STREAM_TYPE_NULL));
-
-  if (!m_pAudioCodec)
-  {
-    CLog::Log(LOGERROR, "RetroPlayerAudio: Failed to create audio codec (codec=%d, samplerate=%u)", codec, samplerate);
-    return false;
-  }
-
-  return true;
+  return true; //! @todo
 }
 
 void CRetroPlayerAudio::AddData(const uint8_t* data, unsigned int size)
 {
   if (m_bAudioEnabled)
   {
-    if (m_pAudioCodec)
-    {
-      DemuxPacket packet(const_cast<uint8_t*>(data), size, DVD_NOPTS_VALUE, DVD_NOPTS_VALUE);
-      int consumed = m_pAudioCodec->AddData(packet);
-      if (consumed < 0)
-      {
-        CLog::Log(LOGERROR, "CRetroPlayerAudio::AddData - Decode Error (%d)", consumed);
-        m_pAudioCodec.reset();
-        return;
-      }
-
-      DVDAudioFrame audioframe;
-      m_pAudioCodec->GetData(audioframe);
-
-      if (audioframe.nb_frames != 0)
-      {
-        // Open audio stream if not already open
-        if (!m_pAudioStream)
-        {
-          const AEAudioFormat& format = audioframe.format;
-          if (!OpenPCMStream(format.m_dataFormat, format.m_sampleRate, format.m_channelLayout))
-            m_pAudioCodec.reset();
-        }
-
-        if (m_pAudioStream)
-          m_pAudioStream->AddData(audioframe.data, 0, audioframe.nb_frames);
-      }
-    }
-    else if (m_pAudioStream)
+    if (m_pAudioStream)
     {
       const unsigned int frameSize = m_pAudioStream->GetChannelCount() * (CAEUtil::DataFormatToBits(m_pAudioStream->GetDataFormat()) >> 3);
       m_pAudioStream->AddData(&data, 0, size / frameSize);
@@ -174,13 +126,10 @@ void CRetroPlayerAudio::AddData(const uint8_t* data, unsigned int size)
 
 void CRetroPlayerAudio::CloseStream()
 {
-  if (m_pAudioCodec)
-  {
-    m_pAudioCodec->Dispose();
-    m_pAudioCodec.reset();
-  }
   if (m_pAudioStream)
   {
+    CLog::Log(LOGDEBUG, "RetroPlayer[AUDIO]: Closing audio stream");
+
     CServiceBroker::GetActiveAE().FreeStream(m_pAudioStream);
     m_pAudioStream = nullptr;
   }

@@ -18,13 +18,13 @@
  *
  */
 
-#include "system.h" // for HAS_DVD_DRIVE
 #include "MusicInfoTagLoaderCDDA.h"
 #include "network/cddb.h"
 #include "MusicInfoTag.h"
 #include "profiles/ProfilesManager.h"
 #include "storage/MediaManager.h"
 #include "utils/log.h"
+#include "ServiceBroker.h"
 
 using namespace MUSIC_INFO;
 
@@ -56,9 +56,11 @@ bool CMusicInfoTagLoaderCDDA::Load(const std::string& strFileName, CMusicInfoTag
     if (pCdInfo == NULL)
       return bResult;
 
+    const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
     // Prepare cddb
     Xcddb cddb;
-    cddb.setCacheDir(CProfilesManager::GetInstance().GetCDDBFolder());
+    cddb.setCacheDir(profileManager.GetCDDBFolder());
 
     int iTrack = atoi(strFileName.substr(13, strFileName.size() - 13 - 5).c_str());
 

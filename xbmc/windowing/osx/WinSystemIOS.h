@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,16 +20,11 @@
 
 #pragma once
 
-#ifndef WINDOW_SYSTEM_IOSEGL_H
-#define WINDOW_SYSTEM_IOSEGL_H
-
-#if defined(TARGET_DARWIN_IOS)
 #include <string>
 #include <vector>
 
 #include "windowing/WinSystem.h"
 #include "rendering/gles/RenderSystemGLES.h"
-#include "utils/GlobalsHandling.h"
 #include "threads/CriticalSection.h"
 
 class IDispResource;
@@ -61,17 +56,17 @@ public:
   bool Hide() override;
   bool Show(bool raise = true) override;
 
-  bool IsExtSupported(const char* extension) override;
+  bool IsExtSupported(const char* extension) const override;
 
   bool BeginRender() override;
   bool EndRender() override;
-  
-  virtual void Register(IDispResource *resource);
-  virtual void Unregister(IDispResource *resource);
-  
+
+  void Register(IDispResource *resource) override;
+  void Unregister(IDispResource *resource) override;
+
   int GetNumScreens() override;
   int GetCurrentScreen() override;
-  
+
   virtual std::unique_ptr<CVideoSync> GetVideoSync(void *clock) override;
 
   bool InitDisplayLink(CVideoSyncIos *syncImpl);
@@ -92,7 +87,7 @@ protected:
   CCriticalSection             m_resourceSection;
   std::vector<IDispResource*>  m_resources;
   bool         m_bIsBackgrounded;
-  
+
 private:
   bool GetScreenResolution(int* w, int* h, double* fps, int screenIdx);
   void FillInVideoModes();
@@ -100,9 +95,3 @@ private:
   CADisplayLinkWrapper *m_pDisplayLink;
 };
 
-XBMC_GLOBAL_REF(CWinSystemIOS,g_Windowing);
-#define g_Windowing XBMC_GLOBAL_USE(CWinSystemIOS)
-
-#endif
-
-#endif // WINDOW_SYSTEM_IOSEGL_H

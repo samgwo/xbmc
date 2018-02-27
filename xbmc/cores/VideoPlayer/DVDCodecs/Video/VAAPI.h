@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -21,19 +21,19 @@
 
 #include "DVDVideoCodec.h"
 #include "cores/VideoPlayer/Process/VideoBuffer.h"
-#include "settings/VideoSettings.h"
+#include "cores/VideoSettings.h"
 #include "threads/CriticalSection.h"
 #include "threads/SharedSection.h"
 #include "threads/Event.h"
 #include "threads/Thread.h"
 #include "utils/ActorProtocol.h"
-#include "guilib/Geometry.h"
+#include "utils/Geometry.h"
 #include <list>
 #include <map>
 #include <memory>
 #include <vector>
 #include <va/va.h>
-#include "linux/sse4/DllLibSSE4.h"
+#include "platform/linux/sse4/DllLibSSE4.h"
 
 extern "C" {
 #include "libavutil/avutil.h"
@@ -181,6 +181,8 @@ class CVaapiRenderPicture : public CVideoBuffer
 {
 public:
   explicit CVaapiRenderPicture(int id) : CVideoBuffer(id) { }
+  void GetPlanes(uint8_t*(&planes)[YuvImage::MAX_PLANES]) override;
+  void GetStrides(int(&strides)[YuvImage::MAX_PLANES]) override;
   VideoPicture DVDPic;
   CVaapiProcessedPicture procPic;
   AVFrame *avFrame = nullptr;
@@ -289,7 +291,6 @@ protected:
   CVaapiDecodedPicture m_currentPicture;
   CPostproc *m_pp;
   SDiMethods m_diMethods;
-  EINTERLACEMETHOD m_currentDiMethod;
 };
 
 //-----------------------------------------------------------------------------
@@ -354,9 +355,21 @@ private:
   int m_renderNodeFD{-1};
 };
 
-/**
- *  VAAPI main class
- */
+//-----------------------------------------------------------------------------
+// Interface into windowing
+//-----------------------------------------------------------------------------
+
+class IVaapiWinSystem
+{
+public:
+  virtual VADisplay GetVADisplay() = 0;
+  virtual void *GetEGLDisplay() { return nullptr; };
+};
+
+//-----------------------------------------------------------------------------
+// VAAPI main class
+//-----------------------------------------------------------------------------
+
 class CDecoder
  : public IHardwareDecoder
 {
@@ -384,7 +397,9 @@ public:
   static int FFGetBuffer(AVCodecContext *avctx, AVFrame *pic, int flags);
 
   static IHardwareDecoder* Create(CDVDStreamInfo &hint, CProcessInfo &processInfo, AVPixelFormat fmt);
-  static void Register(bool hevc);
+  static void Register(IVaapiWinSystem *winSystem, bool hevc);
+
+  static IVaapiWinSystem* m_pWinSystem;
 
 protected:
   void SetWidthHeight(int width, int height);
@@ -441,7 +456,7 @@ public:
   virtual bool Filter(CVaapiProcessedPicture &outPic) = 0;
   virtual void ClearRef(VASurfaceID surf) = 0;
   virtual void Flush() = 0;
-  virtual bool Compatible(EINTERLACEMETHOD method) = 0;
+  virtual bool UpdateDeintMethod(EINTERLACEMETHOD method) = 0;
   virtual bool DoesSync() = 0;
   virtual bool WantsPic() {return true;}
 protected:
@@ -461,7 +476,7 @@ public:
   bool Filter(CVaapiProcessedPicture &outPic) override;
   void ClearRef(VASurfaceID surf) override;
   void Flush() override;
-  bool Compatible(EINTERLACEMETHOD method) override;
+  bool UpdateDeintMethod(EINTERLACEMETHOD method) override;
   bool DoesSync() override;
 protected:
   CVaapiDecodedPicture m_pic;
@@ -481,7 +496,7 @@ public:
   bool Filter(CVaapiProcessedPicture &outPic) override;
   void ClearRef(VASurfaceID surf) override;
   void Flush() override;
-  bool Compatible(EINTERLACEMETHOD method) override;
+  bool UpdateDeintMethod(EINTERLACEMETHOD method) override;
   bool DoesSync() override;
   bool WantsPic() override;
 protected:
@@ -513,7 +528,7 @@ public:
   bool Filter(CVaapiProcessedPicture &outPic) override;
   void ClearRef(VASurfaceID surf) override;
   void Flush() override;
-  bool Compatible(EINTERLACEMETHOD method) override;
+  bool UpdateDeintMethod(EINTERLACEMETHOD method) override;
   bool DoesSync() override;
 protected:
   bool CheckSuccess(VAStatus status);

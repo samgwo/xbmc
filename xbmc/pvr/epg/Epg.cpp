@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -320,16 +320,17 @@ void CPVREpg::AddEntry(const CPVREpgInfoTag &tag)
 bool CPVREpg::Load(void)
 {
   bool bReturn(false);
-  CPVREpgDatabase *database = CServiceBroker::GetPVRManager().EpgContainer().GetDatabase();
+  CPVREpgDatabasePtr database = CServiceBroker::GetPVRManager().EpgContainer().GetEpgDatabase();
 
-  if (!database || !database->IsOpen())
+  if (!database)
   {
     CLog::Log(LOGERROR, "EPG - %s - could not open the database", __FUNCTION__);
     return bReturn;
   }
 
-  CSingleLock lock(m_critSection);
   int iEntriesLoaded = database->Get(*this);
+
+  CSingleLock lock(m_critSection);
   if (iEntriesLoaded <= 0)
   {
     CLog::Log(LOGDEBUG, "EPG - %s - no database entries found for table '%s'.", __FUNCTION__, m_strName.c_str());
@@ -380,31 +381,25 @@ bool CPVREpg::UpdateEntries(const CPVREpg &epg, bool bStoreInDb /* = true */)
 
 CDateTime CPVREpg::GetLastScanTime(void)
 {
+  bool bIgnore = CServiceBroker::GetSettings().GetBool(CSettings::SETTING_EPG_IGNOREDBFORCLIENT);
+  CPVREpgDatabasePtr database = CServiceBroker::GetPVRManager().EpgContainer().GetEpgDatabase();
+
   CDateTime lastScanTime;
   {
     CSingleLock lock(m_critSection);
 
     if (!m_lastScanTime.IsValid())
     {
-      if (!CServiceBroker::GetSettings().GetBool(CSettings::SETTING_EPG_IGNOREDBFORCLIENT))
-      {
-        CPVREpgDatabase *database = CServiceBroker::GetPVRManager().EpgContainer().GetDatabase();
-        CDateTime dtReturn; dtReturn.SetValid(false);
-
-        if (database && database->IsOpen())
-          database->GetLastEpgScanTime(m_iEpgID, &m_lastScanTime);
-      }
+      if (!bIgnore && database)
+        database->GetLastEpgScanTime(m_iEpgID, &m_lastScanTime);
 
       if (!m_lastScanTime.IsValid())
-      {
         m_lastScanTime.SetDateTime(1970, 1, 1, 0, 0, 0);
-        assert(m_lastScanTime.IsValid());
-      }
     }
     lastScanTime = m_lastScanTime;
   }
 
-  return m_lastScanTime;
+  return lastScanTime;
 }
 
 bool CPVREpg::UpdateEntry(const EPG_TAG *data, int iClientId, bool bUpdateDatabase)
@@ -546,7 +541,7 @@ bool CPVREpg::Update(const time_t start, const time_t end, int iUpdateTime, bool
 
   if (bGrabSuccess)
   {
-    CPVRChannelPtr channel(CServiceBroker::GetPVRManager().GetCurrentChannel());
+    CPVRChannelPtr channel(CServiceBroker::GetPVRManager().GetPlayingChannel());
     if (channel &&
         channel->EpgID() == m_iEpgID)
       CServiceBroker::GetPVRManager().ResetPlayingTag();
@@ -600,12 +595,14 @@ bool CPVREpg::Persist(void)
   CLog::Log(LOGDEBUG, "persist table '%s' (#%d) changed=%d deleted=%d", Name().c_str(), m_iEpgID, m_changedTags.size(), m_deletedTags.size());
 #endif
 
-  CPVREpgDatabase *database = CServiceBroker::GetPVRManager().EpgContainer().GetDatabase();
-  if (!database || !database->IsOpen())
+  CPVREpgDatabasePtr database = CServiceBroker::GetPVRManager().EpgContainer().GetEpgDatabase();
+  if (!database)
   {
     CLog::Log(LOGERROR, "EPG - %s - could not open the database", __FUNCTION__);
     return false;
   }
+
+  database->Lock();
 
   {
     CSingleLock lock(m_critSection);
@@ -632,7 +629,10 @@ bool CPVREpg::Persist(void)
     m_bUpdateLastScanTime = false;
   }
 
-  return database->CommitInsertQueries();
+  bool bRet = database->CommitInsertQueries();
+
+  database->Unlock();
+  return bRet;
 }
 
 CDateTime CPVREpg::GetFirstDate(void) const

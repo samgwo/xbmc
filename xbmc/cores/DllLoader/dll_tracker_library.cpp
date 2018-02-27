@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@ extern "C" void tracker_library_free_all(DllTrackInfo* pInfo)
   }
 }
 
-extern "C" HMODULE __stdcall track_LoadLibraryA(LPCSTR file)
+extern "C" HMODULE __stdcall track_LoadLibraryA(const char* file)
 {
   uintptr_t loc = (uintptr_t)_ReturnAddress();
 
@@ -107,7 +107,7 @@ extern "C" HMODULE __stdcall track_LoadLibraryA(LPCSTR file)
   return hHandle;
 }
 
-extern "C" HMODULE __stdcall track_LoadLibraryExA(LPCSTR lpLibFileName, HANDLE hFile, DWORD dwFlags)
+extern "C" HMODULE __stdcall track_LoadLibraryExA(const char* lpLibFileName, HANDLE hFile, DWORD dwFlags)
 {
   uintptr_t loc = (uintptr_t)_ReturnAddress();
 

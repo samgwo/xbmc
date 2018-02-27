@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,8 +23,6 @@
 #include <vector>
 
 #include "storage/IStorageProvider.h"
-
-#ifdef HAVE_LIBUDEV
 
 struct udev;
 struct udev_monitor;
@@ -53,5 +51,3 @@ private:
   struct udev         *m_udev;
   struct udev_monitor *m_udevMon;
 };
-
-#endif

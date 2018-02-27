@@ -20,7 +20,7 @@ endif()
 
 find_path(CURL_INCLUDE_DIR NAMES curl/curl.h
                            PATHS ${PC_CURL_INCLUDEDIR})
-find_library(CURL_LIBRARY NAMES curl libcurl
+find_library(CURL_LIBRARY NAMES curl libcurl libcurl_imp
                           PATHS ${PC_CURL_LIBDIR})
 
 set(CURL_VERSION ${PC_CURL_VERSION})
@@ -36,6 +36,9 @@ if(CURL_FOUND)
 
   # Check whether OpenSSL inside libcurl is static.
   if(UNIX)
+    if(NOT DEFINED HAS_CURL_STATIC AND CURL_LIBRARY MATCHES ".+\.a$" AND PC_CURL_STATIC_LDFLAGS)
+      set(HAS_CURL_STATIC TRUE)
+    endif()
     if(NOT DEFINED HAS_CURL_STATIC)
       get_filename_component(CURL_LIBRARY_DIR ${CURL_LIBRARY} DIRECTORY)
       find_soname(CURL REQUIRED)

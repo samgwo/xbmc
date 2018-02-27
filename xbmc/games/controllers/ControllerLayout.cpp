@@ -21,6 +21,7 @@
 #include "ControllerLayout.h"
 #include "Controller.h"
 #include "ControllerDefinitions.h"
+#include "ControllerTopology.h"
 #include "ControllerTranslator.h"
 #include "guilib/LocalizeStrings.h"
 #include "utils/log.h"
@@ -32,13 +33,29 @@
 using namespace KODI;
 using namespace GAME;
 
+CControllerLayout::CControllerLayout() :
+  m_topology(new CControllerTopology)
+{
+}
+
+CControllerLayout::CControllerLayout(const CControllerLayout &other) :
+  m_controller(other.m_controller),
+  m_labelId(other.m_labelId),
+  m_icon(other.m_icon),
+  m_strImage(other.m_strImage),
+  m_topology(new CControllerTopology(*other.m_topology))
+{
+}
+
+CControllerLayout::~CControllerLayout() = default;
+
 void CControllerLayout::Reset(void)
 {
   m_controller = nullptr;
   m_labelId = -1;
   m_icon.clear();
   m_strImage.clear();
-  m_models.clear();
+  m_topology->Reset();
 }
 
 bool CControllerLayout::IsValid(bool bLog) const
@@ -107,12 +124,6 @@ void CControllerLayout::Deserialize(const TiXmlElement* pElement, const CControl
   if (!image.empty())
     m_strImage = image;
 
-  // Models
-  std::string models = XMLUtils::GetAttribute(pElement, LAYOUT_XML_ATTR_LAYOUT_MODELS);
-  if (!models.empty())
-    m_models = models;
-
-  // Features
   for (const TiXmlElement* pChild = pElement->FirstChildElement(); pChild != nullptr; pChild = pChild->NextSiblingElement())
   {
     if (pChild->ValueStr() == LAYOUT_XML_ELM_CATEGORY)
@@ -128,6 +139,7 @@ void CControllerLayout::Deserialize(const TiXmlElement* pElement, const CControl
       if (!strCategoryLabelId.empty())
         std::istringstream(strCategoryLabelId) >> categoryLabelId;
 
+      // Features
       for (const TiXmlElement* pFeature = pChild->FirstChildElement(); pFeature != nullptr; pFeature = pFeature->NextSiblingElement())
       {
         CControllerFeature feature;
@@ -135,6 +147,13 @@ void CControllerLayout::Deserialize(const TiXmlElement* pElement, const CControl
         if (feature.Deserialize(pFeature, controller, category, categoryLabelId))
           features.push_back(feature);
       }
+    }
+    else if (pChild->ValueStr() == LAYOUT_XML_ELM_TOPOLOGY)
+    {
+      // Topology
+      CControllerTopology topology;
+      if (topology.Deserialize(pChild))
+        *m_topology = std::move(topology);
     }
     else
     {

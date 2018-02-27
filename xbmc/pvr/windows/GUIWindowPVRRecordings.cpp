@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -206,7 +206,7 @@ bool CGUIWindowPVRRecordingsBase::OnMessage(CGUIMessage &message)
           {
             case ACTION_SELECT_ITEM:
             case ACTION_MOUSE_LEFT_CLICK:
-            case ACTION_PLAY:
+            case ACTION_PLAYER_PLAY:
             {
               const CPVRRecordingsPath path(m_vecItems->GetPath());
               if (path.IsValid() && path.IsRecordingsRoot() && item->IsParentFolder())
@@ -224,7 +224,7 @@ bool CGUIWindowPVRRecordingsBase::OnMessage(CGUIMessage &message)
                 break;
               }
 
-              if (message.GetParam1() == ACTION_PLAY)
+              if (message.GetParam1() == ACTION_PLAYER_PLAY)
               {
                 CServiceBroker::GetPVRManager().GUIActions()->PlayRecording(item, true /* check resume */);
                 bReturn = true;

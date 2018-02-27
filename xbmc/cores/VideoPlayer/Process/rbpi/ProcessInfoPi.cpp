@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 #include <interface/mmal/util/mmal_default_components.h>
 #include "ProcessInfoPi.h"
-#include "linux/RBP.h"
+#include "platform/linux/RBP.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/MMALFFmpeg.h"
 
 // Override for platform ports

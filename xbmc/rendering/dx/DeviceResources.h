@@ -1,4 +1,4 @@
-﻿/*
+/*
  *      Copyright (C) 2005-2017 Team Kodi
  *      http://kodi.tv
  *
@@ -29,6 +29,7 @@
 #include <dxgi1_2.h>
 #include <easyhook/easyhook.h>
 #endif
+#include <functional>
 #include <memory>
 
 #include "DirectXHelper.h"
@@ -38,6 +39,24 @@ struct RESOLUTION_INFO;
 
 namespace DX
 {
+  namespace DisplayMetrics
+  {
+    // High resolution displays can require a lot of GPU and battery power to render.
+    // High resolution phones, for example, may suffer from poor battery life if
+    // games attempt to render at 60 frames per second at full fidelity.
+    // The decision to render at full fidelity across all platforms and form factors
+    // should be deliberate.
+    static const bool SupportHighResolutions = true;
+
+    // The default thresholds that define a "high resolution" display. If the thresholds
+    // are exceeded and SupportHighResolutions is false, the dimensions will be scaled
+    // by 50%.
+    static const float Dpi100 = 96.0f;    // 100% of standard desktop display.
+    static const float DpiThreshold = 192.0f;    // 200% of standard desktop display.
+    static const float WidthThreshold = 1920.0f;  // 1080p width.
+    static const float HeightThreshold = 1080.0f;  // 1080p height.
+  };
+
   interface IDeviceNotify
   {
     virtual void OnDXDeviceLost() = 0;
@@ -80,7 +99,7 @@ namespace DX
     D3D_FEATURE_LEVEL GetDeviceFeatureLevel() const { return m_d3dFeatureLevel; }
     CD3DTexture* GetBackBuffer() { return &m_backBufferTex; }
 
-    void GetOutput(IDXGIOutput** pOutput) const;
+    void GetOutput(IDXGIOutput** ppOutput) const;
     void GetAdapterDesc(DXGI_ADAPTER_DESC *desc) const;
     void GetDisplayMode(DXGI_MODE_DESC *mode) const;
     
@@ -106,13 +125,14 @@ namespace DX
     bool IsStereoEnabled() const { return m_stereoEnabled; }
     void SetStereoIdx(byte idx) { m_backBufferTex.SetViewIdx(idx); }
 
-    void SetMonitor(HMONITOR monitor) const;
+    void SetMonitor(HMONITOR monitor);
     HMONITOR GetMonitor() const;
 #if defined(TARGET_WINDOWS_DESKTOP)
     void SetWindow(HWND window);
 #elif defined(TARGET_WINDOWS_STORE)
     void Trim() const;
     void SetWindow(Windows::UI::Core::CoreWindow^ window);
+    void SetWindowPos(Windows::Foundation::Rect rect);
 #endif // TARGET_WINDOWS_STORE
 
   private:
@@ -131,6 +151,7 @@ namespace DX
     void UpdateRenderTargetSize();
     void OnDeviceLost(bool removed);
     void OnDeviceRestored();
+    void HandleOutputChange(const std::function<bool(DXGI_OUTPUT_DESC)>& cmpFunc);
 
     HWND m_window{ nullptr };
 #if defined(TARGET_WINDOWS_STORE)
@@ -144,6 +165,9 @@ namespace DX
     Microsoft::WRL::ComPtr<ID3D11DeviceContext1> m_d3dContext;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext1> m_deferrContext;
     Microsoft::WRL::ComPtr<IDXGISwapChain1> m_swapChain;
+#ifdef _DEBUG
+    Microsoft::WRL::ComPtr<ID3D11Debug> m_d3dDebug;
+#endif
 
     CBackBuffer m_backBufferTex;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_d3dDepthStencilView;

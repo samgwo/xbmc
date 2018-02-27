@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,10 +28,10 @@
 #include "../RenderFlags.h"
 #include "../BaseRenderer.h"
 #include "../RenderCapture.h"
-#include "settings/VideoSettings.h"
+#include "cores/VideoSettings.h"
 #include "cores/VideoPlayer/DVDStreamInfo.h"
-#include "guilib/Geometry.h"
 #include "threads/Thread.h"
+#include "utils/Geometry.h"
 
 // worst case number of buffers. 12 for decoder. 8 for multi-threading in ffmpeg. NUM_BUFFERS for renderer.
 // Note, generally these won't necessarily result in allocated pictures
@@ -149,10 +149,9 @@ public:
   bool RenderCapture(CRenderCapture* capture);
 
   // Player functions
-  virtual bool         Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation) override;
+  virtual bool         Configure(const VideoPicture &picture, float fps, unsigned int orientation) override;
   virtual void         ReleaseBuffer(int idx) override;
   virtual void         UnInit();
-  virtual void         Reset() override; /* resets renderer after seek for example */
   virtual void         Flush() override;
   virtual bool         IsConfigured() override { return m_bConfigured; }
   virtual void         AddVideoPicture(const VideoPicture& pic, int index, double currentClock) override;

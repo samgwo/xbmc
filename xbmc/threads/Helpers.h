@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,17 +22,6 @@
 
 namespace XbmcThreads
 {
-  /**
-   * Any class that inherits from NonCopyable will ... not be copyable (Duh!)
-   */
-  class NonCopyable
-  {
-    inline NonCopyable(const NonCopyable&) = default;
-    inline NonCopyable& operator=(const NonCopyable&) { return *this; }
-  public:
-    inline NonCopyable() = default;
-  };
-
   /**
    * This will create a new predicate from an old predicate P with 
    *  inverse truth value. This predicate is safe to use in a 

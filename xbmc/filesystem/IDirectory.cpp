@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,11 +25,13 @@
 #include "PasswordManager.h"
 #include "utils/URIUtils.h"
 #include "utils/StringUtils.h"
+#include "ServiceBroker.h"
 
 using namespace KODI::MESSAGING;
 using namespace XFILE;
 
-IDirectory::IDirectory(void)
+IDirectory::IDirectory() :
+  m_profileManager(CServiceBroker::GetProfileManager())
 {
   m_flags = DIR_FLAG_DEFAULTS;
 }
@@ -72,22 +74,18 @@ bool IDirectory::IsAllowed(const CURL& url) const
     std::string folder = URIUtils::GetDirectory(fileName);
     URIUtils::RemoveSlashAtEnd(folder);
     folder = URIUtils::GetFileName(folder);
-    if (folder.size() <= 3) // cannot be a vcd variant
-      return true;
-
-    if (!StringUtils::CompareNoCase(folder, "vcd") &&
-        !StringUtils::CompareNoCase(folder, "MPEGAV") &&
-        !StringUtils::CompareNoCase(folder, "CDDA"))
-      return true;
-
-    // Allow filenames of the form AVSEQ##(#).DAT, ITEM###(#).DAT
-    // and MUSIC##(#).DAT
-    return (fileName.length() == 11 || fileName.length() == 12) &&
-           (StringUtils::StartsWithNoCase(fileName, "AVSEQ") ||
-            StringUtils::StartsWithNoCase(fileName, "MUSIC") ||
-            StringUtils::StartsWithNoCase(fileName, "ITEM"));
+    if (StringUtils::EqualsNoCase(folder, "vcd") ||
+        StringUtils::EqualsNoCase(folder, "mpegav") ||
+        StringUtils::EqualsNoCase(folder, "cdda"))
+    {
+      // Allow filenames of the form AVSEQ##(#).DAT, ITEM###(#).DAT
+      // and MUSIC##(#).DAT
+      return (fileName.length() == 11 || fileName.length() == 12) &&
+             (StringUtils::StartsWithNoCase(fileName, "AVSEQ") ||
+              StringUtils::StartsWithNoCase(fileName, "MUSIC") ||
+              StringUtils::StartsWithNoCase(fileName, "ITEM"));
+    }
   }
-
   return true;
 }
 

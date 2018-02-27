@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,8 +19,12 @@
  *
  */
 
+#include <map>
+
 #include "XBDateTime.h"
 #include "guilib/GUIDialog.h"
+
+#include "pvr/channels/PVRChannelNumber.h"
 
 namespace PVR
 {
@@ -57,5 +61,6 @@ namespace PVR
     bool m_bConfirmed;
     bool m_bCanceled;
     CPVREpgSearchFilter *m_searchFilter;
+    std::map<int, CPVRChannelNumber> m_channelNumbersMap;
   };
 }

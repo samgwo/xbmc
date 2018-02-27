@@ -1,6 +1,6 @@
 /*
 *      Copyright (C) 2014 Team XBMC
-*      http://xbmc.org
+*      http://kodi.tv
 *
 *  This Program is free software; you can redistribute it and/or modify
 *  it under the terms of the GNU General Public License as published by
@@ -27,9 +27,6 @@
 #include "utils/StringUtils.h"
 #include "utils/auto_buffer.h"
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN 1
-#endif // WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
 CWin32InterfaceForCLog::CWin32InterfaceForCLog() :
@@ -56,11 +53,21 @@ bool CWin32InterfaceForCLog::OpenLogFile(const std::string& logFilename, const s
   if (!strLogFileOldW.empty())
   {
     (void)DeleteFileW(strLogFileOldW.c_str()); // if it's failed, try to continue
+#ifdef TARGET_WINDOWS_STORE
+    (void)MoveFileEx(strLogFileW.c_str(), strLogFileOldW.c_str(), MOVEFILE_REPLACE_EXISTING); // if it's failed, try to continue
+#else
     (void)MoveFileW(strLogFileW.c_str(), strLogFileOldW.c_str()); // if it's failed, try to continue
+#endif
   }
 
+#ifdef TARGET_WINDOWS_STORE
+  m_hFile = CreateFile2(strLogFileW.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+                                  CREATE_ALWAYS, NULL);
+#else
   m_hFile = CreateFileW(strLogFileW.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL,
-                                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+#endif
+
   if (m_hFile == INVALID_HANDLE_VALUE)
     return false;
 

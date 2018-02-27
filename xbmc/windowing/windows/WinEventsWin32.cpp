@@ -1,6 +1,6 @@
 /*
 *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,10 +29,10 @@
 #include "Application.h"
 #include "guilib/GUIControl.h"       // for EVENT_RESULT
 #include "guilib/GUIWindowManager.h"
-#include "input/MouseStat.h"
-#include "input/InputManager.h"
+#include "input/mouse/MouseStat.h"
 #include "input/touch/generic/GenericTouchActionHandler.h"
 #include "input/touch/generic/GenericTouchSwipeDetector.h"
+#include "input/InputManager.h"
 #include "messaging/ApplicationMessenger.h"
 #include "network/Zeroconf.h"
 #include "network/ZeroconfBrowser.h"
@@ -46,9 +46,10 @@
 #include "utils/JobManager.h"
 #include "utils/log.h"
 #include "utils/StringUtils.h"
-#include "windowing/WindowingFactory.h"
+#include "rendering/dx/RenderContext.h"
 #include "WinKeyMap.h"
 #include "WinEventsWin32.h"
+#include "platform/win32/CharsetConverter.h"
 
 #ifdef TARGET_WINDOWS
 
@@ -70,6 +71,12 @@ HWND g_hWnd = nullptr;
 static GUID USB_HID_GUID = { 0x4D1E55B2, 0xF16F, 0x11CF, { 0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 } };
 
 uint32_t g_uQueryCancelAutoPlay = 0;
+bool g_sizeMoveSizing = false;
+bool g_sizeMoveMoving = false;
+int g_sizeMoveWidth = 0;
+int g_sizeMoveHight = 0;
+int g_sizeMoveX = -10000;
+int g_sizeMoveY = -10000;
 
 int XBMC_TranslateUNICODE = 1;
 
@@ -214,11 +221,6 @@ static XBMC_keysym *TranslateKey(WPARAM vkey, UINT scancode, XBMC_keysym *keysym
 }
 
 
-void CWinEventsWin32::MessagePush(XBMC_Event *newEvent)
-{
-  g_application.OnEvent(*newEvent);
-}
-
 bool CWinEventsWin32::MessagePump()
 {
   MSG  msg;
@@ -232,6 +234,8 @@ bool CWinEventsWin32::MessagePump()
 
 LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+  using KODI::PLATFORM::WINDOWS::FromW;
+
   XBMC_Event newEvent;
   ZeroMemory(&newEvent, sizeof(newEvent));
   static HDEVNOTIFY hDeviceNotify;
@@ -252,7 +256,7 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
   {
     g_hWnd = hWnd;
     // need to set windows handle before WM_SIZE processing
-    g_Windowing.SetWindow(hWnd);
+    DX::Windowing().SetWindow(hWnd);
 
     KODI::WINDOWING::WINDOWS::DIB_InitOSKeymap();
 
@@ -281,7 +285,7 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
         if (UnregisterDeviceNotification(hDeviceNotify))
           hDeviceNotify = nullptr;
         else
-          CLog::Log(LOGNOTICE, "%s: UnregisterDeviceNotification failed (%d)", __FUNCTION__, GetLastError());
+          CLog::LogF(LOGNOTICE, "UnregisterDeviceNotification failed (%d)", GetLastError());
       }
       newEvent.type = XBMC_QUIT;
       g_application.OnEvent(newEvent);
@@ -291,13 +295,13 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
         bool active = g_application.GetRenderGUI();
         g_application.SetRenderGUI(wParam != 0);
         if (g_application.GetRenderGUI() != active)
-          g_Windowing.NotifyAppActiveChange(g_application.GetRenderGUI());
-        CLog::Log(LOGDEBUG, __FUNCTION__": WM_SHOWWINDOW -> window is %s", wParam != 0 ? "shown" : "hidden");
+          DX::Windowing().NotifyAppActiveChange(g_application.GetRenderGUI());
+        CLog::LogF(LOGDEBUG, "WM_SHOWWINDOW -> window is %s", wParam != 0 ? "shown" : "hidden");
       }
       break;
     case WM_ACTIVATE:
       {
-        CLog::Log(LOGDEBUG, __FUNCTION__": WM_ACTIVATE -> window is %s", LOWORD(wParam) != WA_INACTIVE ? "active" : "inactive");
+        CLog::LogF(LOGDEBUG, "WM_ACTIVATE -> window is %s", LOWORD(wParam) != WA_INACTIVE ? "active" : "inactive");
         bool active = g_application.GetRenderGUI();
         if (HIWORD(wParam))
         {
@@ -318,21 +322,21 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
           }
         }
         if (g_application.GetRenderGUI() != active)
-          g_Windowing.NotifyAppActiveChange(g_application.GetRenderGUI());
-        CLog::Log(LOGDEBUG, __FUNCTION__": window is %s", g_application.GetRenderGUI() ? "active" : "inactive");
+          DX::Windowing().NotifyAppActiveChange(g_application.GetRenderGUI());
+        CLog::LogF(LOGDEBUG, "window is %s", g_application.GetRenderGUI() ? "active" : "inactive");
       }
       break;
     case WM_SETFOCUS:
     case WM_KILLFOCUS:
       g_application.m_AppFocused = uMsg == WM_SETFOCUS;
-      CLog::Log(LOGDEBUG, __FUNCTION__": window focus %s", g_application.m_AppFocused ? "set" : "lost");
+      CLog::LogF(LOGDEBUG, "window focus %s", g_application.m_AppFocused ? "set" : "lost");
 
-      g_Windowing.NotifyAppFocusChange(g_application.m_AppFocused);
+      DX::Windowing().NotifyAppFocusChange(g_application.m_AppFocused);
       if (uMsg == WM_KILLFOCUS)
       {
         std::string procfile;
         if (CWIN32Util::GetFocussedProcess(procfile))
-          CLog::Log(LOGDEBUG, __FUNCTION__": Focus switched to process %s", procfile.c_str());
+          CLog::LogF(LOGDEBUG, "Focus switched to process %s", procfile);
       }
       break;
     /* needs to be reviewed after frodo. we reset the system idle timer
@@ -341,7 +345,7 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
       switch( wParam&0xFFF0 )
       {
         case SC_MONITORPOWER:
-          if (g_application.m_pPlayer->IsPlaying() || g_application.m_pPlayer->IsPausedPlayback())
+          if (g_application.GetAppPlayer().IsPlaying() || g_application.GetAppPlayer().IsPausedPlayback())
             return 0;
           else if(CServiceBroker::GetSettings().GetInt(CSettings::SETTING_POWERMANAGEMENT_DISPLAYSOFF) == 0)
             return 0;
@@ -439,11 +443,31 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
     return(0);
     case WM_APPCOMMAND: // MULTIMEDIA keys are mapped to APPCOMMANDS
     {
-      CLog::Log(LOGDEBUG, __FUNCTION__": APPCOMMAND %d", GET_APPCOMMAND_LPARAM(lParam));
-      newEvent.type = XBMC_APPCOMMAND;
-      newEvent.appcommand.action = GET_APPCOMMAND_LPARAM(lParam);
-      if (g_application.OnEvent(newEvent))
-        return TRUE;
+      const unsigned int appcmd = GET_APPCOMMAND_LPARAM(lParam);
+
+      CLog::LogF(LOGDEBUG, "APPCOMMAND %d", appcmd);
+
+      // Reset the screen saver
+      g_application.ResetScreenSaver();
+
+      // If we were currently in the screen saver wake up and don't process the
+      // appcommand
+      if (g_application.WakeUpScreenSaverAndDPMS())
+        return true;
+
+      // Retrieve the action associated with this appcommand from the mapping table
+      CKey key(appcmd | KEY_APPCOMMAND, 0U);
+      int iWin = g_windowManager.GetActiveWindowOrDialog();
+
+      CAction appcmdaction = CServiceBroker::GetInputManager().GetAction(iWin, key);
+      if (appcmdaction.GetID())
+      {
+        CLog::LogF(LOGDEBUG, "appcommand %d, action %s", appcmd, appcmdaction.GetName().c_str());
+        CServiceBroker::GetInputManager().QueueAction(appcmdaction);
+        return true;
+      }
+
+      CLog::LogF(LOGDEBUG, "unknown appcommand %d", appcmd);
       return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
     case WM_GESTURENOTIFY:
@@ -462,7 +486,7 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
       break;
     case WM_SETCURSOR:
       if (HTCLIENT != LOWORD(lParam))
-        g_Windowing.ShowOSMouse(true);
+        DX::Windowing().ShowOSMouse(true);
       break;
     case WM_MOUSEMOVE:
       newEvent.type = XBMC_MOUSEMOTION;
@@ -522,56 +546,122 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
       // get the suggested size of the window on the new display with a different DPI
       unsigned short  dpi = LOWORD(wParam);
       RECT resizeRect = *reinterpret_cast<RECT*>(lParam);
-      g_Windowing.DPIChanged(dpi, resizeRect);
+      DX::Windowing().DPIChanged(dpi, resizeRect);
       return(0);
     }
     case WM_DISPLAYCHANGE:
-      CLog::Log(LOGDEBUG, __FUNCTION__": display change event");  
-      if (g_application.GetRenderGUI() && !g_Windowing.IsAlteringWindow() && GET_X_LPARAM(lParam) > 0 && GET_Y_LPARAM(lParam) > 0)  
+      CLog::LogF(LOGDEBUG, "display change event");  
+      if (g_application.GetRenderGUI() && !DX::Windowing().IsAlteringWindow() && GET_X_LPARAM(lParam) > 0 && GET_Y_LPARAM(lParam) > 0)  
       {
-        g_Windowing.UpdateResolutions();
+        DX::Windowing().UpdateResolutions();
       }
       return(0);  
+    case WM_ENTERSIZEMOVE:
+      {
+        DX::Windowing().SetSizeMoveMode(true);
+      }
+      return(0);
+    case WM_EXITSIZEMOVE:
+      {
+        DX::Windowing().SetSizeMoveMode(false);
+        if (g_sizeMoveMoving)
+        {
+          g_sizeMoveMoving = false;
+          newEvent.type = XBMC_VIDEOMOVE;
+          newEvent.move.x = g_sizeMoveX;
+          newEvent.move.y = g_sizeMoveY;
+
+          // tell the device about new position
+          DX::Windowing().OnMove(newEvent.move.x, newEvent.move.y);
+          // tell the application about new position
+          if (g_application.GetRenderGUI() && !DX::Windowing().IsAlteringWindow())
+            g_application.OnEvent(newEvent);
+        }
+        if (g_sizeMoveSizing)
+        {
+          g_sizeMoveSizing = false;
+          newEvent.type = XBMC_VIDEORESIZE;
+          newEvent.resize.w = g_sizeMoveWidth;
+          newEvent.resize.h = g_sizeMoveHight;
+
+          // tell the device about new size
+          DX::Windowing().OnResize(newEvent.resize.w, newEvent.resize.h);
+          // tell the application about new size
+          if (g_application.GetRenderGUI() && !DX::Windowing().IsAlteringWindow() && newEvent.resize.w > 0 && newEvent.resize.h > 0)
+            g_application.OnEvent(newEvent);
+        }
+      }
+    return(0);
     case WM_SIZE:
       if (wParam == SIZE_MINIMIZED)
       {
-        if (!g_Windowing.IsMinimized())
+        if (!DX::Windowing().IsMinimized())
         {
-          g_Windowing.SetMinimized(true);
+          DX::Windowing().SetMinimized(true);
           if (!g_application.GetRenderGUI())
             g_application.SetRenderGUI(false);
         }
       }
-      else if (g_Windowing.IsMinimized())
+      else if (DX::Windowing().IsMinimized())
       {
-        g_Windowing.SetMinimized(false);
+        DX::Windowing().SetMinimized(false);
         if (!g_application.GetRenderGUI())
           g_application.SetRenderGUI(true);
       } 
       else
       {
-        newEvent.type = XBMC_VIDEORESIZE;
-        newEvent.resize.w = GET_X_LPARAM(lParam);
-        newEvent.resize.h = GET_Y_LPARAM(lParam);
+        g_sizeMoveWidth = GET_X_LPARAM(lParam);
+        g_sizeMoveHight = GET_Y_LPARAM(lParam);
+        if (DX::Windowing().IsInSizeMoveMode())
+        {
+          // If an user is dragging the resize bars, we don't resize 
+          // the buffers and don't rise XBMC_VIDEORESIZE here because 
+          // as the user continuously resize the window, a lot of WM_SIZE
+          // messages are sent to the proc, and it'd be pointless (and slow)
+          // to resize for each WM_SIZE message received from dragging.
+          // So instead, we reset after the user is done resizing the 
+          // window and releases the resize bars, which ends with WM_EXITSIZEMOVE.
+          g_sizeMoveSizing = true;
+        }
+        else
+        {
+          // API call such as SetWindowPos or SwapChain->SetFullscreenState
+          newEvent.type = XBMC_VIDEORESIZE;
+          newEvent.resize.w = g_sizeMoveWidth;
+          newEvent.resize.h = g_sizeMoveHight;
 
-        CLog::Log(LOGDEBUG, __FUNCTION__": window resize event %d x %d", newEvent.resize.w, newEvent.resize.h);
-        // tell device about new size
-        g_Windowing.OnResize(newEvent.resize.w, newEvent.resize.h);
-        // tell application about size changes
-        if (g_application.GetRenderGUI() && !g_Windowing.IsAlteringWindow() && newEvent.resize.w > 0 && newEvent.resize.h > 0)
-          g_application.OnEvent(newEvent);
+          CLog::LogF(LOGDEBUG, "window resize event %d x %d", newEvent.resize.w, newEvent.resize.h);
+          // tell device about new size
+          DX::Windowing().OnResize(newEvent.resize.w, newEvent.resize.h);
+          // tell application about size changes
+          if (g_application.GetRenderGUI() && !DX::Windowing().IsAlteringWindow() && newEvent.resize.w > 0 && newEvent.resize.h > 0)
+            g_application.OnEvent(newEvent);
+        }
       }
       return(0);
     case WM_MOVE:
-      newEvent.type = XBMC_VIDEOMOVE;
-      newEvent.move.x = GET_X_LPARAM(lParam);
-      newEvent.move.y = GET_Y_LPARAM(lParam);
+      {
+        g_sizeMoveX = GET_X_LPARAM(lParam);
+        g_sizeMoveY = GET_Y_LPARAM(lParam);
+        if (DX::Windowing().IsInSizeMoveMode())
+        {
+          // the same as WM_SIZE
+          g_sizeMoveMoving = true;
+        }
+        else
+        {
+          newEvent.type = XBMC_VIDEOMOVE;
+          newEvent.move.x = g_sizeMoveX;
+          newEvent.move.y = g_sizeMoveY;
 
-      CLog::Log(LOGDEBUG, __FUNCTION__": window move event");
+          CLog::LogF(LOGDEBUG, "window move event");
 
-      if (g_application.GetRenderGUI() && !g_Windowing.IsAlteringWindow())
-        g_application.OnEvent(newEvent);
-
+          // tell the device about new position
+          DX::Windowing().OnMove(newEvent.move.x, newEvent.move.y);
+          if (g_application.GetRenderGUI() && !DX::Windowing().IsAlteringWindow())
+            g_application.OnEvent(newEvent);
+        }
+      }
       return(0);
     case WM_MEDIA_CHANGE:
       {
@@ -597,7 +687,7 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
             case SHCNE_MEDIAINSERTED:
               if (GetDriveType(drivePath) != DRIVE_CDROM)
               {
-                CLog::Log(LOGDEBUG, __FUNCTION__": Drive %s Media has arrived.", drivePath);
+                CLog::LogF(LOGDEBUG, "Drive %s Media has arrived.", FromW(drivePath));
                 CWin32StorageProvider::SetEvent();
               }
               break;
@@ -606,7 +696,7 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
             case SHCNE_MEDIAREMOVED:
               if (GetDriveType(drivePath) != DRIVE_CDROM)
               {
-                CLog::Log(LOGDEBUG, __FUNCTION__": Drive %s Media was removed.", drivePath);
+                CLog::LogF(LOGDEBUG, "Drive %s Media was removed.", FromW(drivePath));
                 CWin32StorageProvider::SetEvent();
               }
               break;
@@ -651,12 +741,12 @@ LRESULT CALLBACK CWinEventsWin32::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
                 std::string strdrive = StringUtils::Format("%c:", CWIN32Util::FirstDriveFromMask(lpdbv ->dbcv_unitmask));
                 if(wParam == DBT_DEVICEARRIVAL)
                 {
-                  CLog::Log(LOGDEBUG, __FUNCTION__": Drive %s Media has arrived.", strdrive.c_str());
+                  CLog::LogF(LOGDEBUG, "Drive %s Media has arrived.", strdrive.c_str());
                   CJobManager::GetInstance().AddJob(new CDetectDisc(strdrive, true), NULL);
                 }
                 else
                 {
-                  CLog::Log(LOGDEBUG, __FUNCTION__": Drive %s Media was removed.", strdrive.c_str());
+                  CLog::LogF(LOGDEBUG, "Drive %s Media was removed.", strdrive.c_str());
                   CMediaSource share;
                   share.strPath = strdrive;
                   share.strName = share.strPath;
@@ -757,18 +847,18 @@ void CWinEventsWin32::OnGestureNotify(HWND hWnd, LPARAM lParam)
     gc[1].dwBlock = gc[1].dwWant ^ 0x01;
     gc[2].dwBlock = gc[2].dwWant ^ 0x1F;
   }
-  if (g_Windowing.PtrSetGestureConfig)
-    g_Windowing.PtrSetGestureConfig(hWnd, 0, 5, gc, sizeof(GESTURECONFIG));
+  if (DX::Windowing().PtrSetGestureConfig)
+    DX::Windowing().PtrSetGestureConfig(hWnd, 0, 5, gc, sizeof(GESTURECONFIG));
 }
 
 void CWinEventsWin32::OnGesture(HWND hWnd, LPARAM lParam)
 {
-  if (!g_Windowing.PtrGetGestureInfo)
+  if (!DX::Windowing().PtrGetGestureInfo)
     return;
 
   GESTUREINFO gi = {0};
   gi.cbSize = sizeof(gi);
-  g_Windowing.PtrGetGestureInfo(reinterpret_cast<HGESTUREINFO>(lParam), &gi);
+  DX::Windowing().PtrGetGestureInfo(reinterpret_cast<HGESTUREINFO>(lParam), &gi);
 
   // convert to window coordinates
   POINT point = { gi.ptsLocation.x, gi.ptsLocation.y };
@@ -871,8 +961,8 @@ void CWinEventsWin32::OnGesture(HWND hWnd, LPARAM lParam)
     // You have encountered an unknown gesture
     break;
   }
-  if(g_Windowing.PtrCloseGestureInfoHandle)
-    g_Windowing.PtrCloseGestureInfoHandle(reinterpret_cast<HGESTUREINFO>(lParam));
+  if(DX::Windowing().PtrCloseGestureInfoHandle)
+    DX::Windowing().PtrCloseGestureInfoHandle(reinterpret_cast<HGESTUREINFO>(lParam));
 }
 
 #endif

@@ -20,15 +20,11 @@
  *
  */
 
-#include "system.h"
-
-#if defined(HAS_GL) || HAS_GLES >= 2
 #include "system_gl.h"
 
 
 #include "guilib/Shader.h"
-#include "settings/VideoSettings.h"
-#include "GLSLOutput.h"
+#include "cores/VideoSettings.h"
 
 namespace Shaders {
 
@@ -41,7 +37,6 @@ namespace Shaders {
     virtual void SetSourceTexture(GLint ytex) { m_sourceTexUnit = ytex; }
     virtual void SetWidth(int w) { m_width  = w; m_stepX = w>0?1.0f/w:0; }
     virtual void SetHeight(int h) { m_height = h; m_stepY = h>0?1.0f/h:0; }
-    virtual void SetNonLinStretch(float stretch) { m_stretch = stretch; }
     virtual bool GetTextureFilter(GLint& filter) { return false; }
     virtual GLint GetVertexLoc() { return m_hVertex; }
     virtual GLint GetcoordLoc() { return m_hcoord; }
@@ -53,13 +48,11 @@ namespace Shaders {
     int m_height;
     float m_stepX;
     float m_stepY;
-    float m_stretch;
     GLint m_sourceTexUnit;
 
     // shader attribute handles
     GLint m_hSourceTex;
     GLint m_hStepXY;
-    GLint m_hStretch = 0;
 
     GLint m_hVertex;
     GLint m_hcoord;
@@ -75,12 +68,12 @@ namespace Shaders {
   class ConvolutionFilterShader : public BaseVideoFilterShader
   {
   public:
-    ConvolutionFilterShader(ESCALINGMETHOD method, bool stretch, GLSLOutput *output=NULL);
+    ConvolutionFilterShader(ESCALINGMETHOD method);
     ~ConvolutionFilterShader() override;
     void OnCompiledAndLinked() override;
     bool OnEnabled() override;
     void OnDisabled() override;
-    void Free() override;
+    void Free();
 
     bool GetTextureFilter(GLint& filter) override { filter = GL_NEAREST; return true; }
 
@@ -94,16 +87,6 @@ namespace Shaders {
     ESCALINGMETHOD m_method;
     bool m_floattex; //if float textures are supported
     GLint m_internalformat;
-
-    Shaders::GLSLOutput *m_glslOutput;
-  };
-
-  class StretchFilterShader : public BaseVideoFilterShader
-  {
-    public:
-      StretchFilterShader();
-      void OnCompiledAndLinked() override;
-      bool OnEnabled() override;
   };
 
   class DefaultFilterShader : public BaseVideoFilterShader
@@ -114,6 +97,4 @@ namespace Shaders {
   };
 
 } // end namespace
-
-#endif
 

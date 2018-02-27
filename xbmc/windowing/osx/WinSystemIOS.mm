@@ -18,11 +18,12 @@
  *
  */
 
-
-#include "system.h"
-
 #include "VideoSyncIos.h"
+#include "WinEventsIOS.h"
 #include "WinSystemIOS.h"
+#include "cores/AudioEngine/Sinks/AESinkDARWINIOS.h"
+#include "cores/RetroPlayer/process/ios/RPProcessInfoIOS.h"
+#include "cores/RetroPlayer/rendering/VideoRenderers/RPRendererOpenGLES.h"
 #include "cores/VideoPlayer/DVDCodecs/DVDFactoryCodec.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/VTB.h"
 #include "cores/VideoPlayer/Process/ios/ProcessInfoIOS.h"
@@ -60,7 +61,8 @@
 - (void) runDisplayLink;
 @end
 
-using namespace KODI::MESSAGING;
+using namespace KODI;
+using namespace MESSAGING;
 
 struct CADisplayLinkWrapper
 {
@@ -68,15 +70,21 @@ struct CADisplayLinkWrapper
   IOSDisplayLinkCallback *callbackClass;
 };
 
+std::unique_ptr<CWinSystemBase> CWinSystemBase::CreateWinSystem()
+{
+  std::unique_ptr<CWinSystemBase> winSystem(new CWinSystemIOS());
+  return winSystem;
+}
+
 CWinSystemIOS::CWinSystemIOS() : CWinSystemBase()
 {
-  m_eWindowSystem = WINDOW_SYSTEM_IOS;
-
   m_iVSyncErrors = 0;
   m_bIsBackgrounded = false;
   m_pDisplayLink = new CADisplayLinkWrapper;
   m_pDisplayLink->callbackClass = [[IOSDisplayLinkCallback alloc] init];
+  m_winEvents.reset(new CWinEventsIOS());
 
+  CAESinkDARWINIOS::Register();
 }
 
 CWinSystemIOS::~CWinSystemIOS()
@@ -125,6 +133,8 @@ bool CWinSystemIOS::CreateNewWindow(const std::string& name, bool fullScreen, RE
   CLinuxRendererGLES::Register();
   CRendererVTB::Register();
   VIDEOPLAYER::CProcessInfoIOS::Register();
+  RETRO::CRPProcessInfoIOS::Register();
+  RETRO::CRPProcessInfoIOS::RegisterRendererFactory(new RETRO::CRendererFactoryOpenGLES);
 
   return true;
 }
@@ -322,7 +332,7 @@ void CWinSystemIOS::FillInVideoModes()
   }
 }
 
-bool CWinSystemIOS::IsExtSupported(const char* extension)
+bool CWinSystemIOS::IsExtSupported(const char* extension) const
 {
   if(strncmp(extension, "EGL_", 4) != 0)
     return CRenderSystemGLES::IsExtSupported(extension);
@@ -496,6 +506,6 @@ void* CWinSystemIOS::GetEAGLContextObj()
 
 std::unique_ptr<CVideoSync> CWinSystemIOS::GetVideoSync(void *clock)
 {
-  std::unique_ptr<CVideoSync> pVSync(new CVideoSyncIos(clock));
+  std::unique_ptr<CVideoSync> pVSync(new CVideoSyncIos(clock, *this));
   return pVSync;
 }

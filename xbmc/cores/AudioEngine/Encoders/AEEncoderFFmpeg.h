@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ private:
   SwrContext *m_SwrCtx;
   CAEChannelInfo m_Layout;
   AVPacket m_Pkt;
-  uint8_t m_Buffer[8 + FF_MIN_BUFFER_SIZE];
+  uint8_t m_Buffer[8 + AV_INPUT_BUFFER_MIN_SIZE];
   int m_BufferSize;
   int m_OutputSize;
   double m_OutputRatio;

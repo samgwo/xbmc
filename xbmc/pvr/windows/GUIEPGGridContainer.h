@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -71,6 +71,7 @@ namespace PVR
 
     CFileItemPtr GetSelectedChannelItem() const;
     PVR::CPVRChannelPtr GetSelectedChannel() const;
+    CDateTime GetSelectedDate() const;
 
     void LoadLayout(TiXmlElement *layout);
     void SetPageControl(int id);
@@ -85,6 +86,12 @@ namespace PVR
     void GoToBegin();
     void GoToEnd();
     void GoToNow();
+    void GoToDate(const CDateTime &date);
+    void GoToTop();
+    void GoToBottom();
+    void GoToMostLeft();
+    void GoToMostRight();
+
     void SetTimelineItems(const std::unique_ptr<CFileItemList> &items, const CDateTime &gridStart, const CDateTime &gridEnd);
     /*!
      * @brief Set the control's selection to the given channel and set the control's view port to show the channel.

@@ -22,15 +22,12 @@
 #include <signal.h>
 #include <stdio.h>
 
-#include "system.h"
 #include "settings/AdvancedSettings.h"
 #include "Application.h"
 #include "messaging/ApplicationMessenger.h"
-#include "windowing/WindowingFactory.h"
 #include "utils/log.h"
 #include "utils/TimeUtils.h"
 #include "Util.h"
-#include "platform/XbmcContext.h"
 #include "AppParamParser.h"
 
 #import <QuartzCore/QuartzCore.h>
@@ -370,7 +367,6 @@ using namespace KODI::MESSAGING;
   [[NSThread currentThread] setName:@"XBMC_Run"];
 
   // set up some xbmc specific relationships
-  XBMC::Context context;
   readyToRun = true;
 
   // signal we are alive

@@ -3,7 +3,7 @@ DEPS=Makefile
 
 # lib name, version
 LIBNAME=wayland-protocols
-VERSION=1.7
+VERSION=1.12
 SOURCE=$(LIBNAME)-$(VERSION)
 ARCHIVE=$(SOURCE).tar.xz
 
@@ -22,8 +22,6 @@ endif
 
 # configuration settings
 CONFIGURE=./configure --prefix=$(PREFIX)
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: .installed-$(PLATFORM)
 

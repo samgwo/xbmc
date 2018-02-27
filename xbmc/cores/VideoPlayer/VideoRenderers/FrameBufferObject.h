@@ -20,9 +20,6 @@
  *
  */
 
-#include "system.h" // for HAS_GL
-
-#if defined(HAS_GL) || HAS_GLES >= 2
 #include "system_gl.h"
 
 //
@@ -65,9 +62,6 @@ public:
   // Cleanup
   void Cleanup();
 
-  // Bind to an exiting texture
-  bool BindToTexture(GLenum target, GLuint texid);
-
   // Set texture filtering
   void SetFiltering(GLenum target, GLenum mode);
 
@@ -91,5 +85,4 @@ private:
   GLuint m_texid;
 };
 
-#endif
 

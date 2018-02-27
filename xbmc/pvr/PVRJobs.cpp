@@ -27,7 +27,7 @@
 #include "events/NotificationEvent.h"
 #include "interfaces/AnnouncementManager.h"
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 #include "pvr/PVRGUIActions.h"
@@ -39,11 +39,6 @@
 
 namespace PVR
 {
-
-bool CPVRSetRecordingOnChannelJob::DoWork()
-{
-  return CServiceBroker::GetPVRManager().GUIActions()->SetRecordingOnChannel(m_channel, m_bOnOff);
-}
 
 CPVRChannelEntryTimeoutJob::CPVRChannelEntryTimeoutJob(int iTimeout)
 {
@@ -107,7 +102,7 @@ bool CPVREventlogJob::DoWork()
         event.m_bError ? CGUIDialogKaiToast::Error : CGUIDialogKaiToast::Info, event.m_label.c_str(), event.m_msg, 5000, true);
 
     // Write event log entry.
-    CEventLog::GetInstance().Add(
+    CServiceBroker::GetEventLog().Add(
       EventPtr(new CNotificationEvent(event.m_label, event.m_msg, event.m_icon, event.m_bError ? EventLevel::Error : EventLevel::Information)));
   }
   return true;
@@ -128,6 +123,12 @@ bool CPVRClientConnectionJob::DoWork(void)
 bool CPVRStartupJob::DoWork(void)
 {
   CServiceBroker::GetPVRManager().Clients()->Start();
+  return true;
+}
+
+bool CPVRUpdateAddonsJob::DoWork(void)
+{
+  CServiceBroker::GetPVRManager().Clients()->UpdateAddons(m_changedAddonId);
   return true;
 }
 

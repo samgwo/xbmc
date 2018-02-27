@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 
 #include <stdlib.h>
 #include "network/Network.h"
-#include "system.h"
 #include "DirectoryFactory.h"
 #include "SpecialProtocolDirectory.h"
 #include "MultiPathDirectory.h"
@@ -39,7 +38,6 @@
 #include "HTTPDirectory.h"
 #include "DAVDirectory.h"
 #include "UDFDirectory.h"
-#include "Application.h"
 #include "utils/log.h"
 #include "network/WakeOnAccess.h"
 
@@ -55,9 +53,7 @@
 #include "SMBDirectory.h"
 #endif
 #endif
-#ifdef HAS_FILESYSTEM_CDDA
 #include "CDDADirectory.h"
-#endif
 #include "PluginDirectory.h"
 #include "ISO9660Directory.h"
 #ifdef HAS_UPNP
@@ -90,6 +86,9 @@
 #include "ResourceDirectory.h"
 #include "ServiceBroker.h"
 #include "addons/VFSEntry.h"
+#ifdef TARGET_WINDOWS_STORE
+#include "filesystem/win10/WinLibraryDirectory.h"
+#endif
 
 using namespace ADDON;
 
@@ -121,7 +120,7 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
   if (url.IsProtocol("special")) return new CSpecialProtocolDirectory();
   if (url.IsProtocol("sources")) return new CSourcesDirectory();
   if (url.IsProtocol("addons")) return new CAddonsDirectory();
-#if defined(HAS_FILESYSTEM_CDDA) && defined(HAS_DVD_DRIVE)
+#if defined(HAS_DVD_DRIVE)
   if (url.IsProtocol("cdda")) return new CCDDADirectory();
 #endif
   if (url.IsProtocol("iso9660")) return new CISO9660Directory();
@@ -150,7 +149,7 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
   if (url.IsProtocol("resource")) return new CResourceDirectory();
   if (url.IsProtocol("events")) return new CEventsDirectory();
 
-  bool networkAvailable = g_application.getNetwork().IsAvailable();
+  bool networkAvailable = CServiceBroker::GetNetwork().IsAvailable();
   if (networkAvailable)
   {
     if (url.IsProtocol("ftp") || url.IsProtocol("ftps")) return new CFTPDirectory();
@@ -169,13 +168,16 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
 #ifdef HAS_UPNP
     if (url.IsProtocol("upnp")) return new CUPnPDirectory();
 #endif
-    if (url.IsProtocol("rss")) return new CRSSDirectory();
+    if (url.IsProtocol("rss") || url.IsProtocol("rsss")) return new CRSSDirectory();
     if (url.IsProtocol("pvr")) return new CPVRDirectory();
 #ifdef HAS_ZEROCONF
     if (url.IsProtocol("zeroconf")) return new CZeroconfDirectory();
 #endif
 #ifdef HAS_FILESYSTEM_NFS
     if (url.IsProtocol("nfs")) return new CNFSDirectory();
+#endif
+#ifdef TARGET_WINDOWS_STORE
+    if (CWinLibraryDirectory::IsValid(url)) return new CWinLibraryDirectory();
 #endif
   }
 

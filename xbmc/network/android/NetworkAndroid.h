@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2016 Christian Browet
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -52,6 +52,8 @@ public:
   virtual std::vector<NetworkAccessPoint> GetAccessPoints() override;
   virtual void GetSettings(NetworkAssignment& assignment, std::string& ipAddress, std::string& networkMask, std::string& defaultGateway, std::string& essId, std::string& key, EncMode& encryptionMode) override;
   virtual void SetSettings(NetworkAssignment& assignment, std::string& ipAddress, std::string& networkMask, std::string& defaultGateway, std::string& essId, std::string& key, EncMode& encryptionMode) override;
+
+  std::string GetHostName();
 
 protected:
   std::string m_name;

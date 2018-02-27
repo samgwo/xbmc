@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,9 @@
 #include "utils/log.h"
 #include "utils/StringUtils.h"
 #include "utils/XBMCTinyXML.h"
+
+const uint32_t CSettingsManager::Version = 2;
+const uint32_t CSettingsManager::MinimumSupportedVersion = 0;
 
 bool ParseSettingIdentifier(const std::string& settingId, std::string& categoryTag, std::string& settingTag)
 {
@@ -418,7 +421,7 @@ void CSettingsManager::RegisterSettingType(const std::string &settingType, ISett
 
   auto creatorIt = m_settingCreators.find(settingType);
   if (creatorIt == m_settingCreators.end())
-    m_settingCreators.insert(make_pair(settingType, settingCreator));
+    m_settingCreators.insert(std::make_pair(settingType, settingCreator));
 }
 
 void CSettingsManager::RegisterSettingControl(const std::string &controlType, ISettingControlCreator *settingControlCreator)
@@ -429,7 +432,7 @@ void CSettingsManager::RegisterSettingControl(const std::string &controlType, IS
   CExclusiveLock lock(m_critical);
   auto creatorIt = m_settingControlCreators.find(controlType);
   if (creatorIt == m_settingControlCreators.end())
-    m_settingControlCreators.insert(make_pair(controlType, settingControlCreator));
+    m_settingControlCreators.insert(std::make_pair(controlType, settingControlCreator));
 }
 
 void CSettingsManager::RegisterSettingsHandler(ISettingsHandler *settingsHandler)

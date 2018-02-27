@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -124,7 +124,15 @@ TEST_F(TestURIUtils, Split)
 
   std::string varpathOptional, varfileOptional;
 
-  URIUtils::Split("/path/to/movie.avi?showinfo=true", varpathOptional, varfileOptional);
+  refpath = "/path/to/";
+  reffile = "movie?movie.avi";
+  URIUtils::Split("/path/to/movie?movie.avi", varpathOptional, varfileOptional);
+  EXPECT_STREQ(refpath.c_str(), varpathOptional.c_str());
+  EXPECT_STREQ(reffile.c_str(), varfileOptional.c_str());
+
+  refpath = "file:///path/to/";
+  reffile = "movie.avi";
+  URIUtils::Split("file:///path/to/movie.avi?showinfo=true", varpathOptional, varfileOptional);
   EXPECT_STREQ(refpath.c_str(), varpathOptional.c_str());
   EXPECT_STREQ(reffile.c_str(), varfileOptional.c_str());
 }

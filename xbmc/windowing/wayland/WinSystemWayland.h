@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 
 #include <wayland-client.hpp>
 #include <wayland-cursor.hpp>
+#include <wayland-extra-protocols.hpp>
 
 #include "Connection.h"
 #include "Output.h"
@@ -89,10 +90,8 @@ public:
   float GetFrameLatencyAdjustment() override;
   std::unique_ptr<CVideoSync> GetVideoSync(void* clock) override;
 
-  void* GetVaDisplay();
-
-  void Register(IDispResource* resource);
-  void Unregister(IDispResource* resource);
+  void Register(IDispResource* resource) override;
+  void Unregister(IDispResource* resource) override;
 
   using PresentationFeedbackHandler = std::function<void(timespec /* tv */, std::uint32_t /* refresh */, std::uint32_t /* sync output id */, float /* sync output fps */, std::uint64_t /* msc */)>;
   CSignalRegistration RegisterOnPresentationFeedback(PresentationFeedbackHandler handler);

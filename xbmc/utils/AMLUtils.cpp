@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2011-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -52,22 +52,6 @@ bool aml_present()
       CLog::Log(LOGNOTICE, "AML device detected");
   }
   return has_aml == 1;
-}
-
-bool aml_hw3d_present()
-{
-  static int has_hw3d = -1;
-  if (has_hw3d == -1)
-  {
-    if (SysfsUtils::Has("/sys/class/ppmgr/ppmgr_3d_mode") ||
-        SysfsUtils::Has("/sys/class/amhdmitx/amhdmitx0/config"))
-      has_hw3d = 1;
-    else
-      has_hw3d = 0;
-    if (has_hw3d)
-      CLog::Log(LOGNOTICE, "AML 3D support detected");
-  }
-  return has_hw3d == 1;
 }
 
 bool aml_wired_present()
@@ -129,11 +113,6 @@ bool aml_permissions()
       CLog::Log(LOGERROR, "AML: no rw on /dev/video10");
       permissions_ok = 0;
     }
-    if (!SysfsUtils::HasRW("/sys/module/amvideo/parameters/omx_pts"))
-    {
-      CLog::Log(LOGERROR, "AML: no rw on /sys/module/amvideo/parameters/omx_pts");
-      permissions_ok = 0;
-    }
     if (!SysfsUtils::HasRW("/sys/module/amlvideodri/parameters/freerun_mode"))
     {
       CLog::Log(LOGERROR, "AML: no rw on /sys/module/amlvideodri/parameters/freerun_mode");
@@ -142,10 +121,6 @@ bool aml_permissions()
     if (!SysfsUtils::HasRW("/sys/class/audiodsp/digital_raw"))
     {
       CLog::Log(LOGERROR, "AML: no rw on /sys/class/audiodsp/digital_raw");
-    }
-    if (!SysfsUtils::HasRW("/sys/class/ppmgr/ppmgr_3d_mode"))
-    {
-      CLog::Log(LOGERROR, "AML: no rw on /sys/class/ppmgr/ppmgr_3d_mode");
     }
     if (!SysfsUtils::HasRW("/sys/class/amhdmitx/amhdmitx0/config"))
     {
@@ -170,6 +145,10 @@ bool aml_permissions()
     if (!SysfsUtils::HasRW("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"))
     {
       CLog::Log(LOGERROR, "AML: no rw on /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor");
+    }
+    if (aml_has_frac_rate_policy() && !SysfsUtils::HasRW("/sys/class/amhdmitx/amhdmitx0/frac_rate_policy"))
+    {
+      CLog::Log(LOGERROR, "AML: no rw on /sys/class/amhdmitx/amhdmitx0/frac_rate_policy");
     }
   }
 
@@ -242,6 +221,33 @@ AML_SUPPORT_H264_4K2K aml_support_h264_4k2k()
       has_h264_4k2k = AML_NO_H264_4K2K;
   }
   return has_h264_4k2k;
+}
+
+bool aml_support_vp9()
+{
+  static int has_vp9 = -1;
+
+  if (has_vp9 == -1)
+  {
+    CRegExp regexp;
+    regexp.RegComp("vp9:.*compressed");
+    std::string valstr;
+    if (SysfsUtils::GetString("/sys/class/amstream/vcodec_profile", valstr) != 0)
+      has_vp9 = 0;
+    else
+      has_vp9 = (regexp.RegFind(valstr) >= 0) ? 1 : 0;
+  }
+  return (has_vp9 == 1);
+}
+
+bool aml_has_frac_rate_policy()
+{
+  static int has_frac_rate_policy = -1;
+
+  if (has_frac_rate_policy == -1)
+    has_frac_rate_policy = SysfsUtils::Has("/sys/class/amhdmitx/amhdmitx0/frac_rate_policy");
+
+  return (has_frac_rate_policy == 1);
 }
 
 void aml_set_audio_passthrough(bool passthrough)
@@ -363,141 +369,6 @@ bool aml_mode_to_resolution(const char *mode, RESOLUTION_INFO *res)
     res->fRefreshRate = 60;
     res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
   }
-  else if ((StringUtils::EqualsNoCase(fromMode, "480cvbs")) || (StringUtils::EqualsNoCase(fromMode, "480i")))
-  {
-    res->iWidth = 720;
-    res->iHeight= 480;
-    res->iScreenWidth = 720;
-    res->iScreenHeight= 480;
-    res->fRefreshRate = 60;
-    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
-  }
-  else if ((StringUtils::EqualsNoCase(fromMode, "576cvbs")) || (StringUtils::EqualsNoCase(fromMode, "576i")))
-  {
-    res->iWidth = 720;
-    res->iHeight= 576;
-    res->iScreenWidth = 720;
-    res->iScreenHeight= 576;
-    res->fRefreshRate = 50;
-    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "480p"))
-  {
-    res->iWidth = 720;
-    res->iHeight= 480;
-    res->iScreenWidth = 720;
-    res->iScreenHeight= 480;
-    res->fRefreshRate = 60;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "576p"))
-  {
-    res->iWidth = 720;
-    res->iHeight= 576;
-    res->iScreenWidth = 720;
-    res->iScreenHeight= 576;
-    res->fRefreshRate = 50;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "720p") || StringUtils::EqualsNoCase(fromMode, "720p60hz"))
-  {
-    res->iWidth = 1280;
-    res->iHeight= 720;
-    res->iScreenWidth = 1280;
-    res->iScreenHeight= 720;
-    res->fRefreshRate = 60;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "720p50hz"))
-  {
-    res->iWidth = 1280;
-    res->iHeight= 720;
-    res->iScreenWidth = 1280;
-    res->iScreenHeight= 720;
-    res->fRefreshRate = 50;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080p") || StringUtils::EqualsNoCase(fromMode, "1080p60hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 60;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080p23hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 23.976;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080p24hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 24;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080p30hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 30;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080p50hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 50;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080p59hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 59.940;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080i") || StringUtils::EqualsNoCase(fromMode, "1080i60hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 60;
-    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080i50hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 50;
-    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "1080i59hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 1920;
-    res->iScreenHeight= 1080;
-    res->fRefreshRate = 59.940;
-    res->dwFlags = D3DPRESENTFLAG_INTERLACED;
-  }
   else if (StringUtils::EqualsNoCase(fromMode, "4k2ksmpte") || StringUtils::EqualsNoCase(fromMode, "smpte24hz"))
   {
     res->iWidth = 1920;
@@ -507,74 +378,69 @@ bool aml_mode_to_resolution(const char *mode, RESOLUTION_INFO *res)
     res->fRefreshRate = 24;
     res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
   }
-  else if (StringUtils::EqualsNoCase(fromMode, "4k2k23hz") || StringUtils::EqualsNoCase(fromMode, "2160p23hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 23.976;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "4k2k24hz") || StringUtils::EqualsNoCase(fromMode, "2160p24hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 24;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "4k2k25hz") || StringUtils::EqualsNoCase(fromMode, "2160p25hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 25;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "4k2k29hz") || StringUtils::EqualsNoCase(fromMode, "2160p29hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 29.970;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "4k2k30hz") || StringUtils::EqualsNoCase(fromMode, "2160p30hz"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 30;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "2160p50hz420"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 50;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
-  else if (StringUtils::EqualsNoCase(fromMode, "2160p60hz420"))
-  {
-    res->iWidth = 1920;
-    res->iHeight= 1080;
-    res->iScreenWidth = 3840;
-    res->iScreenHeight= 2160;
-    res->fRefreshRate = 60;
-    res->dwFlags = D3DPRESENTFLAG_PROGRESSIVE;
-  }
   else
   {
-    return false;
-  }
+    int width = 0, height = 0, rrate = 60;
+    char smode = 'p';
 
+    if (sscanf(fromMode.c_str(), "%dx%dp%dhz", &width, &height, &rrate) == 3)
+    {
+      smode = 'p';
+    }
+    else if (sscanf(fromMode.c_str(), "%d%[ip]%dhz", &height, &smode, &rrate) >= 2)
+    {
+      switch (height)
+      {
+        case 480:
+        case 576:
+          width = 720;
+          break;
+        case 720:
+          width = 1280;
+          break;
+        case 1080:
+          width = 1920;
+          break;
+        case 2160:
+          width = 3840;
+          break;
+      }
+    }
+    else if (sscanf(fromMode.c_str(), "%dcvbs", &height) == 1)
+    {
+      width = 720;
+      smode = 'i';
+      rrate = (height == 576) ? 50 : 60;
+    }
+    else if (sscanf(fromMode.c_str(), "4k2k%d", &rrate) == 1)
+    {
+      width = 3840;
+      height = 2160;
+      smode = 'p';
+    }
+    else
+    {
+      return false;
+    }
+
+    res->iWidth = (width < 3840) ? width : 1920;
+    res->iHeight= (height < 2160) ? height : 1080;
+    res->iScreenWidth = width;
+    res->iScreenHeight = height;
+    res->dwFlags = (smode == 'p') ? D3DPRESENTFLAG_PROGRESSIVE : D3DPRESENTFLAG_INTERLACED;
+
+    switch (rrate)
+    {
+      case 23:
+      case 29:
+      case 59:
+        res->fRefreshRate = (float)((rrate + 1)/1.001);
+        break;
+      default:
+        res->fRefreshRate = (float)rrate;
+        break;
+    }
+  }
 
   res->iScreen       = 0;
   res->bFullScreen   = true;
@@ -591,18 +457,24 @@ bool aml_get_native_resolution(RESOLUTION_INFO *res)
 {
   std::string mode;
   SysfsUtils::GetString("/sys/class/display/mode", mode);
-  return aml_mode_to_resolution(mode.c_str(), res);
+  bool result = aml_mode_to_resolution(mode.c_str(), res);
+
+  if (aml_has_frac_rate_policy())
+  {
+    int fractional_rate;
+    SysfsUtils::GetInt("/sys/class/amhdmitx/amhdmitx0/frac_rate_policy", fractional_rate);
+    if (fractional_rate == 1)
+      res->fRefreshRate /= 1.001;
+  }
+
+  return result;
 }
 
 bool aml_set_native_resolution(const RESOLUTION_INFO &res, std::string framebuffer_name, const int stereo_mode)
 {
   bool result = false;
 
-  // Don't set the same mode as current
-  std::string mode;
-  SysfsUtils::GetString("/sys/class/display/mode", mode);
-  if (res.strId != mode)
-    result = aml_set_display_resolution(res.strId.c_str(), framebuffer_name);
+  result = aml_set_display_resolution(res, framebuffer_name);
 
   aml_handle_scale(res);
   aml_handle_display_stereo_mode(stereo_mode);
@@ -612,13 +484,16 @@ bool aml_set_native_resolution(const RESOLUTION_INFO &res, std::string framebuff
 
 bool aml_probe_resolutions(std::vector<RESOLUTION_INFO> &resolutions)
 {
-  std::string valstr, dcapfile;
+  std::string valstr, vesastr, dcapfile;
   dcapfile = CSpecialProtocol::TranslatePath("special://home/userdata/disp_cap");
 
   if (SysfsUtils::GetString(dcapfile, valstr) < 0)
   {
     if (SysfsUtils::GetString("/sys/class/amhdmitx/amhdmitx0/disp_cap", valstr) < 0)
       return false;
+
+    if (SysfsUtils::GetString("/sys/class/amhdmitx/amhdmitx0/vesa_cap", vesastr) == 0)
+      valstr += "\n" + vesastr;
   }
   std::vector<std::string> probe_str = StringUtils::Split(valstr, "\n");
 
@@ -630,10 +505,25 @@ bool aml_probe_resolutions(std::vector<RESOLUTION_INFO> &resolutions)
     {
       if (aml_mode_to_resolution(i->c_str(), &res))
         resolutions.push_back(res);
+
+      if (aml_has_frac_rate_policy())
+      {
+        // Add fractional frame rates: 23.976, 29.97 and 59.94 Hz
+        switch ((int)res.fRefreshRate)
+        {
+          case 24:
+          case 30:
+          case 60:
+            res.fRefreshRate /= 1.001;
+            res.strMode       = StringUtils::Format("%dx%d @ %.2f%s - Full Screen", res.iScreenWidth, res.iScreenHeight, res.fRefreshRate,
+              res.dwFlags & D3DPRESENTFLAG_INTERLACED ? "i" : "");
+            resolutions.push_back(res);
+            break;
+        }
+      }
     }
   }
   return resolutions.size() > 0;
-
 }
 
 bool aml_get_preferred_resolution(RESOLUTION_INFO *res)
@@ -648,14 +538,29 @@ bool aml_get_preferred_resolution(RESOLUTION_INFO *res)
   return true;
 }
 
-bool aml_set_display_resolution(const char *resolution, std::string framebuffer_name)
+bool aml_set_display_resolution(const RESOLUTION_INFO &res, std::string framebuffer_name)
 {
-  std::string mode = resolution;
-  // switch display resolution
+  std::string mode = res.strId.c_str();
+  std::string cur_mode;
+
+  SysfsUtils::GetString("/sys/class/display/mode", cur_mode);
+
+  if (aml_has_frac_rate_policy())
+  {
+    if (cur_mode == mode)
+      SysfsUtils::SetString("/sys/class/display/mode", "null");
+
+    int fractional_rate = (res.fRefreshRate == floor(res.fRefreshRate)) ? 0 : 1;
+    SysfsUtils::SetInt("/sys/class/amhdmitx/amhdmitx0/frac_rate_policy", fractional_rate);
+  }
+  else if (cur_mode == mode)
+  {
+    // Don't set the same mode as current
+    return true;
+  }
+
   SysfsUtils::SetString("/sys/class/display/mode", mode.c_str());
 
-  RESOLUTION_INFO res;
-  aml_mode_to_resolution(mode.c_str(), &res);
   aml_set_framebuffer_resolution(res, framebuffer_name);
 
   return true;
@@ -758,7 +663,7 @@ void aml_disable_freeScale()
 
 void aml_set_framebuffer_resolution(const RESOLUTION_INFO &res, std::string framebuffer_name)
 {
-  aml_set_framebuffer_resolution(res.iScreenWidth, res.iScreenHeight, framebuffer_name);
+  aml_set_framebuffer_resolution(res.iWidth, res.iHeight, framebuffer_name);
 }
 
 void aml_set_framebuffer_resolution(int width, int height, std::string framebuffer_name)

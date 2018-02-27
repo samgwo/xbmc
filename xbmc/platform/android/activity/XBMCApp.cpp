@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include <android/bitmap.h>
 #include <android/log.h>
 #include <android/native_window.h>
+#include <android/native_window_jni.h>
 
 #include <androidjni/ApplicationInfo.h>
 #include <androidjni/BitmapFactory.h>
@@ -71,15 +72,19 @@
 #include "settings/DisplaySettings.h"
 #include "guilib/GraphicContext.h"
 #include "guilib/GUIWindowManager.h"
+// Audio Engine includes for Factory and interfaces
 #include "cores/AudioEngine/Interfaces/AE.h"
+#include "cores/AudioEngine/AESinkFactory.h"
+#include "cores/AudioEngine/Sinks/AESinkAUDIOTRACK.h"
+
 #include "ServiceBroker.h"
 #include "GUIInfoManager.h"
 #include "guiinfo/GUIInfoLabels.h"
 #include "platform/android/activity/IInputDeviceCallbacks.h"
 #include "platform/android/activity/IInputDeviceEventHandler.h"
+#include "input/mouse/MouseStat.h"
 #include "input/Key.h"
 #include "utils/log.h"
-#include "input/MouseStat.h"
 #include "network/android/NetworkAndroid.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderManager.h"
 #include "filesystem/SpecialProtocol.h"
@@ -91,7 +96,6 @@
 #include "windowing/android/VideoSyncAndroid.h"
 #include "windowing/WinEvents.h"
 #include "platform/xbmc.h"
-#include "platform/XbmcContext.h"
 
 #define GIGABYTES       1073741824
 
@@ -101,6 +105,7 @@
 #define PLAYBACK_STATE_PLAYING  0x0001
 #define PLAYBACK_STATE_VIDEO    0x0100
 #define PLAYBACK_STATE_AUDIO    0x0200
+#define PLAYBACK_STATE_CANNOT_PAUSE 0x0400
 
 using namespace KODI::MESSAGING;
 using namespace ANNOUNCEMENT;
@@ -114,13 +119,14 @@ void* thread_run(void* obj)
 }
 
 CXBMCApp* CXBMCApp::m_xbmcappinstance = NULL;
-CEvent CXBMCApp::m_windowCreated;
+std::unique_ptr<CJNIXBMCMainView> CXBMCApp::m_mainView;
 ANativeActivity *CXBMCApp::m_activity = NULL;
 CJNIWakeLock *CXBMCApp::m_wakeLock = NULL;
 ANativeWindow* CXBMCApp::m_window = NULL;
 int CXBMCApp::m_batteryLevel = 0;
 bool CXBMCApp::m_hasFocus = false;
 bool CXBMCApp::m_headsetPlugged = false;
+bool CXBMCApp::m_hdmiPlugged = true;
 IInputDeviceCallbacks* CXBMCApp::m_inputDeviceCallbacks = nullptr;
 IInputDeviceEventHandler* CXBMCApp::m_inputDeviceEventHandler = nullptr;
 bool CXBMCApp::m_hasReqVisible = false;
@@ -139,14 +145,16 @@ CXBMCApp::CXBMCApp(ANativeActivity* nativeActivity)
 {
   m_xbmcappinstance = this;
   m_activity = nativeActivity;
-  m_firstrun = true;
-  m_exiting=false;
   if (m_activity == NULL)
   {
     android_printf("CXBMCApp: invalid ANativeActivity instance");
     exit(1);
     return;
   }
+  m_mainView.reset(new CJNIXBMCMainView(this));
+  m_firstrun = true;
+  m_exiting = false;
+  android_printf("CXBMCApp: Created");
 }
 
 CXBMCApp::~CXBMCApp()
@@ -193,6 +201,9 @@ void CXBMCApp::onStart()
 
   if (m_firstrun)
   {
+    // Register sink
+    AE::CAESinkFactory::ClearSinks();
+    CAESinkAUDIOTRACK::Register();
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -204,11 +215,10 @@ void CXBMCApp::onStart()
     intentFilter.addAction("android.intent.action.BATTERY_CHANGED");
     intentFilter.addAction("android.intent.action.SCREEN_ON");
     intentFilter.addAction("android.intent.action.HEADSET_PLUG");
-    intentFilter.addAction("android.intent.action.HDMI_AUDIO_PLUG");
+    intentFilter.addAction("android.media.action.HDMI_AUDIO_PLUG");
     intentFilter.addAction("android.intent.action.SCREEN_OFF");
     intentFilter.addAction("android.net.conn.CONNECTIVITY_CHANGE");
     registerReceiver(*this, intentFilter);
-
     m_mediaSession.reset(new CJNIXBMCMediaSession());
   }
 }
@@ -240,14 +250,17 @@ void CXBMCApp::onPause()
 {
   android_printf("%s: ", __PRETTY_FUNCTION__);
 
-  if (g_application.m_pPlayer->IsPlaying())
+  if (g_application.GetAppPlayer().IsPlaying())
   {
-    if (g_application.m_pPlayer->HasVideo())
+    if (g_application.GetAppPlayer().HasVideo())
     {
-      if (!g_application.m_pPlayer->IsPaused() && !m_hasReqVisible)
+      if (!g_application.GetAppPlayer().IsPaused() && !m_hasReqVisible)
         CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
     }
   }
+
+  if (m_hasReqVisible)
+    g_application.SwitchToFullScreen(true);
 
   EnableWakeLock(false);
   m_hasReqVisible = false;
@@ -257,8 +270,13 @@ void CXBMCApp::onStop()
 {
   android_printf("%s: ", __PRETTY_FUNCTION__);
 
-  if ((m_playback_state & PLAYBACK_STATE_PLAYING) && (m_playback_state & PLAYBACK_STATE_VIDEO) && !m_hasReqVisible)
-    CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+  if ((m_playback_state & PLAYBACK_STATE_PLAYING) && !m_hasReqVisible)
+  {
+    if (m_playback_state & PLAYBACK_STATE_CANNOT_PAUSE)
+      CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_STOP)));
+    else if (m_playback_state & PLAYBACK_STATE_VIDEO)
+      CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+  }
 }
 
 void CXBMCApp::onDestroy()
@@ -300,39 +318,18 @@ void CXBMCApp::onLowMemory()
 void CXBMCApp::onCreateWindow(ANativeWindow* window)
 {
   android_printf("%s: ", __PRETTY_FUNCTION__);
-  if (window == NULL)
-  {
-    android_printf(" => invalid ANativeWindow object");
-    return;
-  }
-  m_window = window;
-  m_windowCreated.Set();
-  if(!m_firstrun)
-  {
-    XBMC_SetupDisplay();
-    XBMC_Pause(false);
-  }
 }
 
 void CXBMCApp::onResizeWindow()
 {
   android_printf("%s: ", __PRETTY_FUNCTION__);
   m_window = NULL;
-  m_windowCreated.Reset();
   // no need to do anything because we are fixed in fullscreen landscape mode
 }
 
 void CXBMCApp::onDestroyWindow()
 {
   android_printf("%s: ", __PRETTY_FUNCTION__);
-
-  // If we have exited XBMC, it no longer exists.
-  if (!m_exiting)
-  {
-    XBMC_DestroyDisplay();
-    m_window = NULL;
-    XBMC_Pause(true);
-  }
 }
 
 void CXBMCApp::onGainFocus()
@@ -440,38 +437,27 @@ bool CXBMCApp::IsHeadsetPlugged()
   return m_headsetPlugged;
 }
 
+bool CXBMCApp::IsHDMIPlugged()
+{
+  return m_hdmiPlugged;
+}
+
 void CXBMCApp::run()
 {
   int status = 0;
 
   SetupEnv();
-  XBMC::Context context;
 
-  CJNIIntent startIntent = getIntent();
-
-  android_printf("%s Started with action: %s\n", CCompileInfo::GetAppName(), startIntent.getAction().c_str());
-
-  CAppParamParser appParamParser;
-  std::string filenameToPlay = GetFilenameFromIntent(startIntent);
-  if (!filenameToPlay.empty())
-  {
-    android_printf("-- filename: %s", filenameToPlay.c_str());
-    int argc = 2;
-    const char** argv = (const char**) malloc(argc*sizeof(char*));
-
-    std::string exe_name(CCompileInfo::GetAppName());
-    argv[0] = exe_name.c_str();
-    argv[1] = filenameToPlay.c_str();
-
-    appParamParser.Parse(argv, argc);
-
-    free(argv);
-  }
+  // Wait for main window
+  ANativeWindow* nativeWindow = CXBMCApp::GetNativeWindow(30000);
+  if (!nativeWindow)
+    return;
 
   m_firstrun=false;
   android_printf(" => running XBMC_Run...");
   try
   {
+    CAppParamParser appParamParser;
     status = XBMC_Run(true, appParamParser);
     android_printf(" => XBMC_Run finished with %d", status);
   }
@@ -621,7 +607,7 @@ void CXBMCApp::UpdateSessionMetadata()
   builder
       .putString(CJNIMediaMetadata::METADATA_KEY_DISPLAY_TITLE, g_infoManager.GetLabel(PLAYER_TITLE))
       .putString(CJNIMediaMetadata::METADATA_KEY_TITLE, g_infoManager.GetLabel(PLAYER_TITLE))
-      .putLong(CJNIMediaMetadata::METADATA_KEY_DURATION, g_application.m_pPlayer->GetTotalTime())
+      .putLong(CJNIMediaMetadata::METADATA_KEY_DURATION, g_application.GetAppPlayer().GetTotalTime())
 //      .putString(CJNIMediaMetadata::METADATA_KEY_ART_URI, thumb)
 //      .putString(CJNIMediaMetadata::METADATA_KEY_DISPLAY_ICON_URI, thumb)
 //      .putString(CJNIMediaMetadata::METADATA_KEY_ALBUM_ART_URI, thumb)
@@ -664,16 +650,16 @@ void CXBMCApp::UpdateSessionState()
   float speed = 0.0;
   if (m_playback_state != PLAYBACK_STATE_STOPPED)
   {
-    if (g_application.m_pPlayer->HasVideo())
+    if (g_application.GetAppPlayer().HasVideo())
       m_playback_state |= PLAYBACK_STATE_VIDEO;
     else
       m_playback_state &= ~PLAYBACK_STATE_VIDEO;
-    if (g_application.m_pPlayer->HasAudio())
+    if (g_application.GetAppPlayer().HasAudio())
       m_playback_state |= PLAYBACK_STATE_AUDIO;
     else
       m_playback_state &= ~PLAYBACK_STATE_AUDIO;
-    pos = g_application.m_pPlayer->GetTime();
-    speed = g_application.m_pPlayer->GetPlaySpeed();
+    pos = g_application.GetAppPlayer().GetTime();
+    speed = g_application.GetAppPlayer().GetPlaySpeed();
     if (m_playback_state & PLAYBACK_STATE_PLAYING)
       state = CJNIPlaybackState::STATE_PLAYING;
     else
@@ -693,10 +679,12 @@ void CXBMCApp::OnPlayBackStarted()
   CLog::Log(LOGDEBUG, "%s", __PRETTY_FUNCTION__);
 
   m_playback_state = PLAYBACK_STATE_PLAYING;
-  if (g_application.m_pPlayer->HasVideo())
+  if (g_application.GetAppPlayer().HasVideo())
     m_playback_state |= PLAYBACK_STATE_VIDEO;
-  if (g_application.m_pPlayer->HasAudio())
+  if (g_application.GetAppPlayer().HasAudio())
     m_playback_state |= PLAYBACK_STATE_AUDIO;
+  if (!g_application.GetAppPlayer().CanPause())
+    m_playback_state |= PLAYBACK_STATE_CANNOT_PAUSE;
 
   m_mediaSession->activate(true);
   UpdateSessionState();
@@ -963,11 +951,10 @@ void CXBMCApp::onReceive(CJNIIntent intent)
       g_application.WakeUpScreenSaverAndDPMS();
   }
   else if (action == "android.intent.action.HEADSET_PLUG" ||
-    action == "android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" ||
-    action == "android.intent.action.HDMI_AUDIO_PLUG")
+    action == "android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED")
   {
     bool newstate = m_headsetPlugged;
-    if (action == "android.intent.action.HEADSET_PLUG" || action == "android.intent.action.HDMI_AUDIO_PLUG")
+    if (action == "android.intent.action.HEADSET_PLUG")
       newstate = (intent.getIntExtra("state", 0) != 0);
     else if (action == "android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED")
       newstate = (intent.getIntExtra("android.bluetooth.profile.extra.STATE", 0) == 2 /* STATE_CONNECTED */);
@@ -975,6 +962,18 @@ void CXBMCApp::onReceive(CJNIIntent intent)
     if (newstate != m_headsetPlugged)
     {
       m_headsetPlugged = newstate;
+      CServiceBroker::GetActiveAE().DeviceChange();
+    }
+  }
+  else if (action == "android.media.action.HDMI_AUDIO_PLUG")
+  {
+    bool newstate;
+    newstate = (intent.getIntExtra("android.media.extra.AUDIO_PLUG_STATE", 0) != 0);
+
+    if (newstate != m_hdmiPlugged)
+    {
+      CLog::Log(LOGDEBUG, "-- HDMI state: %s",  newstate ? "on" : "off");
+      m_hdmiPlugged = newstate;
       CServiceBroker::GetActiveAE().DeviceChange();
     }
   }
@@ -1021,7 +1020,7 @@ void CXBMCApp::onReceive(CJNIIntent intent)
   {
     if (g_application.IsInitialized())
     {
-      CNetwork& net = g_application.getNetwork();
+      CNetwork& net = CServiceBroker::GetNetwork();
       CNetworkAndroid* netdroid = static_cast<CNetworkAndroid*>(&net);
       netdroid->RetrieveInterfaces();
     }
@@ -1033,21 +1032,26 @@ void CXBMCApp::onNewIntent(CJNIIntent intent)
   std::string action = intent.getAction();
   CLog::Log(LOGDEBUG, "CXBMCApp::onNewIntent - Got intent. Action: %s", action.c_str());
   std::string targetFile = GetFilenameFromIntent(intent);
-  CLog::Log(LOGDEBUG, "-- targetFile: %s", targetFile.c_str());
-  if (action == "android.intent.action.VIEW" || action == "android.intent.action.GET_CONTENT")
+  if (!targetFile.empty() &&  (action == "android.intent.action.VIEW" || action == "android.intent.action.GET_CONTENT"))
   {
+    CLog::Log(LOGDEBUG, "-- targetFile: %s", targetFile.c_str());
+
     CURL targeturl(targetFile);
     std::string value;
     if (action == "android.intent.action.GET_CONTENT" || (targeturl.GetOption("showinfo", value) && value == "true"))
     {
-      if (targeturl.IsProtocol("videodb"))
+      if (targeturl.IsProtocol("videodb")
+          || (targeturl.IsProtocol("special") && targetFile.find("playlists/video") != std::string::npos)
+          || (targeturl.IsProtocol("special") && targetFile.find("playlists/mixed") != std::string::npos)
+          )
       {
         std::vector<std::string> params;
         params.push_back(targeturl.Get());
         params.push_back("return");
         CApplicationMessenger::GetInstance().PostMsg(TMSG_GUI_ACTIVATE_WINDOW, WINDOW_VIDEO_NAV, 0, nullptr, "", params);
       }
-      else if (targeturl.IsProtocol("musicdb"))
+      else if (targeturl.IsProtocol("musicdb")
+               || (targeturl.IsProtocol("special") && targetFile.find("playlists/music") != std::string::npos))
       {
         std::vector<std::string> params;
         params.push_back(targeturl.Get());
@@ -1099,8 +1103,13 @@ void CXBMCApp::onVisibleBehindCanceled()
   m_hasReqVisible = false;
 
   // Pressing the pause button calls OnStop() (cf. https://code.google.com/p/android/issues/detail?id=186469)
-  if ((m_playback_state & PLAYBACK_STATE_PLAYING) && (m_playback_state & PLAYBACK_STATE_VIDEO))
-    CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+  if ((m_playback_state & PLAYBACK_STATE_PLAYING))
+  {
+    if (m_playback_state & PLAYBACK_STATE_CANNOT_PAUSE)
+      CApplicationMessenger::GetInstance().PostMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_STOP)));
+    else if (m_playback_state & PLAYBACK_STATE_VIDEO)
+      CApplicationMessenger::GetInstance().PostMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+  }
 }
 
 int CXBMCApp::WaitForActivityResult(const CJNIIntent &intent, int requestCode, CJNIIntent &result)
@@ -1131,8 +1140,13 @@ void CXBMCApp::onAudioFocusChange(int focusChange)
   CXBMCApp::android_printf("Audio Focus changed: %d", focusChange);
   if (focusChange == CJNIAudioManager::AUDIOFOCUS_LOSS)
   {
-    if (m_playback_state & PLAYBACK_STATE_PLAYING)
-      CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+    if ((m_playback_state & PLAYBACK_STATE_PLAYING))
+    {
+      if (m_playback_state & PLAYBACK_STATE_CANNOT_PAUSE)
+        CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_STOP)));
+      else
+        CApplicationMessenger::GetInstance().SendMsg(TMSG_GUI_ACTION, WINDOW_INVALID, -1, static_cast<void*>(new CAction(ACTION_PAUSE)));
+    }
   }
 }
 
@@ -1240,7 +1254,9 @@ ANativeWindow* CXBMCApp::GetNativeWindow(int timeout)
   if (m_window)
     return m_window;
 
-  m_windowCreated.WaitMSec(timeout);
+  if (m_mainView)
+    m_mainView->waitForSurface(timeout);
+
   return m_window;
 }
 
@@ -1300,4 +1316,33 @@ bool CXBMCApp::onInputDeviceEvent(const AInputEvent* event)
     return m_inputDeviceEventHandler->OnInputDeviceEvent(event);
 
   return false;
+}
+
+
+void CXBMCApp::surfaceChanged(CJNISurfaceHolder holder, int format, int width, int height)
+{
+}
+
+void CXBMCApp::surfaceCreated(CJNISurfaceHolder holder)
+{
+  m_window = ANativeWindow_fromSurface(xbmc_jnienv(), holder.getSurface().get_raw());
+  if (m_window == NULL)
+  {
+    android_printf(" => invalid ANativeWindow object");
+    return;
+  }
+  if(!m_firstrun)
+  {
+    XBMC_SetupDisplay();
+  }
+}
+
+void CXBMCApp::surfaceDestroyed(CJNISurfaceHolder holder)
+{
+  // If we have exited XBMC, it no longer exists.
+  if (!m_exiting)
+  {
+    XBMC_DestroyDisplay();
+    m_window = NULL;
+  }
 }

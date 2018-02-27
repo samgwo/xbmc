@@ -19,8 +19,8 @@
  */
 #pragma once
 
-#include "input/joysticks/IButtonSequence.h"
-#include "input/joysticks/IInputHandler.h"
+#include "input/joysticks/interfaces/IButtonSequence.h"
+#include "input/joysticks/interfaces/IInputHandler.h"
 #include "input/joysticks/interfaces/IKeymapHandler.h"
 #include "input/joysticks/JoystickTypes.h"
 
@@ -63,6 +63,8 @@ namespace JOYSTICK
     virtual bool OnButtonMotion(const FeatureName& feature, float magnitude, unsigned int motionTimeMs) override;
     virtual bool OnAnalogStickMotion(const FeatureName& feature, float x, float y, unsigned int motionTimeMs) override;
     virtual bool OnAccelerometerMotion(const FeatureName& feature, float x, float y, float z) override;
+    virtual bool OnWheelMotion(const FeatureName& feature, float position, unsigned int motionTimeMs) override;
+    virtual bool OnThrottleMotion(const FeatureName& feature, float position, unsigned int motionTimeMs) override;
 
   protected:
     // Keep track of cheat code presses
@@ -72,6 +74,14 @@ namespace JOYSTICK
     // Analog stick helper functions
     bool ActivateDirection(const FeatureName& feature, float magnitude, ANALOG_STICK_DIRECTION dir, unsigned int motionTimeMs);
     void DeactivateDirection(const FeatureName& feature, ANALOG_STICK_DIRECTION dir);
+
+    // Wheel helper functions
+    bool ActivateDirection(const FeatureName& feature, float magnitude, WHEEL_DIRECTION dir, unsigned int motionTimeMs);
+    void DeactivateDirection(const FeatureName& feature, WHEEL_DIRECTION dir);
+
+    // Throttle helper functions
+    bool ActivateDirection(const FeatureName& feature, float magnitude, THROTTLE_DIRECTION dir, unsigned int motionTimeMs);
+    void DeactivateDirection(const FeatureName& feature, THROTTLE_DIRECTION dir);
 
     // Helper functions
     IKeyHandler *GetKeyHandler(const std::string &keyName);

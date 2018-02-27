@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -120,8 +120,8 @@ bool CEncoderFFmpeg::Init(AddonToKodiFuncTable_AudioEncoder& callbacks)
 
   if(m_Format->oformat->flags & AVFMT_GLOBALHEADER)
   {
-    m_CodecCtx->flags |= CODEC_FLAG_GLOBAL_HEADER;
-    m_Format->flags   |= CODEC_FLAG_GLOBAL_HEADER;
+    m_CodecCtx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    m_Format->flags   |= AV_CODEC_FLAG_GLOBAL_HEADER;
   }
 
   switch(m_iInBitsPerSample)

@@ -28,15 +28,20 @@ BUTTON_TYPE CGUIFeatureTranslator::GetButtonType(JOYSTICK::FEATURE_TYPE featureT
   switch (featureType)
   {
   case JOYSTICK::FEATURE_TYPE::SCALAR:
+  case JOYSTICK::FEATURE_TYPE::KEY:
     return BUTTON_TYPE::BUTTON;
 
   case JOYSTICK::FEATURE_TYPE::ANALOG_STICK:
     return BUTTON_TYPE::ANALOG_STICK;
 
-  //! @todo Create button control for relative pointers. Use analog sticks for
-  //  now, as four directions are sufficient for relative pointers.
   case JOYSTICK::FEATURE_TYPE::RELPOINTER:
-    return BUTTON_TYPE::ANALOG_STICK;
+    return BUTTON_TYPE::RELATIVE_POINTER;
+
+  case JOYSTICK::FEATURE_TYPE::WHEEL:
+    return BUTTON_TYPE::WHEEL;
+
+  case JOYSTICK::FEATURE_TYPE::THROTTLE:
+    return BUTTON_TYPE::THROTTLE;
 
   default:
     break;

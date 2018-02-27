@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,9 @@
  *
  */
 
+#include <memory>
+#include <vector>
+
 #include "utils/Observer.h"
 #include "windows/GUIMediaWindow.h"
 
@@ -32,6 +35,7 @@
 #define CONTROL_BTNSHOWDELETED            7
 #define CONTROL_BTNHIDEDISABLEDTIMERS     8
 #define CONTROL_BTNSHOWMODE               10
+#define CONTROL_LSTCHANNELGROUPS          11
 
 #define CONTROL_BTNCHANNELGROUPS          28
 #define CONTROL_BTNFILTERCHANNELS         31
@@ -53,6 +57,8 @@ namespace PVR
     EPG_SELECT_ACTION_SMART_SELECT   = 5
   };
 
+  class CGUIPVRChannelGroupsSelector;
+
   class CGUIWindowPVRBase : public CGUIMediaWindow, public Observer
   {
   public:
@@ -68,9 +74,6 @@ namespace PVR
     void Notify(const Observable &obs, const ObservableMessage msg) override;
     void SetInvalid() override;
     bool CanBeActivated() const override;
-
-    static std::string GetSelectedItemPath(bool bRadio);
-    static void SetSelectedItemPath(bool bRadio, const std::string &path);
 
     /*!
      * @brief Refresh window content.
@@ -109,9 +112,6 @@ namespace PVR
     void RegisterObservers(void);
     void UnregisterObservers(void);
 
-    static CCriticalSection m_selectedItemPathsLock;
-    static std::string m_selectedItemPaths[2];
-
     CCriticalSection m_critSection;
     bool m_bRadio;
 
@@ -130,6 +130,7 @@ namespace PVR
      */
     void HideProgressDialog(void);
 
+    std::unique_ptr<CGUIPVRChannelGroupsSelector> m_channelGroupsSelector;
     CPVRChannelGroupPtr m_channelGroup;
     XbmcThreads::EndTime m_refreshTimeout;
     CGUIDialogProgressBarHandle *m_progressHandle; /*!< progress dialog that is displayed while the pvr manager is loading */

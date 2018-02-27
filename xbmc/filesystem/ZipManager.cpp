@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,9 +24,8 @@
 #include <utility>
 
 #include "File.h"
-#include "system.h"
 #include "URL.h"
-#include "linux/PlatformDefs.h"
+#include "platform/linux/PlatformDefs.h"
 #include "utils/CharsetConverter.h"
 #include "utils/EndianSwap.h"
 #include "utils/log.h"
@@ -198,7 +197,7 @@ bool CZipManager::GetZipList(const CURL& url, std::vector<SZipEntry>& items)
       std::string tmp(strName);
       g_charsetConverter.ToUtf8("CP437", tmp, strName);
     }
-    ZeroMemory(ze.name, 255);
+    memset(ze.name, 0, 255);
     strncpy(ze.name, strName.c_str(), strName.size() > 254 ? 254 : strName.size());
 
     // Jump after central file header extra field and file comment

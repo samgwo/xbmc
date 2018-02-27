@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
  */
 
 #include "network/Network.h"
-#include "system.h"
 #include "CompileInfo.h"
 #include "GUIInfoManager.h"
 #include "view/GUIViewState.h"
@@ -32,7 +31,7 @@
 #include "ServiceBroker.h"
 #include "Util.h"
 #include "utils/URIUtils.h"
-#include "utils/Weather.h"
+#include "weather/WeatherManager.h"
 #include "PartyModeManager.h"
 #include "guilib/GUIVisualisationControl.h"
 #include "input/WindowTranslator.h"
@@ -51,10 +50,12 @@
 #include "PlayListPlayer.h"
 #include "playlists/PlayList.h"
 #include "profiles/ProfilesManager.h"
-#include "windowing/WindowingFactory.h"
+#include "windowing/WinSystem.h"
 #include "powermanagement/PowerManager.h"
+#include "SeekHandler.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/DisplaySettings.h"
+#include "settings/GameSettings.h"
 #include "settings/MediaSettings.h"
 #include "settings/Settings.h"
 #include "settings/SkinSettings.h"
@@ -64,7 +65,6 @@
 #include "utils/CPUInfo.h"
 #include "utils/SortUtils.h"
 #include "utils/StringUtils.h"
-#include "utils/SeekHandler.h"
 #include "URL.h"
 #include "addons/Skin.h"
 #include <algorithm>
@@ -73,6 +73,7 @@
 #include <memory>
 #include <math.h>
 #include "cores/DataCacheCore.h"
+#include "cores/RetroPlayer/RetroPlayerUtils.h"
 #include "guiinfo/GUIInfoLabels.h"
 #include "messaging/ApplicationMessenger.h"
 
@@ -112,11 +113,12 @@
 #endif
 
 #ifdef TARGET_POSIX
-#include "linux/XMemUtils.h"
+#include "platform/linux/XMemUtils.h"
 #endif
 
 #define SYSHEATUPDATEINTERVAL 60000
 
+using namespace KODI;
 using namespace XFILE;
 using namespace MUSIC_INFO;
 using namespace ADDON;
@@ -323,16 +325,6 @@ const infomap integer_bools[] =  {{ "isequal",          INTEGER_IS_EQUAL },
 ///                  _boolean_,
 ///     Returns true if the player is fast forwarding at 32x.
 ///   }
-///   \table_row3{   <b>`Player.CanRecord`</b>,
-///                  \anchor Player_CanRecord
-///                  _boolean_,
-///     Returns true if the player can record the current internet stream.
-///   }
-///   \table_row3{   <b>`Player.Recording`</b>,
-///                  \anchor Player_Recording
-///                  _boolean_,
-///     Returns true if the player is recording the current internet stream.
-///   }
 ///   \table_row3{   <b>`Player.Caching`</b>,
 ///                  \anchor Player_Caching
 ///                  _boolean_,
@@ -405,8 +397,8 @@ const infomap integer_bools[] =  {{ "isequal",          INTEGER_IS_EQUAL },
 ///   }
 ///   \table_row3{   <b>`Player.ProgressCache`</b>,
 ///                  \anchor Player_ProgressCache
-///                  _boolean_,
-///     Shows how much of the file is cached above current play percentage
+///                  _integer_,
+///     Returns how much of the file is cached above current play percentage
 ///   }
 ///   \table_row3{   <b>`Player.Volume`</b>,
 ///                  \anchor Player_Volume
@@ -440,17 +432,17 @@ const infomap integer_bools[] =  {{ "isequal",          INTEGER_IS_EQUAL },
 ///   }
 ///   \table_row3{   <b>`Player.Folderpath`</b>,
 ///                  \anchor Player_Folderpath
-///                  _path_,
-///     Shows the full path of the currently playing song or movie
+///                  _string_,
+///     Returns the full path of the currently playing song or movie
 ///   }
 ///   \table_row3{   <b>`Player.FilenameAndPath`</b>,
-///                  \anchor FilenameAndPath
-///                  _boolean_,
-///     Shows the full path with filename of the currently playing song or movie
+///                  \anchor Player_FilenameAndPath
+///                  _string_,
+///     Returns the full path with filename of the currently playing song or movie
 ///   }
 ///   \table_row3{   <b>`Player.Filename`</b>,
 ///                  \anchor Player_Filename
-///                  _path_,
+///                  _string_,
 ///     Returns the filename of the currently playing media.
 ///   }
 ///   \table_row3{   <b>`Player.IsInternetStream`</b>,
@@ -494,8 +486,6 @@ const infomap player_labels[] =  {{ "hasmedia",         PLAYER_HAS_MEDIA },     
                                   { "forwarding8x",     PLAYER_FORWARDING_8x },
                                   { "forwarding16x",    PLAYER_FORWARDING_16x },
                                   { "forwarding32x",    PLAYER_FORWARDING_32x },
-                                  { "canrecord",        PLAYER_CAN_RECORD },
-                                  { "recording",        PLAYER_RECORDING },
                                   { "displayafterseek", PLAYER_DISPLAY_AFTER_SEEK },
                                   { "caching",          PLAYER_CACHING },
                                   { "seekbar",          PLAYER_SEEKBAR },
@@ -525,7 +515,8 @@ const infomap player_labels[] =  {{ "hasmedia",         PLAYER_HAS_MEDIA },     
                                   { "channelpreviewactive", PLAYER_IS_CHANNEL_PREVIEW_ACTIVE},
                                   { "tempoenabled", PLAYER_SUPPORTS_TEMPO},
                                   { "istempo", PLAYER_IS_TEMPO},
-                                  { "playspeed", PLAYER_PLAYSPEED}};
+                                  { "playspeed", PLAYER_PLAYSPEED},
+                                  { "hasprograms", PLAYER_HAS_PROGRAMS}};
 
 /// \page modules__General__List_of_gui_access
 /// @{
@@ -576,7 +567,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.SeekOffset(format)`</b>,
 ///                  \anchor Player_SeekOffset_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). Also supported: (hh:mm)\,
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). Also supported: (hh:mm)\,
 ///     (mm:ss)\, (hh:mm:ss)\, (hh:mm:ss).
 ///   }
 ///   \table_row3{   <b>`Player.SeekStepSize`</b>,
@@ -592,7 +583,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.TimeRemaining(format)`</b>,
 ///                  \anchor Player_TimeRemaining_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
 ///     used (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\,
 ///     (hh:mm:ss)\, (hh:mm:ss).
 ///   }
@@ -609,7 +600,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.Time(format)`</b>,
 ///                  \anchor Player_Time_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
 ///     used (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\,
 ///     (hh:mm:ss)\, (hh:mm:ss).
 ///   }
@@ -621,7 +612,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.Duration(format)`</b>,
 ///                  \anchor Player_Duration_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is used
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is used
 ///     (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\, (hh:mm:ss)\,
 ///     (hh:mm:ss).
 ///   }
@@ -633,7 +624,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.FinishTime(format)`</b>,
 ///                  \anchor Player_FinishTime_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
 ///     used (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\,
 ///     (hh:mm:ss)\, (hh:mm:ss).
 ///   }
@@ -645,7 +636,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.StartTime(format)`</b>,
 ///                  \anchor Player_StartTime_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
 ///     used (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\,
 ///     (hh:mm:ss)\, (hh:mm:ss).
 ///   }
@@ -657,7 +648,7 @@ const infomap player_param[] =   {{ "art",              PLAYER_ITEM_ART }};
 ///   \table_row3{   <b>`Player.SeekNumeric(format)`</b>,
 ///                  \anchor Player_SeekNumeric_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is used
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is used
 ///     (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\, (hh:mm:ss)\,
 ///     (hh:mm:ss).
 ///   }
@@ -758,22 +749,22 @@ const infomap weather[] =        {{ "isfetched",        WEATHER_IS_FETCHED },
 ///   \table_row3{   <b>`System.HasLocks`</b>,
 ///                  \anchor System_HasLocks
 ///                  _boolean_,
-///     Todo
+///     Returns true if system has an active lock mode.
 ///   }
 ///   \table_row3{   <b>`System.IsMaster`</b>,
 ///                  \anchor System_IsMaster
 ///                  _boolean_,
-///     Todo
+///     Returns true if system is in master mode.
 ///   }
 ///   \table_row3{   <b>`System.ShowExitButton`</b>,
 ///                  \anchor System_ShowExitButton
 ///                  _boolean_,
-///     Todo
+///     Returns true if the exit button should be shown (configurable via advanced settings).
 ///   }
 ///   \table_row3{   <b>`System.DPMSActive`</b>,
 ///                  \anchor System_DPMSActive
 ///                  _boolean_,
-///     Todo
+///     Returns true if DPMS (VESA Display Power Management Signaling) mode is active.
 ///   }
 ///   \table_row3{   <b>`System.IdleTime(time)`</b>,
 ///                  \anchor System_IdleTime
@@ -935,7 +926,7 @@ const infomap weather[] =        {{ "isfetched",        WEATHER_IS_FETCHED },
 ///   \table_row3{   <b>`System.Time(format)`</b>,
 ///                  \anchor System_Time_format
 ///                  _string_,
-///     Shows hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
+///     Returns hours (hh)\, minutes (mm) or seconds (ss). When 12 hour clock is
 ///     used (xx) will return AM/PM. Also supported: (hh:mm)\, (mm:ss)\,
 ///     (hh:mm:ss)\, (hh:mm:ss). (xx) option added after dharma
 ///   }
@@ -1072,7 +1063,7 @@ const infomap weather[] =        {{ "isfetched",        WEATHER_IS_FETCHED },
 ///   \table_row3{   <b>`System.CurrentControlId`</b>,
 ///                  \anchor System_CurrentControlId
 ///                  _string_,
-///     Todo
+///     ID of the currently focused control.
 ///   }
 ///   \table_row3{   <b>`System.DVDLabel`</b>,
 ///                  \anchor System_DVDLabel
@@ -1087,7 +1078,7 @@ const infomap weather[] =        {{ "isfetched",        WEATHER_IS_FETCHED },
 ///   \table_row3{   <b>`System.OSVersionInfo`</b>,
 ///                  \anchor System_OSVersionInfo
 ///                  _string_,
-///     Todo
+///     System name + kernel version
 ///   }
 ///   \table_row3{   <b>`System.Uptime`</b>,
 ///                  \anchor System_Uptime
@@ -1124,22 +1115,22 @@ const infomap weather[] =        {{ "isfetched",        WEATHER_IS_FETCHED },
 ///   \table_row3{   <b>`System.Language`</b>,
 ///                  \anchor System_Language
 ///                  _string_,
-///     Shows the current language
+///     Returns the current language
 ///   }
 ///   \table_row3{   <b>`System.ProfileName`</b>,
 ///                  \anchor System_ProfileName
 ///                  _string_,
-///     Shows the User name of the currently logged in Kodi user
+///     Returns the user name of the currently logged in Kodi user
 ///   }
 ///   \table_row3{   <b>`System.ProfileThumb`</b>,
 ///                  \anchor System_ProfileThumb
 ///                  _string_,
-///     Todo
+///     Returns the thumbnail image of the currently logged in Kodi user
 ///   }
 ///   \table_row3{   <b>`System.ProfileCount`</b>,
 ///                  \anchor System_ProfileCount
 ///                  _string_,
-///     Shows the number of defined profiles
+///     Returns the number of defined profiles
 ///   }
 ///   \table_row3{   <b>`System.ProfileAutoLogin`</b>,
 ///                  \anchor System_ProfileAutoLogin
@@ -1154,12 +1145,12 @@ const infomap weather[] =        {{ "isfetched",        WEATHER_IS_FETCHED },
 ///   \table_row3{   <b>`System.TemperatureUnits`</b>,
 ///                  \anchor System_TemperatureUnits
 ///                  _string_,
-///     Shows Celsius or Fahrenheit symbol
+///     Returns Celsius or Fahrenheit symbol
 ///   }
 ///   \table_row3{   <b>`System.Progressbar`</b>,
 ///                  \anchor System_Progressbar
 ///                  _string_,
-///     Todo
+///     Returns the percentage of the currently active progress.
 ///   }
 ///   \table_row3{   <b>`System.GetBool(boolean)`</b>,
 ///                  \anchor System_GetBool
@@ -1264,7 +1255,7 @@ const infomap system_labels[] =  {{ "hasnetwork",       SYSTEM_ETHERNET_LINK_ACT
 ///   \table_row3{   <b>`System.HasCoreId(id)`</b>,
 ///                  \anchor System_HasCoreId
 ///                  _boolean_,
-///     Todo
+///     Returns true if the cpu core with the given 'id' exists.
 ///   }
 ///   \table_row3{   <b>`System.HasAlarm(alarm)`</b>,
 ///                  \anchor System_HasAlarm
@@ -1437,33 +1428,33 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///   \table_row3{   <b>`MusicPlayer.Property(Album_Mood)`</b>,
 ///                  \anchor MusicPlayer_Property_Album_Mood
 ///                  _string_,
-///     Shows the moods of the currently playing Album
+///     Returns the moods of the currently playing Album
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Album_Style)`</b>,
 ///                  \anchor MusicPlayer_Property_Album_Style
 ///                  _string_,
-///     Shows the styles of the currently playing Album
+///     Returns the styles of the currently playing Album
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Album_Theme)`</b>,
 ///                  \anchor MusicPlayer_Property_Album_Theme
 ///                  _string_,
-///     Shows the themes of the currently playing Album
+///     Returns the themes of the currently playing Album
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Album_Type)`</b>,
 ///                  \anchor MusicPlayer_Property_Album_Type
 ///                  _string_,
-///     Shows the Album Type (e.g. compilation\, enhanced\, explicit lyrics) of the
-///     currently playing Album
+///     Returns the album type (e.g. compilation\, enhanced\, explicit lyrics) of the
+///     currently playing album
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Album_Label)`</b>,
 ///                  \anchor MusicPlayer_Property_Album_Label
 ///                  _string_,
-///     Shows the record label of the currently playing Album
+///     Returns the record label of the currently playing album
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Album_Description)`</b>,
 ///                  \anchor MusicPlayer_Property_Album_Description
 ///                  _string_,
-///     Shows a review of the currently playing Album
+///     Returns a review of the currently playing album
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Artist`</b>,
 ///                  \anchor MusicPlayer_Artist
@@ -1476,12 +1467,33 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///   \table_row3{   <b>`MusicPlayer.AlbumArtist`</b>,
 ///                  \anchor MusicPlayer_AlbumArtist
 ///                  _string_,
-///     Todo
+///     Album artist of the currently playing song
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Cover`</b>,
 ///                  \anchor MusicPlayer_Cover
 ///                  _string_,
-///     Todo
+///     Album cover of currently playing song
+///   }
+///   \table_row3{   <b>`MusicPlayer.Property(Artist_Sortname)`</b>,
+///                  \anchor MusicPlayer_Property_Artist_Sortname
+///                  _string_,
+///     Sortname of the currently playing Artist
+///   }
+///   \table_row3{   <b>`MusicPlayer.Property(Artist_Type)`</b>,
+///                  \anchor MusicPlayer_Property_Artist_Type
+///                  _string_,
+///     Type of the currently playing Artist - person, group, orchestra, choir etc.
+///   }
+///   \table_row3{   <b>`MusicPlayer.Property(Artist_Gender)`</b>,
+///                  \anchor MusicPlayer_Property_Artist_Gender
+///                  _string_,
+///     Gender of the currently playing Artist - male, female, other
+///   }
+///   \table_row3{   <b>`MusicPlayer.Property(Artist_Disambiguation)`</b>,
+///                  \anchor MusicPlayer_Property_Artist_Disambiguation
+///                  _string_,
+///     Brief description of the currently playing Artist that differentiates them
+///     from others with the same name
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Artist_Born)`</b>,
 ///                  \anchor MusicPlayer_Property_Artist_Born
@@ -1516,22 +1528,22 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///   \table_row3{   <b>`MusicPlayer.Property(Artist_Description)`</b>,
 ///                  \anchor MusicPlayer_Property_Artist_Description
 ///                  _string_,
-///     Shows a biography of the currently playing artist
+///     Returns a biography of the currently playing artist
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Artist_Mood)`</b>,
 ///                  \anchor MusicPlayer_Property_Artist_Mood
 ///                  _string_,
-///     Shows the moods of the currently playing artist
+///     Returns the moods of the currently playing artist
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Artist_Style)`</b>,
 ///                  \anchor MusicPlayer_Property_Artist_Style
 ///                  _string_,
-///     Shows the styles of the currently playing artist
+///     Returns the styles of the currently playing artist
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Property(Artist_Genre)`</b>,
 ///                  \anchor MusicPlayer_Property_Artist_Genre
 ///                  _string_,
-///     Shows the genre of the currently playing artist
+///     Returns the genre of the currently playing artist
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Genre`</b>,
 ///                  \anchor MusicPlayer_Genre
@@ -1565,17 +1577,17 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///   \table_row3{   <b>`MusicPlayer.RatingAndVotes`</b>,
 ///                  \anchor MusicPlayer_RatingAndVotes
 ///                  _string_,
-///     Todo
+///     Returns the scraped rating and votes of currently playing song\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.UserRating`</b>,
 ///                  \anchor MusicPlayer_UserRating
 ///                  _string_,
-///     Todo
+///     Returns the scraped rating of the currently playing song
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.Votes`</b>,
 ///                  \anchor MusicPlayer_Votes
 ///                  _string_,
-///     Todo
+///     Returns the scraped votes of currently playing song\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.DiscNumber`</b>,
 ///                  \anchor MusicPlayer_DiscNumber
@@ -1596,17 +1608,18 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///   \table_row3{   <b>`MusicPlayer.Mood`</b>,
 ///                  \anchor MusicPlayer_Mood
 ///                  _string_,
-///     Todo
+///     Mood of the currently playing song
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.PlaylistPlaying`</b>,
 ///                  \anchor MusicPlayer_PlaylistPlaying
 ///                  _boolean_,
-///     Todo
+///     Returns true if a playlist is currently playing
 ///   }
-///   \table_row3{   <b>`MusicPlayer.Exists`</b>,
+///   \table_row3{   <b>`MusicPlayer.Exists(relative,position)`</b>,
 ///                  \anchor MusicPlayer_Exists
 ///                  _boolean_,
-///     Todo
+///     Returns true if the currently playing playlist has a song queued at the given position.
+///     It is possible to define whether the position is relative or not, default is false.
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.HasPrevious`</b>,
 ///                  \anchor MusicPlayer_HasPrevious
@@ -1621,12 +1634,12 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///   \table_row3{   <b>`MusicPlayer.PlayCount`</b>,
 ///                  \anchor MusicPlayer_PlayCount
 ///                  _integer_,
-///     Todo
+///     Returns the play count of currently playing song\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.LastPlayed`</b>,
 ///                  \anchor MusicPlayer_LastPlayed
 ///                  _string_,
-///     Todo
+///     Returns the last play date of currently playing song\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`MusicPlayer.TrackNumber`</b>,
 ///                  \anchor MusicPlayer_TrackNumber
@@ -1684,16 +1697,6 @@ const infomap musicpartymode[] = {{ "enabled",           MUSICPM_ENABLED },
 ///                  _string_,
 ///     Channel name of the radio programme that's currently playing (PVR).
 ///   }
-///   \table_row3{   <b>`MusicPlayer.ChannelNumber`</b>,
-///                  \anchor MusicPlayer_ChannelNumber
-///                  _string_,
-///     Channel number of the radio programme that's currently playing (PVR).
-///   }
-///   \table_row3{   <b>`MusicPlayer.SubChannelNumber`</b>,
-///                  \anchor MusicPlayer_SubChannelNumber
-///                  _string_,
-///     Subchannel number of the radio channel that's currently playing (PVR).
-///   }
 ///   \table_row3{   <b>`MusicPlayer.ChannelNumberLabel`</b>,
 ///                  \anchor MusicPlayer_ChannelNumberLabel
 ///                  _string_,
@@ -1740,9 +1743,7 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
                                   { "playcount",        MUSICPLAYER_PLAYCOUNT },
                                   { "lastplayed",       MUSICPLAYER_LASTPLAYED },
                                   { "channelname",      MUSICPLAYER_CHANNEL_NAME },
-                                  { "channelnumber",    MUSICPLAYER_CHANNEL_NUMBER },
-                                  { "subchannelnumber", MUSICPLAYER_SUB_CHANNEL_NUMBER },
-                                  { "channelnumberlabel", MUSICPLAYER_CHANNEL_NUMBER_LBL },
+                                  { "channelnumberlabel", MUSICPLAYER_CHANNEL_NUMBER },
                                   { "channelgroup",     MUSICPLAYER_CHANNEL_GROUP },
                                   { "dbid", MUSICPLAYER_DBID }
 };
@@ -1828,7 +1829,7 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
 ///   \table_row3{   <b>`VideoPlayer.OriginalTitle`</b>,
 ///                  \anchor VideoPlayer_OriginalTitle
 ///                  _string_,
-///     Todo
+///     Original title of currently playing video. If it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.TVShowTitle`</b>,
 ///                  \anchor VideoPlayer_TVShowTitle
@@ -1868,27 +1869,27 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
 ///   \table_row3{   <b>`VideoPlayer.Cover`</b>,
 ///                  \anchor VideoPlayer_Cover
 ///                  _string_,
-///     Todo
+///     Cover of currently playing movie
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.Rating`</b>,
 ///                  \anchor VideoPlayer_Rating
 ///                  _string_,
-///     IMDb user rating of current movie\, if it's in the database
+///     Returns the scraped rating of current movie\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.UserRating`</b>,
 ///                  \anchor VideoPlayer_UserRating
 ///                  _string_,
-///     Shows the user rating of the currently playing item
+///     Returns the user rating of the currently playing item
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.Votes`</b>,
 ///                  \anchor VideoPlayer_Votes
 ///                  _string_,
-///     IMDb votes of current movie\, if it's in the database
+///     Returns the scraped votes of current movie\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.RatingAndVotes`</b>,
 ///                  \anchor VideoPlayer_RatingAndVotes
 ///                  _string_,
-///     IMDb user rating and votes of current movie\, if it's in the database
+///     Returns the scraped rating and votes of current movie\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.mpaa`</b>,
 ///                  \anchor VideoPlayer_mpaa
@@ -1898,12 +1899,12 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
 ///   \table_row3{   <b>`VideoPlayer.IMDBNumber`</b>,
 ///                  \anchor VideoPlayer_IMDBNumber
 ///                  _string_,
-///     The IMDB iD of the current video\, if it's in the database
+///     The IMDb ID of the current movie\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.Top250`</b>,
 ///                  \anchor VideoPlayer_Top250
 ///                  _string_,
-///     Todo
+///     IMDb Top250 position of the currently playing movie\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.EpisodeName`</b>,
 ///                  \anchor VideoPlayer_EpisodeName
@@ -1971,12 +1972,12 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
 ///   \table_row3{   <b>`VideoPlayer.Premiered`</b>,
 ///                  \anchor VideoPlayer_Premiered
 ///                  _string_,
-///     Todo
+///     Release or aired date of the currently playing episode, show, movie or EPG item\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.Trailer`</b>,
 ///                  \anchor VideoPlayer_Trailer
 ///                  _string_,
-///     Todo
+///     The path to the trailer of the currently playing movie\, if it's in the database
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.LastPlayed`</b>,
 ///                  \anchor VideoPlayer_LastPlayed
@@ -1991,50 +1992,50 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
 ///   \table_row3{   <b>`VideoPlayer.VideoCodec`</b>,
 ///                  \anchor VideoPlayer_VideoCodec
 ///                  _string_,
-///     Shows the video codec of the currently playing video (common values: see
+///     Returns the video codec of the currently playing video (common values: see
 ///     \ref ListItem_VideoCodec "ListItem.VideoCodec")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.VideoResolution`</b>,
 ///                  \anchor VideoPlayer_VideoResolution
 ///                  _string_,
-///     Shows the video resolution of the currently playing video (possible
+///     Returns the video resolution of the currently playing video (possible
 ///     values: see \ref ListItem_VideoResolution "ListItem.VideoResolution")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.VideoAspect`</b>,
 ///                  \anchor VideoPlayer_VideoAspect
 ///                  _string_,
-///     Shows the aspect ratio of the currently playing video (possible values:
+///     Returns the aspect ratio of the currently playing video (possible values:
 ///     see \ref ListItem_VideoAspect "ListItem.VideoAspect")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.AudioCodec`</b>,
 ///                  \anchor VideoPlayer_AudioCodec
 ///                  _string_,
-///     Shows the audio codec of the currently playing video\, optionally 'n'
+///     Returns the audio codec of the currently playing video\, optionally 'n'
 ///     defines the number of the audiostream (common values: see
 ///     \ref ListItem_AudioCodec "ListItem.AudioCodec")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.AudioChannels`</b>,
 ///                  \anchor VideoPlayer_AudioChannels
 ///                  _string_,
-///     Shows the number of audio channels of the currently playing video
+///     Returns the number of audio channels of the currently playing video
 ///     (possible values: see \ref ListItem_AudioChannels "ListItem.AudioChannels")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.AudioLanguage`</b>,
 ///                  \anchor VideoPlayer_AudioLanguage
 ///                  _string_,
-///     Shows the language of the audio of the currently playing video(possible
+///     Returns the language of the audio of the currently playing video(possible
 ///     values: see \ref ListItem_AudioLanguage "ListItem.AudioLanguage")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.SubtitlesLanguage`</b>,
 ///                  \anchor VideoPlayer_SubtitlesLanguage
 ///                  _string_,
-///     Shows the language of the subtitle of the currently playing video
+///     Returns the language of the subtitle of the currently playing video
 ///     (possible values: see \ref ListItem_SubtitleLanguage "ListItem.SubtitleLanguage")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.StereoscopicMode`</b>,
 ///                  \anchor VideoPlayer_StereoscopicMode
 ///                  _string_,
-///     Shows the stereoscopic mode of the currently playing video (possible
+///     Returns the stereoscopic mode of the currently playing video (possible
 ///     values: see \ref ListItem_StereoscopicMode "ListItem.StereoscopicMode")
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.EndTime`</b>,
@@ -2081,16 +2082,6 @@ const infomap musicplayer[] =    {{ "title",            MUSICPLAYER_TITLE },
 ///                  \anchor VideoPlayer_ChannelName
 ///                  _string_,
 ///     Name of the currently tuned channel (PVR).
-///   }
-///   \table_row3{   <b>`VideoPlayer.ChannelNumber`</b>,
-///                  \anchor VideoPlayer_ChannelNumber
-///                  _string_,
-///     Number of the currently tuned channel (PVR).
-///   }
-///   \table_row3{   <b>`VideoPlayer.SubChannelNumber`</b>,
-///                  \anchor VideoPlayer_SubChannelNumber
-///                  _string_,
-///     Subchannel number of the tv channel that's currently playing (PVR).
 ///   }
 ///   \table_row3{   <b>`VideoPlayer.ChannelNumberLabel`</b>,
 ///                  \anchor VideoPlayer_ChannelNumberLabel
@@ -2167,9 +2158,7 @@ const infomap videoplayer[] =    {{ "title",            VIDEOPLAYER_TITLE },
                                   { "nextendtime",      VIDEOPLAYER_NEXT_ENDTIME },
                                   { "nextduration",     VIDEOPLAYER_NEXT_DURATION },
                                   { "channelname",      VIDEOPLAYER_CHANNEL_NAME },
-                                  { "channelnumber",    VIDEOPLAYER_CHANNEL_NUMBER },
-                                  { "subchannelnumber", VIDEOPLAYER_SUB_CHANNEL_NUMBER },
-                                  { "channelnumberlabel", VIDEOPLAYER_CHANNEL_NUMBER_LBL },
+                                  { "channelnumberlabel", VIDEOPLAYER_CHANNEL_NUMBER },
                                   { "channelgroup",     VIDEOPLAYER_CHANNEL_GROUP },
                                   { "hasepg",           VIDEOPLAYER_HAS_EPG },
                                   { "parentalrating",   VIDEOPLAYER_PARENTAL_RATING },
@@ -2179,6 +2168,29 @@ const infomap videoplayer[] =    {{ "title",            VIDEOPLAYER_TITLE },
                                   { "imdbnumber",       VIDEOPLAYER_IMDBNUMBER },
                                   { "episodename",      VIDEOPLAYER_EPISODENAME },
                                   { "dbid", VIDEOPLAYER_DBID }
+};
+
+/// \page modules__General__List_of_gui_access
+/// \section modules__General__List_of_gui_access_RetroPlayer RetroPlayer
+/// @{
+/// \table_start
+///   \table_h3{ Labels, Type, Description }
+///   \table_row3{   <b>`ViewMode`</b>,
+///                  \anchor RetroPlayer_ViewMode
+///                  _string_,
+///     Returns the view mode of the currently-playing game.\n
+///     The following values are possible:
+///     - normal
+///     - 4:3
+///     - 16:9
+///     - nonlinear
+///     - original
+///   }
+/// \table_end
+///
+/// -----------------------------------------------------------------------------
+/// @}
+const infomap retroplayer[] =  {{ "viewmode",            RETROPLAYER_VIEWMODE},
 };
 
 const infomap player_process[] =
@@ -2223,12 +2235,12 @@ const infomap player_process[] =
 ///   \table_row3{   <b>`Container.FolderPath`</b>,
 ///                  \anchor Container_FolderPath
 ///                  _string_,
-///     Shows complete path of currently displayed folder
+///     Returns complete path of currently displayed folder
 ///   }
 ///   \table_row3{   <b>`Container.FolderName`</b>,
 ///                  \anchor Container_FolderName
 ///                  _string_,
-///     Shows top most folder in currently displayed folder
+///     Returns top most folder in currently displayed folder
 ///   }
 ///   \table_row3{   <b>`Container.PluginName`</b>,
 ///                  \anchor Container_PluginName
@@ -2243,7 +2255,7 @@ const infomap player_process[] =
 ///   \table_row3{   <b>`Container.ViewCount`</b>,
 ///                  \anchor Container_ViewCount
 ///                  _integer_,
-///     Todo
+///     Returns the number of available skin view modes for the current container listing
 ///   }
 ///   \table_row3{   <b>`Container(id).Totaltime`</b>,
 ///                  \anchor Container_Totaltime
@@ -2462,7 +2474,8 @@ const infomap container_bools[] ={{ "onnext",           CONTAINER_MOVE_NEXT },
 ///   \table_row3{   <b>`Container(id).SubItem`</b>,
 ///                  \anchor Container_SubItem
 ///                  _integer_,
-///     Todo
+///     Sub item in the container or grouplist with given id. If no id is
+///     specified it grabs the current container.
 ///   }
 ///   \table_row3{   <b>`Container(id).HasFocus(item_number)`</b>,
 ///                  \anchor Container_HasFocus
@@ -2505,10 +2518,11 @@ const infomap container_ints[] = {{ "row",              CONTAINER_ROW },
 ///     Addons true when a list of add-ons is shown LiveTV true when a
 ///     htsp (tvheadend) directory is shown
 ///   }
-///   \table_row3{   <b>`Container.Art`</b>,
+///   \table_row3{   <b>`Container.Art(type)`</b>,
 ///                  \anchor Container_Art
 ///                  _string_,
-///     Todo
+///     Returns the path to the art image file for the given type of the current container
+///     Todo: list of all art types
 ///   }
 /// \table_end
 ///
@@ -2526,22 +2540,28 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.Thumb`</b>,
 ///                  \anchor ListItem_Thumb
 ///                  _string_,
-///     Todo
+///     Returns the thumbnail (if it exists) of the currently selected item in a list or thumb control.
+///
+///     \deprecated but still available, returns the same as ListItem.Art(thumb).
 ///   }
 ///   \table_row3{   <b>`ListItem.Icon`</b>,
 ///                  \anchor ListItem_Icon
 ///                  _string_,
-///     Todo
+///     Returns the thumbnail (if it exists) of the currently selected item in a list or thumb control. If no thumbnail image exists, it will show the icon.
 ///   }
 ///   \table_row3{   <b>`ListItem.ActualIcon`</b>,
 ///                  \anchor ListItem_ActualIcon
 ///                  _string_,
-///     Todo
+///     Returns the icon of the currently selected item in a list or thumb control.
 ///   }
 ///   \table_row3{   <b>`ListItem.Overlay`</b>,
 ///                  \anchor ListItem_Overlay
 ///                  _string_,
-///     Todo
+///     Returns the overlay icon status of the currently selected item in a list or thumb control.
+///       - compressed file -- OverlayRAR.png
+///       - watched -- OverlayWatched.png
+///       - unwatched -- OverlayUnwatched.png
+///       - locked -- OverlayLocked.png
 ///   }
 ///   \table_row3{   <b>`ListItem.IsFolder`</b>,
 ///                  \anchor ListItem_IsFolder
@@ -2627,42 +2647,63 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.Label`</b>,
 ///                  \anchor ListItem_Label
 ///                  _string_,
-///     Shows the left label of the currently selected item in a container
+///     Returns the left label of the currently selected item in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Label2`</b>,
 ///                  \anchor ListItem_Label2
 ///                  _string_,
-///     Shows the right label of the currently selected item in a container
+///     Returns the right label of the currently selected item in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Title`</b>,
 ///                  \anchor ListItem_Title
 ///                  _string_,
-///     Shows the title of the currently selected song or movie in a container
+///     Returns the title of the currently selected song or movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.OriginalTitle`</b>,
 ///                  \anchor ListItem_OriginalTitle
 ///                  _string_,
-///     Shows the original title of the currently selected movie in a container
+///     Returns the original title of the currently selected movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.SortLetter`</b>,
 ///                  \anchor ListItem_SortLetter
 ///                  _string_,
-///     Shows the first letter of the current file in a container
+///     Returns the first letter of the current file in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.TrackNumber`</b>,
 ///                  \anchor ListItem_TrackNumber
 ///                  _string_,
-///     Shows the track number of the currently selected song in a container
+///     Returns the track number of the currently selected song in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Artist`</b>,
 ///                  \anchor ListItem_Artist
 ///                  _string_,
-///     Shows the artist of the currently selected song in a container
+///     Returns the artist of the currently selected song in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.AlbumArtist`</b>,
 ///                  \anchor ListItem_AlbumArtist
 ///                  _string_,
-///     Shows the artist of the currently selected album in a list
+///     Returns the artist of the currently selected album in a list
+///   }
+///   \table_row3{   <b>`ListItem.Property(Artist_Sortname)`</b>,
+///                  \anchor ListItem_Property_Artist_Sortname
+///                  _string_,
+///     Sortname of the currently selected Artist
+///   }
+///   \table_row3{   <b>`ListItem.Property(Artist_Type)`</b>,
+///                  \anchor ListItem_Property_Artist_Type
+///                  _string_,
+///     Type of the currently selected Artist - person, group, orchestra, choir etc.
+///   }
+///   \table_row3{   <b>`ListItem.Property(Artist_Gender)`</b>,
+///                  \anchor ListItem_Property_Artist_Gender
+///                  _string_,
+///     Gender of the currently selected Artist - male, female, other
+///   }
+///   \table_row3{   <b>`ListItem.Property(Artist_Disambiguation)`</b>,
+///                  \anchor ListItem_Property_Artist_Disambiguation
+///                  _string_,
+///     Brief description of the currently selected Artist that differentiates them
+///     from others with the same name
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Artist_Born)`</b>,
 ///                  \anchor ListItem_Property_Artist_Born
@@ -2697,253 +2738,253 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.Property(Artist_Description)`</b>,
 ///                  \anchor ListItem_Property_Artist_Description
 ///                  _string_,
-///     Shows a biography of the currently selected artist
+///     Returns a biography of the currently selected artist
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Artist_Mood)`</b>,
 ///                  \anchor ListItem_Property_Artist_Mood
 ///                  _string_,
-///     Shows the moods of the currently selected artist
+///     Returns the moods of the currently selected artist
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Artist_Style)`</b>,
 ///                  \anchor ListItem_Property_Artist_Style
 ///                  _string_,
-///     Shows the styles of the currently selected artist
+///     Returns the styles of the currently selected artist
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Artist_Genre)`</b>,
 ///                  \anchor ListItem_Property_Artist_Genre
 ///                  _string_,
-///     Shows the genre of the currently selected artist
+///     Returns the genre of the currently selected artist
 ///   }
 ///   \table_row3{   <b>`ListItem.Album`</b>,
 ///                  \anchor ListItem_Album
 ///                  _string_,
-///     Shows the album of the currently selected song in a container
+///     Returns the album of the currently selected song in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Album_Mood)`</b>,
 ///                  \anchor ListItem_Property_Album_Mood
 ///                  _string_,
-///     Shows the moods of the currently selected Album
+///     Returns the moods of the currently selected Album
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Album_Style)`</b>,
 ///                  \anchor ListItem_Property_Album_Style
 ///                  _string_,
-///     Shows the styles of the currently selected Album
+///     Returns the styles of the currently selected Album
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Album_Theme)`</b>,
 ///                  \anchor ListItem_Property_Album_Theme
 ///                  _string_,
-///     Shows the themes of the currently selected Album
+///     Returns the themes of the currently selected Album
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Album_Type)`</b>,
 ///                  \anchor ListItem_Property_Album_Type
 ///                  _string_,
-///     Shows the Album Type (e.g. compilation\, enhanced\, explicit lyrics) of
+///     Returns the Album Type (e.g. compilation\, enhanced\, explicit lyrics) of
 ///     the currently selected Album
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Album_Label)`</b>,
 ///                  \anchor ListItem_Property_Album_Label
 ///                  _string_,
-///     Shows the record label of the currently selected Album
+///     Returns the record label of the currently selected Album
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Album_Description)`</b>,
 ///                  \anchor ListItem_Property_Album_Description
 ///                  _string_,
-///     Shows a review of the currently selected Album
+///     Returns a review of the currently selected Album
 ///   }
 ///   \table_row3{   <b>`ListItem.DiscNumber`</b>,
 ///                  \anchor ListItem_DiscNumber
 ///                  _string_,
-///     Shows the disc number of the currently selected song in a container
+///     Returns the disc number of the currently selected song in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Year`</b>,
 ///                  \anchor ListItem_Year
 ///                  _string_,
-///     Shows the year of the currently selected song\, album or movie in a
+///     Returns the year of the currently selected song\, album or movie in a
 ///     container
 ///   }
 ///   \table_row3{   <b>`ListItem.Premiered`</b>,
 ///                  \anchor ListItem_Premiered
 ///                  _string_,
-///     Shows the release/aired date of the currently selected episode\, show\,
+///     Returns the release/aired date of the currently selected episode\, show\,
 ///     movie or EPG item in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Genre`</b>,
 ///                  \anchor ListItem_Genre
 ///                  _string_,
-///     Shows the genre of the currently selected song\, album or movie in a
+///     Returns the genre of the currently selected song\, album or movie in a
 ///     container
 ///   }
-///   \table_row3{   <b>`ListItem.Contributor`</b>,
-///                  \anchor ListItem_Contributor
+///   \table_row3{   <b>`ListItem.Contributors`</b>,
+///                  \anchor ListItem_Contributors
 ///                  _string_,
-///     Todo
+///     List of all people who've contributed to the selected song
 ///   }
 ///   \table_row3{   <b>`ListItem.ContributorAndRole`</b>,
 ///                  \anchor ListItem_ContributorAndRole
 ///                  _string_,
-///     Todo
+///     List of all people and their role who've contributed to the selected song
 ///   }
 ///   \table_row3{   <b>`ListItem.Director`</b>,
 ///                  \anchor ListItem_Director
 ///                  _string_,
-///     Shows the director of the currently selected movie in a container
+///     Returns the director of the currently selected movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Country`</b>,
 ///                  \anchor ListItem_Country
 ///                  _string_,
-///     Shows the production country of the currently selected movie in a
+///     Returns the production country of the currently selected movie in a
 ///     container
 ///   }
 ///   \table_row3{   <b>`ListItem.Episode`</b>,
 ///                  \anchor ListItem_Episode
 ///                  _string_,
-///     Shows the episode number value for the currently selected episode. It
-///     also shows the number of total\, watched or unwatched episodes for the
+///     Returns the episode number value for the currently selected episode. It
+///     also returns the number of total\, watched or unwatched episodes for the
 ///     currently selected tvshow or season\, based on the the current watched
 ///     filter.
 ///   }
 ///   \table_row3{   <b>`ListItem.Season`</b>,
 ///                  \anchor ListItem_Season
 ///                  _string_,
-///     Shows the season value for the currently selected tvshow
+///     Returns the season value for the currently selected tvshow
 ///   }
 ///   \table_row3{   <b>`ListItem.TVShowTitle`</b>,
 ///                  \anchor ListItem_TVShowTitle
 ///                  _string_,
-///     Shows the name value for the currently selected tvshow in the season and
+///     Returns the name value for the currently selected tvshow in the season and
 ///     episode depth of the video library
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(TotalSeasons)`</b>,
 ///                  \anchor ListItem_Property_TotalSeasons
 ///                  _string_,
-///     Shows the total number of seasons for the currently selected tvshow
+///     Returns the total number of seasons for the currently selected tvshow
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(TotalEpisodes)`</b>,
 ///                  \anchor ListItem_Property_TotalEpisodes
 ///                  _string_,
-///     Shows the total number of episodes for the currently selected tvshow or
+///     Returns the total number of episodes for the currently selected tvshow or
 ///     season
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(WatchedEpisodes)`</b>,
 ///                  \anchor ListItem_Property_WatchedEpisodes
 ///                  _string_,
-///     Shows the number of watched episodes for the currently selected tvshow
+///     Returns the number of watched episodes for the currently selected tvshow
 ///     or season
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(UnWatchedEpisodes)`</b>,
 ///                  \anchor ListItem_Property_UnWatchedEpisodes
 ///                  _string_,
-///     Shows the number of unwatched episodes for the currently selected tvshow
+///     Returns the number of unwatched episodes for the currently selected tvshow
 ///     or season
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(NumEpisodes)`</b>,
 ///                  \anchor ListItem_Property_NumEpisodes
 ///                  _string_,
-///     Shows the number of total\, watched or unwatched episodes for the
+///     Returns the number of total\, watched or unwatched episodes for the
 ///     currently selected tvshow or season\, based on the the current watched filter.
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureAperture`</b>,
 ///                  \anchor ListItem_PictureAperture
 ///                  _string_,
-///     Shows the F-stop used to take the selected picture. This is the value of the
+///     Returns the F-stop used to take the selected picture. This is the value of the
 ///     EXIF FNumber tag (hex code 0x829D).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureAuthor`</b>,
 ///                  \anchor ListItem_PictureAuthor
 ///                  _string_,
-///     Shows the name of the person involved in writing about the selected picture.
+///     Returns the name of the person involved in writing about the selected picture.
 ///     This is the value of the IPTC Writer tag (hex code 0x7A).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureByline`</b>,
 ///                  \anchor ListItem_PictureByline
 ///                  _string_,
-///     Shows the name of the person who created the selected picture. This is
+///     Returns the name of the person who created the selected picture. This is
 ///     the value of the IPTC Byline tag (hex code 0x50).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureBylineTitle`</b>,
 ///                  \anchor ListItem_PictureBylineTitle
 ///                  _string_,
-///     Shows the title of the person who created the selected picture. This is
+///     Returns the title of the person who created the selected picture. This is
 ///     the value of the IPTC BylineTitle tag (hex code 0x55).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCamMake`</b>,
 ///                  \anchor ListItem_PictureCamMake
 ///                  _string_,
-///     Shows the manufacturer of the camera used to take the selected picture.
+///     Returns the manufacturer of the camera used to take the selected picture.
 ///     This is the value of the EXIF Make tag (hex code 0x010F).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCamModel`</b>,
 ///                  \anchor ListItem_PictureCamModel
 ///                  _string_,
-///     Shows the manufacturer's model name or number of the camera used to take
+///     Returns the manufacturer's model name or number of the camera used to take
 ///     the selected picture. This is the value of the EXIF Model tag (hex code
 ///     0x0110).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCaption`</b>,
 ///                  \anchor ListItem_PictureCaption
 ///                  _string_,
-///     Shows a description of the selected picture. This is the value of the IPTC
+///     Returns a description of the selected picture. This is the value of the IPTC
 ///     Caption tag (hex code 0x78).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCategory`</b>,
 ///                  \anchor ListItem_PictureCategory
 ///                  _string_,
-///     Shows the subject of the selected picture as a category code. This is the
+///     Returns the subject of the selected picture as a category code. This is the
 ///     value of the IPTC Category tag (hex code 0x0F).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCCDWidth`</b>,
 ///                  \anchor ListItem_PictureCCDWidth
 ///                  _string_,
-///     Shows the width of the CCD in the camera used to take the selected
+///     Returns the width of the CCD in the camera used to take the selected
 ///     picture. This is calculated from three EXIF tags (0xA002 * 0xA210
 ///     / 0xA20e).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCity`</b>,
 ///                  \anchor ListItem_PictureCity
 ///                  _string_,
-///     Shows the city where the selected picture was taken. This is the value of
+///     Returns the city where the selected picture was taken. This is the value of
 ///     the IPTC City tag (hex code 0x5A).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureColour`</b>,
 ///                  \anchor ListItem_PictureColour
 ///                  _string_,
-///     Shows whether the selected picture is "Colour" or "Black and White".
+///     Returns whether the selected picture is "Colour" or "Black and White".
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureComment`</b>,
 ///                  \anchor ListItem_PictureComment
 ///                  _string_,
-///     Shows a description of the selected picture. This is the value of the
+///     Returns a description of the selected picture. This is the value of the
 ///     EXIF User Comment tag (hex code 0x9286). This is the same value as
 ///     \ref Slideshow_SlideComment "Slideshow.SlideComment".
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCopyrightNotice`</b>,
 ///                  \anchor ListItem_PictureCopyrightNotice
 ///                  _string_,
-///     Shows the copyright notice of the selected picture. This is the value of
+///     Returns the copyright notice of the selected picture. This is the value of
 ///     the IPTC Copyright tag (hex code 0x74).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCountry`</b>,
 ///                  \anchor ListItem_PictureCountry
 ///                  _string_,
-///     Shows the full name of the country where the selected picture was taken.
+///     Returns the full name of the country where the selected picture was taken.
 ///     This is the value of the IPTC CountryName tag (hex code 0x65).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCountryCode`</b>,
 ///                  \anchor ListItem_PictureCountryCode
 ///                  _string_,
-///     Shows the country code of the country where the selected picture was
+///     Returns the country code of the country where the selected picture was
 ///     taken. This is the value of the IPTC CountryCode tag (hex code 0x64).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureCredit`</b>,
 ///                  \anchor ListItem_PictureCredit
 ///                  _string_,
-///     Shows who provided the selected picture. This is the value of the IPTC
+///     Returns who provided the selected picture. This is the value of the IPTC
 ///     Credit tag (hex code 0x6E).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureDate`</b>,
 ///                  \anchor ListItem_PictureDate
 ///                  _string_,
-///     Shows the localized date of the selected picture. The short form of the
+///     Returns the localized date of the selected picture. The short form of the
 ///     date is used. The value of the EXIF DateTimeOriginal tag (hex code 0x9003)
 ///     is preferred. If the DateTimeOriginal tag is not found\, the value of
 ///     DateTimeDigitized (hex code 0x9004) or of DateTime (hex code 0x0132) might
@@ -2952,7 +2993,7 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureDatetime`</b>,
 ///                  \anchor ListItem_PictureDatetime
 ///                  _string_,
-///     Shows the date/timestamp of the selected picture. The localized short form
+///     Returns the date/timestamp of the selected picture. The localized short form
 ///     of the date and time is used. The value of the EXIF DateTimeOriginal tag
 ///     (hex code 0x9003) is preferred. If the DateTimeOriginal tag is not found\,
 ///     the value of DateTimeDigitized (hex code 0x9004) or of DateTime (hex code
@@ -2961,27 +3002,27 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureDesc`</b>,
 ///                  \anchor ListItem_PictureDesc
 ///                  _string_,
-///     Shows a short description of the selected picture. The SlideComment\,
+///     Returns a short description of the selected picture. The SlideComment\,
 ///     EXIFComment\, or Caption values might contain a longer description. This
 ///     is the value of the EXIF ImageDescription tag (hex code 0x010E).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureDigitalZoom`</b>,
 ///                  \anchor ListItem_PictureDigitalZoom
 ///                  _string_,
-///     Shows the digital zoom ratio when the selected picture was taken. This
+///     Returns the digital zoom ratio when the selected picture was taken. This
 ///     is the value of the EXIF DigitalZoomRatio tag (hex code 0xA404).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureExpMode`</b>,
 ///                  \anchor ListItem_PictureExpMode
 ///                  _string_,
-///     Shows the exposure mode of the selected picture. The possible values are
+///     Returns the exposure mode of the selected picture. The possible values are
 ///     "Automatic"\, "Manual"\, and "Auto bracketing". This is the value of the
 ///     EXIF ExposureMode tag (hex code 0xA402).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureExposure`</b>,
 ///                  \anchor ListItem_PictureExposure
 ///                  _string_,
-///     Shows the class of the program used by the camera to set exposure when
+///     Returns the class of the program used by the camera to set exposure when
 ///     the selected picture was taken. Values include "Manual"\, "Program
 ///     (Auto)"\, "Aperture priority (Semi-Auto)"\, "Shutter priority (semi-auto)"\,
 ///     etc. This is the value of the EXIF ExposureProgram tag (hex code 0x8822).
@@ -2989,14 +3030,14 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureExposureBias`</b>,
 ///                  \anchor ListItem_PictureExposureBias
 ///                  _string_,
-///     Shows the exposure bias of the selected picture. Typically this is a
+///     Returns the exposure bias of the selected picture. Typically this is a
 ///     number between -99.99 and 99.99. This is the value of the EXIF
 ///     ExposureBiasValue tag (hex code 0x9204).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureExpTime`</b>,
 ///                  \anchor ListItem_PictureExpTime
 ///                  _string_,
-///     Shows the exposure time of the selected picture\, in seconds. This is the
+///     Returns the exposure time of the selected picture\, in seconds. This is the
 ///     value of the EXIF ExposureTime tag (hex code 0x829A). If the ExposureTime
 ///     tag is not found\, the ShutterSpeedValue tag (hex code 0x9201) might be
 ///     used.
@@ -3004,90 +3045,90 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureFlashUsed`</b>,
 ///                  \anchor ListItem_PictureFlashUsed
 ///                  _string_,
-///     Shows the status of flash when the selected picture was taken. The value
+///     Returns the status of flash when the selected picture was taken. The value
 ///     will be either "Yes" or "No"\, and might include additional information.
 ///     This is the value of the EXIF Flash tag (hex code 0x9209).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureFocalLen`</b>,
 ///                  \anchor ListItem_PictureFocalLen
 ///                  _string_,
-///     Shows the lens focal length of the selected picture
+///     Returns the lens focal length of the selected picture
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureFocusDist`</b>,
 ///                  \anchor ListItem_PictureFocusDist
 ///                  _string_,
-///     Shows the focal length of the lens\, in mm. This is the value of the EXIF
+///     Returns the focal length of the lens\, in mm. This is the value of the EXIF
 ///     FocalLength tag (hex code 0x920A).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureGPSLat`</b>,
 ///                  \anchor ListItem_PictureGPSLat
 ///                  _string_,
-///     Shows the latitude where the selected picture was taken (degrees\,
+///     Returns the latitude where the selected picture was taken (degrees\,
 ///     minutes\, seconds North or South). This is the value of the EXIF
 ///     GPSInfo.GPSLatitude and GPSInfo.GPSLatitudeRef tags.
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureGPSLon`</b>,
 ///                  \anchor ListItem_PictureGPSLon
 ///                  _string_,
-///     Shows the longitude where the selected picture was taken (degrees\,
+///     Returns the longitude where the selected picture was taken (degrees\,
 ///     minutes\, seconds East or West). This is the value of the EXIF
 ///     GPSInfo.GPSLongitude and GPSInfo.GPSLongitudeRef tags.
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureGPSAlt`</b>,
 ///                  \anchor ListItem_PictureGPSAlt
 ///                  _string_,
-///     Shows the altitude in meters where the selected picture was taken. This
+///     Returns the altitude in meters where the selected picture was taken. This
 ///     is the value of the EXIF GPSInfo.GPSAltitude tag.
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureHeadline`</b>,
 ///                  \anchor ListItem_PictureHeadline
 ///                  _string_,
-///     Shows a synopsis of the contents of the selected picture. This is the
+///     Returns a synopsis of the contents of the selected picture. This is the
 ///     value of the IPTC Headline tag (hex code 0x69).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureImageType`</b>,
 ///                  \anchor ListItem_PictureImageType
 ///                  _string_,
-///     Shows the color components of the selected picture. This is the value of
+///     Returns the color components of the selected picture. This is the value of
 ///     the IPTC ImageType tag (hex code 0x82).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureIPTCDate`</b>,
 ///                  \anchor ListItem_PictureIPTCDate
 ///                  _string_,
-///     Shows the date when the intellectual content of the selected picture was
+///     Returns the date when the intellectual content of the selected picture was
 ///     created\, rather than when the picture was created. This is the value of
 ///     the IPTC DateCreated tag (hex code 0x37).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureIPTCTime`</b>,
 ///                  \anchor ListItem_PictureIPTCTime
 ///                  _string_,
-///     Shows the time when the intellectual content of the selected picture was
+///     Returns the time when the intellectual content of the selected picture was
 ///     created\, rather than when the picture was created. This is the value of
 ///     the IPTC TimeCreated tag (hex code 0x3C).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureISO`</b>,
 ///                  \anchor ListItem_PictureISO
 ///                  _string_,
-///     Shows the ISO speed of the camera when the selected picture was taken.
+///     Returns the ISO speed of the camera when the selected picture was taken.
 ///     This is the value of the EXIF ISOSpeedRatings tag (hex code 0x8827).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureKeywords`</b>,
 ///                  \anchor ListItem_PictureKeywords
 ///                  _string_,
-///     Shows keywords assigned to the selected picture. This is the value of
+///     Returns keywords assigned to the selected picture. This is the value of
 ///     the IPTC Keywords tag (hex code 0x19).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureLightSource`</b>,
 ///                  \anchor ListItem_PictureLightSource
 ///                  _string_,
-///     Shows the kind of light source when the picture was taken. Possible
+///     Returns the kind of light source when the picture was taken. Possible
 ///     values include "Daylight"\, "Fluorescent"\, "Incandescent"\, etc. This is
 ///     the value of the EXIF LightSource tag (hex code 0x9208).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureLongDate`</b>,
 ///                  \anchor ListItem_PictureLongDate
 ///                  _string_,
-///     Shows only the localized date of the selected picture. The long form of
+///     Returns only the localized date of the selected picture. The long form of
 ///     the date is used. The value of the EXIF DateTimeOriginal tag (hex code
 ///     0x9003) is preferred. If the DateTimeOriginal tag is not found\, the
 ///     value of DateTimeDigitized (hex code 0x9004) or of DateTime (hex code
@@ -3096,7 +3137,7 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureLongDatetime`</b>,
 ///                  \anchor ListItem_PictureLongDatetime
 ///                  _string_,
-///     Shows the date/timestamp of the selected picture. The localized long
+///     Returns the date/timestamp of the selected picture. The localized long
 ///     form of the date and time is used. The value of the EXIF DateTimeOriginal
 ///     tag (hex code 0x9003) is preferred. if the DateTimeOriginal tag is not
 ///     found\, the value of DateTimeDigitized (hex code 0x9004) or of DateTime
@@ -3105,89 +3146,89 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureMeteringMode`</b>,
 ///                  \anchor ListItem_PictureMeteringMode
 ///                  _string_,
-///     Shows the metering mode used when the selected picture was taken. The
+///     Returns the metering mode used when the selected picture was taken. The
 ///     possible values are "Center weight"\, "Spot"\, or "Matrix". This is the
 ///     value of the EXIF MeteringMode tag (hex code 0x9207).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureObjectName`</b>,
 ///                  \anchor ListItem_PictureObjectName
 ///                  _string_,
-///     Shows a shorthand reference for the selected picture. This is the value
+///     Returns a shorthand reference for the selected picture. This is the value
 ///     of the IPTC ObjectName tag (hex code 0x05).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureOrientation`</b>,
 ///                  \anchor ListItem_PictureOrientation
 ///                  _string_,
-///     Shows the orientation of the selected picture. Possible values are "Top
+///     Returns the orientation of the selected picture. Possible values are "Top
 ///     Left"\, "Top Right"\, "Left Top"\, "Right Bottom"\, etc. This is the value
 ///     of the EXIF Orientation tag (hex code 0x0112).
 ///   }
 ///   \table_row3{   <b>`ListItem.PicturePath`</b>,
 ///                  \anchor ListItem_PicturePath
 ///                  _string_,
-///     Shows the filename and path of the selected picture
+///     Returns the filename and path of the selected picture
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureProcess`</b>,
 ///                  \anchor ListItem_PictureProcess
 ///                  _string_,
-///     Shows the process used to compress the selected picture
+///     Returns the process used to compress the selected picture
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureReferenceService`</b>,
 ///                  \anchor ListItem_PictureReferenceService
 ///                  _string_,
-///     Shows the Service Identifier of a prior envelope to which the selected
+///     Returns the Service Identifier of a prior envelope to which the selected
 ///     picture refers. This is the value of the IPTC ReferenceService tag
 ///     (hex code 0x2D).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureResolution`</b>,
 ///                  \anchor ListItem_PictureResolution
 ///                  _string_,
-///     Shows the dimensions of the selected picture
+///     Returns the dimensions of the selected picture
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureSource`</b>,
 ///                  \anchor ListItem_PictureSource
 ///                  _string_,
-///     Shows the original owner of the selected picture. This is the value of
+///     Returns the original owner of the selected picture. This is the value of
 ///     the IPTC Source tag (hex code 0x73).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureSpecialInstructions`</b>,
 ///                  \anchor ListItem_PictureSpecialInstructions
 ///                  _string_,
-///     Shows other editorial instructions concerning the use of the selected
+///     Returns other editorial instructions concerning the use of the selected
 ///     picture. This is the value of the IPTC SpecialInstructions tag (hex
 ///     code 0x28).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureState`</b>,
 ///                  \anchor ListItem_PictureState
 ///                  _string_,
-///     Shows the State/Province where the selected picture was taken. This is
+///     Returns the State/Province where the selected picture was taken. This is
 ///     the value of the IPTC ProvinceState tag (hex code 0x5F).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureSublocation`</b>,
 ///                  \anchor ListItem_PictureSublocation
 ///                  _string_,
-///     Shows the location within a city where the selected picture was taken -
+///     Returns the location within a city where the selected picture was taken -
 ///     might indicate the nearest landmark. This is the value of the IPTC
 ///     SubLocation tag (hex code 0x5C).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureSupplementalCategories`</b>,
 ///                  \anchor ListItem_PictureSupplementalCategories
 ///                  _string_,
-///     Shows supplemental category codes to further refine the subject of the
+///     Returns supplemental category codes to further refine the subject of the
 ///     selected picture. This is the value of the IPTC SuppCategory tag (hex
 ///     code 0x14).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureTransmissionReference`</b>,
 ///                  \anchor ListItem_PictureTransmissionReference
 ///                  _string_,
-///     Shows a code representing the location of original transmission of the
+///     Returns a code representing the location of original transmission of the
 ///     selected picture. This is the value of the IPTC TransmissionReference
 ///     tag (hex code 0x67).
 ///   }
 ///   \table_row3{   <b>`ListItem.PictureUrgency`</b>,
 ///                  \anchor ListItem_PictureUrgency
 ///                  _string_,
-///     Shows the urgency of the selected picture. Values are 1-9. The "1" is
+///     Returns the urgency of the selected picture. Values are 1-9. The "1" is
 ///     most urgent. Some image management programs use urgency to indicate
 ///     picture rating\, where urgency "1" is 5 stars and urgency "5" is 1 star.
 ///     Urgencies 6-9 are not used for rating. This is the value of the IPTC
@@ -3196,99 +3237,99 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.PictureWhiteBalance`</b>,
 ///                  \anchor ListItem_PictureWhiteBalance
 ///                  _string_,
-///     Shows the white balance mode set when the selected picture was taken.
+///     Returns the white balance mode set when the selected picture was taken.
 ///     The possible values are "Manual" and "Auto". This is the value of the
 ///     EXIF WhiteBalance tag (hex code 0xA403).
 ///   }
 ///   \table_row3{   <b>`ListItem.FileName`</b>,
 ///                  \anchor ListItem_FileName
 ///                  _string_,
-///     Shows the filename of the currently selected song or movie in a container
+///     Returns the filename of the currently selected song or movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Path`</b>,
 ///                  \anchor ListItem_Path
 ///                  _string_,
-///     Shows the complete path of the currently selected song or movie in a
+///     Returns the complete path of the currently selected song or movie in a
 ///     container
 ///   }
 ///   \table_row3{   <b>`ListItem.FolderName`</b>,
 ///                  \anchor ListItem_FolderName
 ///                  _string_,
-///     Shows top most folder of the path of the currently selected song or
+///     Returns top most folder of the path of the currently selected song or
 ///     movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.FolderPath`</b>,
 ///                  \anchor ListItem_FolderPath
 ///                  _string_,
-///     Shows the complete path of the currently selected song or movie in a
+///     Returns the complete path of the currently selected song or movie in a
 ///     container (without user details).
 ///   }
 ///   \table_row3{   <b>`ListItem.FileNameAndPath`</b>,
 ///                  \anchor ListItem_FileNameAndPath
 ///                  _string_,
-///     Shows the full path with filename of the currently selected song or
+///     Returns the full path with filename of the currently selected song or
 ///     movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.FileExtension`</b>,
 ///                  \anchor ListItem_FileExtension
 ///                  _string_,
-///     Shows the file extension (without leading dot) of the currently selected
+///     Returns the file extension (without leading dot) of the currently selected
 ///     item in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Date`</b>,
 ///                  \anchor ListItem_Date
 ///                  _string_,
-///     Shows the file date of the currently selected song or movie in a
+///     Returns the file date of the currently selected song or movie in a
 ///     container / Aired date of an episode / Day\, start time and end time of
 ///     current selected TV programme (PVR)
 ///   }
 ///   \table_row3{   <b>`ListItem.DateAdded`</b>,
 ///                  \anchor ListItem_DateAdded
 ///                  _string_,
-///     Shows the date the currently selected item was added to the
+///     Returns the date the currently selected item was added to the
 ///     library / Date and time of an event in the EventLog window.
 ///   }
 ///   \table_row3{   <b>`ListItem.Size`</b>,
 ///                  \anchor ListItem_Size
 ///                  _string_,
-///     Shows the file size of the currently selected song or movie in a
+///     Returns the file size of the currently selected song or movie in a
 ///     container
 ///   }
 ///   \table_row3{   <b>`ListItem.Rating`</b>,
 ///                  \anchor ListItem_Rating
 ///                  _string_,
-///     Shows the IMDB rating of the currently selected movie in a container
+///     Returns the scraped rating of the currently selected movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Set`</b>,
 ///                  \anchor ListItem_Set
 ///                  _string_,
-///     Shows the name of the set the movie is part of
+///     Returns the name of the set the movie is part of
 ///   }
 ///   \table_row3{   <b>`ListItem.SetId`</b>,
 ///                  \anchor ListItem_SetId
 ///                  _string_,
-///     Shows the id of the set the movie is part of
+///     Returns the id of the set the movie is part of
 ///   }
 ///   \table_row3{   <b>`ListItem.UserRating`</b>,
 ///                  \anchor ListItem_UserRating
 ///                  _string_,
-///     Shows the user rating of the currently selected item in a container
+///     Returns the user rating of the currently selected item in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Votes`</b>,
 ///                  \anchor ListItem_Votes
 ///                  _string_,
-///     Shows the IMDB votes of the currently selected movie in a container
+///     Returns the scraped votes of the currently selected movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.RatingAndVotes`</b>,
 ///                  \anchor ListItem_RatingAndVotes
 ///                  _string_,
-///     Shows the IMDB rating and votes of the currently selected movie in a
+///     Returns the scraped rating and votes of the currently selected movie in a
 ///     container
 ///   }
 ///   \table_row3{   <b>`ListItem.Mood`</b>,
 ///                  \anchor ListItem_Mood
 ///                  _string_,
-///     Todo
+///     Mood of the selected song
 ///   }
 ///   \table_row3{   <b>`ListItem.Mpaa`</b>,
 ///                  \anchor ListItem_Mpaa
@@ -3298,18 +3339,18 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.ProgramCount`</b>,
 ///                  \anchor ListItem_ProgramCount
 ///                  _string_,
-///     Shows the number of times an xbe has been run from "my programs"
+///     Returns the number of times an xbe has been run from "my programs"
 ///   }
 ///   \table_row3{   <b>`ListItem.Duration`</b>,
 ///                  \anchor ListItem_Duration
 ///                  _string_,
-///     Shows the song or movie duration of the currently selected movie in a
+///     Returns the song or movie duration of the currently selected movie in a
 ///     container
 ///   }
 ///   \table_row3{   <b>`ListItem.DBTYPE`</b>,
 ///                  \anchor ListItem_DBTYPE
 ///                  _string_,
-///     Shows the database type of the ListItem.DBID for videos (movie\, set\,
+///     Returns the database type of the ListItem.DBID for videos (movie\, set\,
 ///     genre\, actor\, tvshow\, season\, episode). It does not return any value
 ///     for the music library. Beware with season\, the "*all seasons" entry does
 ///     give a DBTYPE "season" and a DBID\, but you can't get the details of that
@@ -3318,18 +3359,18 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.DBID`</b>,
 ///                  \anchor ListItem_DBID
 ///                  _string_,
-///     Shows the database id of the currently selected listitem in a container
+///     Returns the database id of the currently selected listitem in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Cast`</b>,
 ///                  \anchor ListItem_Cast
 ///                  _string_,
-///     Shows a concatenated string of cast members of the currently selected
+///     Returns a concatenated string of cast members of the currently selected
 ///     movie\, for use in dialogvideoinfo.xml
 ///   }
 ///   \table_row3{   <b>`ListItem.CastAndRole`</b>,
 ///                  \anchor ListItem_CastAndRole
 ///                  _string_,
-///     Shows a concatenated string of cast members and roles of the currently
+///     Returns a concatenated string of cast members and roles of the currently
 ///     selected movie\, for use in dialogvideoinfo.xml
 ///   }
 ///   \table_row3{   <b>`ListItem.Studio`</b>,
@@ -3340,13 +3381,13 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.Top250`</b>,
 ///                  \anchor ListItem_Top250
 ///                  _string_,
-///     Shows the IMDb top250 position of the currently selected listitem in a
+///     Returns the IMDb top250 position of the currently selected listitem in a
 ///     container.
 ///   }
 ///   \table_row3{   <b>`ListItem.Trailer`</b>,
 ///                  \anchor ListItem_Trailer
 ///                  _string_,
-///     Shows the full trailer path with filename of the currently selected
+///     Returns the full trailer path with filename of the currently selected
 ///     movie in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.Writer`</b>,
@@ -3377,7 +3418,7 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.IMDBNumber`</b>,
 ///                  \anchor ListItem_IMDBNumber
 ///                  _string_,
-///     The IMDB iD of the selected Video in a container
+///     The IMDb ID of the selected Video in a container
 ///   }
 ///   \table_row3{   <b>`ListItem.EpisodeName`</b>,
 ///                  \anchor ListItem_EpisodeName
@@ -3400,11 +3441,6 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///                  _string_,
 ///     Playcount of Video in a container
 ///   }
-///   \table_row3{   <b>`ListItem.ChannelNumber`</b>,
-///                  \anchor ListItem_ChannelNumber
-///                  _string_,
-///     Number of current selected TV channel in a container
-///   }
 ///   \table_row3{   <b>`ListItem.ChannelName`</b>,
 ///                  \anchor ListItem_ChannelName
 ///                  _string_,
@@ -3413,7 +3449,7 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.VideoCodec`</b>,
 ///                  \anchor ListItem_VideoCodec
 ///                  _string_,
-///     Shows the video codec of the currently selected video (common values:
+///     Returns the video codec of the currently selected video (common values:
 ///     3iv2\, avc1\, div2\, div3\, divx\, divx 4\, dx50\, flv\, h264\, microsoft\, mp42\,
 ///     mp43\, mp4v\, mpeg1video\, mpeg2video\, mpg4\, rv40\, svq1\, svq3\,
 ///     theora\, vp6f\, wmv2\, wmv3\, wvc1\, xvid)
@@ -3421,7 +3457,7 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.VideoResolution`</b>,
 ///                  \anchor ListItem_VideoResolution
 ///                  _string_,
-///     Shows the resolution of the currently selected video (possible values:
+///     Returns the resolution of the currently selected video (possible values:
 ///     480\, 576\, 540\, 720\, 1080\, 4K). Note that 540 usually means a widescreen
 ///     format (around 960x540) while 576 means PAL resolutions (normally
 ///     720x576)\, therefore 540 is actually better resolution than 576.
@@ -3429,118 +3465,118 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.VideoAspect`</b>,
 ///                  \anchor ListItem_VideoAspect
 ///                  _string_,
-///     Shows the aspect ratio of the currently selected video (possible values:
+///     Returns the aspect ratio of the currently selected video (possible values:
 ///     1.33\, 1.37\, 1.66\, 1.78\, 1.85\, 2.20\, 2.35\, 2.40\, 2.55\, 2.76)
 ///   }
 ///   \table_row3{   <b>`ListItem.AudioCodec`</b>,
 ///                  \anchor ListItem_AudioCodec
 ///                  _string_,
-///     Shows the audio codec of the currently selected video (common values:
+///     Returns the audio codec of the currently selected video (common values:
 ///     aac\, ac3\, cook\, dca\, dtshd_hra\, dtshd_ma\, eac3\, mp1\, mp2\, mp3\, pcm_s16be\, pcm_s16le\, pcm_u8\, truehd\, vorbis\, wmapro\, wmav2)
 ///   }
 ///   \table_row3{   <b>`ListItem.AudioChannels`</b>,
 ///                  \anchor ListItem_AudioChannels
 ///                  _string_,
-///     Shows the number of audio channels of the currently selected video
+///     Returns the number of audio channels of the currently selected video
 ///     (possible values: 1\, 2\, 4\, 5\, 6\, 8\, 10)
 ///   }
 ///   \table_row3{   <b>`ListItem.AudioLanguage`</b>,
 ///                  \anchor ListItem_AudioLanguage
 ///                  _string_,
-///     Shows the audio language of the currently selected video (returns an
+///     Returns the audio language of the currently selected video (returns an
 ///     ISO 639-2 three character code\, e.g. eng\, epo\, deu)
 ///   }
 ///   \table_row3{   <b>`ListItem.SubtitleLanguage`</b>,
 ///                  \anchor ListItem_SubtitleLanguage
 ///                  _string_,
-///     Shows the subtitle language of the currently selected video (returns an
+///     Returns the subtitle language of the currently selected video (returns an
 ///     ISO 639-2 three character code\, e.g. eng\, epo\, deu)
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(AudioCodec.[n])`</b>,
 ///                  \anchor ListItem_Property_AudioCodec
 ///                  _string_,
-///     Shows the audio codec of the currently selected video\, 'n' defines the
+///     Returns the audio codec of the currently selected video\, 'n' defines the
 ///     number of the audiostream (values: see \ref ListItem_AudioCodec "ListItem.AudioCodec")
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(AudioChannels.[n])`</b>,
 ///                  \anchor ListItem_Property_AudioChannels
 ///                  _string_,
-///     Shows the number of audio channels of the currently selected video\, 'n'
+///     Returns the number of audio channels of the currently selected video\, 'n'
 ///     defines the number of the audiostream (values: see
 ///     \ref ListItem_AudioChannels "ListItem.AudioChannels")
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(AudioLanguage.[n])`</b>,
 ///                  \anchor ListItem_Property_AudioLanguage
 ///                  _string_,
-///     Shows the audio language of the currently selected video\, 'n' defines
+///     Returns the audio language of the currently selected video\, 'n' defines
 ///     the number of the audiostream (values: see \ref ListItem_AudioLanguage "ListItem.AudioLanguage")
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(SubtitleLanguage.[n])`</b>,
 ///                  \anchor ListItem_Property_SubtitleLanguage
 ///                  _string_,
-///     Shows the subtitle language of the currently selected video\, 'n' defines
+///     Returns the subtitle language of the currently selected video\, 'n' defines
 ///     the number of the subtitle (values: see \ref ListItem_SubtitleLanguage "ListItem.SubtitleLanguage")
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Name)`</b>,
 ///                  \anchor ListItem_Property_AddonName
 ///                  _string_,
-///     Shows the name of the currently selected addon
+///     Returns the name of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Version)`</b>,
 ///                  \anchor ListItem_Property_AddonVersion
 ///                  _string_,
-///     Shows the version of the currently selected addon
+///     Returns the version of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Summary)`</b>,
 ///                  \anchor ListItem_Property_AddonSummary
 ///                  _string_,
-///     Shows a short description of the currently selected addon
+///     Returns a short description of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Description)`</b>,
 ///                  \anchor ListItem_Property_AddonDescription
 ///                  _string_,
-///     Shows the full description of the currently selected addon
+///     Returns the full description of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Type)`</b>,
 ///                  \anchor ListItem_Property_AddonType
 ///                  _string_,
-///     Shows the type (screensaver\, script\, skin\, etc...) of the currently
+///     Returns the type (screensaver\, script\, skin\, etc...) of the currently
 ///     selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Creator)`</b>,
 ///                  \anchor ListItem_Property_AddonCreator
 ///                  _string_,
-///     Shows the name of the author the currently selected addon
+///     Returns the name of the author the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Disclaimer)`</b>,
 ///                  \anchor ListItem_Property_AddonDisclaimer
 ///                  _string_,
-///     Shows the disclaimer of the currently selected addon
+///     Returns the disclaimer of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Changelog)`</b>,
 ///                  \anchor ListItem_Property_AddonChangelog
 ///                  _string_,
-///     Shows the changelog of the currently selected addon
+///     Returns the changelog of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.ID)`</b>,
 ///                  \anchor ListItem_Property_AddonID
 ///                  _string_,
-///     Shows the identifier of the currently selected addon
+///     Returns the identifier of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Status)`</b>,
 ///                  \anchor ListItem_Property_AddonStatus
 ///                  _string_,
-///     Shows the status of the currently selected addon
+///     Returns the status of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Broken)`</b>,
 ///                  \anchor ListItem_Property_AddonBroken
 ///                  _string_,
-///     Shows a message when the addon is marked as broken in the repo
+///     Returns a message when the addon is marked as broken in the repo
 ///   }
 ///   \table_row3{   <b>`ListItem.Property(Addon.Path)`</b>,
 ///                  \anchor ListItem_Property_AddonPath
 ///                  _string_,
-///     Shows the path of the currently selected addon
+///     Returns the path of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.StartTime`</b>,
 ///                  \anchor ListItem_StartTime
@@ -3606,12 +3642,6 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///                  \anchor ListItem_ChannelGroup
 ///                  _string_,
 ///     Channel group of the selected item (PVR).
-///   }
-///   \table_row3{   <b>`ListItem.SubChannelNumber`</b>,
-///                  \anchor ListItem_SubChannelNumber
-///                  _string_,
-///     Subchannel number of the currently selected channel that's currently
-///     playing (PVR).
 ///   }
 ///   \table_row3{   <b>`ListItem.ChannelNumberLabel`</b>,
 ///                  \anchor ListItem_ChannelNumberLabel
@@ -3679,62 +3709,62 @@ const infomap container_str[]  = {{ "property",         CONTAINER_PROPERTY },
 ///   \table_row3{   <b>`ListItem.IsParentFolder`</b>,
 ///                  \anchor ListItem_IsParentFolder
 ///                  _boolean_,
-///     Todo
+///     Returns true if the current list item is the goto parent folder '..'
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonName`</b>,
 ///                  \anchor ListItem_AddonName
 ///                  _string_,
-///     Todo
+///     Returns the name of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonVersion`</b>,
 ///                  \anchor ListItem_AddonVersion
 ///                  _string_,
-///     Todo
+///     Returns the version of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonCreator`</b>,
 ///                  \anchor ListItem_AddonCreator
 ///                  _string_,
-///     Todo
+///     Returns the name of the author the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonSummary`</b>,
 ///                  \anchor ListItem_AddonSummary
 ///                  _string_,
-///     Todo
+///     Returns a short description of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonDescription`</b>,
 ///                  \anchor ListItem_AddonDescription
 ///                  _string_,
-///     Todo
+///     Returns the full description of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonDisclaimer`</b>,
 ///                  \anchor ListItem_AddonDisclaimer
 ///                  _string_,
-///     Todo
+///     Returns the disclaimer of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonBroken`</b>,
 ///                  \anchor ListItem_AddonBroken
-///                  _boolean_,
-///     Todo
+///                  _string_,
+///     Returns a message when the addon is marked as broken in the repo
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonType`</b>,
 ///                  \anchor ListItem_AddonType
 ///                  _string_,
-///     Todo
+///     Returns the type (screensaver, script, skin, etc...) of the currently selected addon
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonInstallDate`</b>,
 ///                  \anchor ListItem_AddonInstallDate
 ///                  _string_,
-///     Todo
+///     Returns the date the addon was installed
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonLastUpdated`</b>,
 ///                  \anchor ListItem_AddonLastUpdated
 ///                  _string_,
-///     Todo
+///     Returns the date the addon was last updated
 ///   }
 ///   \table_row3{   <b>`ListItem.AddonLastUsed`</b>,
 ///                  \anchor ListItem_AddonLastUsed
 ///                  _string_,
-///     Todo
+///     Returns the date the addon was used last
 ///   }
 //    \table_row3{   <b>`ListItem.AddonOrigin`</b>,
 ///                  \anchor ListItem_AddonOrigin
@@ -3894,9 +3924,7 @@ const infomap listitem_labels[]= {{ "thumb",            LISTITEM_THUMB },
                                   { "nextstartdate",    LISTITEM_NEXT_STARTDATE },
                                   { "nextenddate",      LISTITEM_NEXT_ENDDATE },
                                   { "channelname",      LISTITEM_CHANNEL_NAME },
-                                  { "channelnumber",    LISTITEM_CHANNEL_NUMBER },
-                                  { "subchannelnumber", LISTITEM_SUB_CHANNEL_NUMBER },
-                                  { "channelnumberlabel", LISTITEM_CHANNEL_NUMBER_LBL },
+                                  { "channelnumberlabel", LISTITEM_CHANNEL_NUMBER },
                                   { "channelgroup",     LISTITEM_CHANNEL_GROUP },
                                   { "hasepg",           LISTITEM_HAS_EPG },
                                   { "hastimer",         LISTITEM_HASTIMER },
@@ -3960,12 +3988,12 @@ const infomap listitem_labels[]= {{ "thumb",            LISTITEM_THUMB },
 ///   \table_row3{   <b>`Visualisation.Preset`</b>,
 ///                  \anchor Visualisation_Preset
 ///                  _string_,
-///     Shows the current preset of the visualisation.
+///     Returns the current preset of the visualisation.
 ///   }
 ///   \table_row3{   <b>`Visualisation.Name`</b>,
 ///                  \anchor Visualisation_Name
 ///                  _string_,
-///     Shows the name of the visualisation.
+///     Returns the name of the visualisation.
 ///   }
 /// \table_end
 ///
@@ -4006,7 +4034,7 @@ const infomap visualisation[] =  {{ "locked",           VISUALISATION_LOCKED },
 ///   \table_row3{   <b>`Fanart.Image`</b>,
 ///                  \anchor Fanart_Image
 ///                  _string_,
-///     todo
+///     Returns the fanart image\, if any
 ///   }
 /// \table_end
 ///
@@ -4024,23 +4052,23 @@ const infomap fanart_labels[] =  {{ "color1",           FANART_COLOR1 },
 ///   \table_h3{ Labels, Type, Description }
 ///   \table_row3{   <b>`Skin.CurrentTheme`</b>,
 ///                  \anchor Skin_CurrentTheme
-///                  _boolean_,
-///     todo
+///                  _string_,
+///     Returns the current selected skin theme.
 ///   }
 ///   \table_row3{   <b>`Skin.CurrentColourTheme`</b>,
 ///                  \anchor Skin_CurrentColourTheme
-///                  _boolean_,
-///     todo
+///                  _string_,
+///     Returns the current selected colour theme of the skin.
 ///   }
 ///   \table_row3{   <b>`Skin.AspectRatio`</b>,
 ///                  \anchor Skin_AspectRatio
-///                  _boolean_,
-///     todo
+///                  _string_,
+///     Returns the closest aspect ratio match using the resolution info from the skin's addon.xml file.
 ///   }
 ///   \table_row3{   <b>`Skin.Font`</b>,
 ///                  \anchor Skin_Font
 ///                  _string_,
-///     todo
+///     Returns the current fontset from Font.xml.
 ///   }
 /// \table_end
 ///
@@ -4065,39 +4093,51 @@ const infomap skin_labels[] =    {{ "currenttheme",      SKIN_THEME },
 ///   \table_row3{   <b>`Window.Is(window)`</b>,
 ///                  \anchor Window_Is
 ///                  _boolean_,
-///     todo
+///     Returns true if the window with the given name is the window which is currently rendered.
+///     Useful in xml files that are shared between multiple windows or dialogs.
 ///   }
 ///   \table_row3{   <b>`Window.IsActive(window)`</b>,
 ///                  \anchor Window_IsActive
 ///                  _boolean_,
-///     Returns true if the window with id or title _window_ is active (excludes
-///     fade out time on dialogs) \ref modules__General__Window_IDs "See here for a list of windows"
-///   }
-///   \table_row3{   <b>`Window.IsTopMost(window)`</b>,
-///                  \anchor Window_IsTopMost
-///                  _boolean_,
-///     Returns true if the window with id or title _window_ is on top of the
-///     window stack (excludes fade out time on dialogs)
-///     \ref modules__General__Window_IDs "See here for a list of windows"
+///     Returns true if the window with id or title _window_ is active
+///     (excludes fade out time on dialogs)
 ///   }
 ///   \table_row3{   <b>`Window.IsVisible(window)`</b>,
 ///                  \anchor Window_IsVisible
 ///                  _boolean_,
 ///     Returns true if the window is visible (includes fade out time on dialogs)
 ///   }
+///   \table_row3{   <b>`Window.IsTopmost(window)`</b>,
+///                  \anchor Window_IsTopmost
+///                  _boolean_,
+///     Returns true if the window with id or title _window_ is on top of the
+///     window stack (excludes fade out time on dialogs)
+///
+///     \deprecated use `Window.IsDialogTopmost(dialog)` instead
+///   }
+///   \table_row3{   <b>`Window.IsDialogTopmost(dialog)`</b>,
+///                  \anchor Window_IsDialogTopmost
+///                  _boolean_,
+///     Returns true if the dialog with id or title _dialog_ is on top of the
+///     dialog stack (excludes fade out time on dialogs)
+///   }
+///   \table_row3{   <b>`Window.IsModalDialogTopmost(dialog)`</b>,
+///                  \anchor Window_IsModalDialogTopmost
+///                  _boolean_,
+///     Returns true if the dialog with id or title _dialog_ is on top of the
+///     modal dialog stack (excludes fade out time on dialogs)
+///   }
 ///   \table_row3{   <b>`Window.Previous(window)`</b>,
 ///                  \anchor Window_Previous
 ///                  _boolean_,
 ///     Returns true if the window with id or title _window_ is being moved from.
-///     \ref modules__General__Window_IDs "See here for a list of windows". Only
-///     valid while windows are changing.
+///     Only valid while windows are changing.
 ///   }
 ///   \table_row3{   <b>`Window.Next(window)`</b>,
 ///                  \anchor Window_Next
 ///                  _boolean_,
 ///     Returns true if the window with id or title _window_ is being moved to.
-///     \ref modules__General__Window_IDs "See here for a list of windows". Only
-///     valid while windows are changing.
+///     Only valid while windows are changing.
 ///   }
 /// \table_end
 ///
@@ -4106,8 +4146,10 @@ const infomap skin_labels[] =    {{ "currenttheme",      SKIN_THEME },
 const infomap window_bools[] =   {{ "ismedia",          WINDOW_IS_MEDIA },
                                   { "is",               WINDOW_IS },
                                   { "isactive",         WINDOW_IS_ACTIVE },
-                                  { "istopmost",        WINDOW_IS_TOPMOST },
                                   { "isvisible",        WINDOW_IS_VISIBLE },
+                                  { "istopmost",        WINDOW_IS_DIALOG_TOPMOST }, // deprecated, remove in v19
+                                  { "isdialogtopmost",  WINDOW_IS_DIALOG_TOPMOST },
+                                  { "ismodaldialogtopmost", WINDOW_IS_MODAL_DIALOG_TOPMOST },
                                   { "previous",         WINDOW_PREVIOUS },
                                   { "next",             WINDOW_NEXT }};
 
@@ -4206,375 +4248,395 @@ const infomap playlist[] =       {{ "length",           PLAYLIST_LENGTH },
 /// @{
 /// \table_start
 ///   \table_h3{ Labels, Type, Description }
-///   \table_row3{   <b>`Pvr.IsRecording`</b>,
-///                  \anchor Pvr_IsRecording
+///   \table_row3{   <b>`PVR.IsRecording`</b>,
+///                  \anchor PVR_IsRecording
 ///                  _boolean_,
 ///     Returns true when the system is recording a tv or radio programme.
 ///   }
-///   \table_row3{   <b>`Pvr.HasTimer`</b>,
-///                  \anchor Pvr_HasTimer
+///   \table_row3{   <b>`PVR.HasTimer`</b>,
+///                  \anchor PVR_HasTimer
 ///                  _boolean_,
 ///     Returns true when a recording timer is active.
 ///   }
-///   \table_row3{   <b>`Pvr.HasTVChannels`</b>,
-///                  \anchor Pvr_HasTVChannels
+///   \table_row3{   <b>`PVR.HasTVChannels`</b>,
+///                  \anchor PVR_HasTVChannels
 ///                  _boolean_,
 ///     Returns true if there are TV channels available
 ///   }
-///   \table_row3{   <b>`Pvr.HasRadioChannels`</b>,
-///                  \anchor Pvr_HasRadioChannels
+///   \table_row3{   <b>`PVR.HasRadioChannels`</b>,
+///                  \anchor PVR_HasRadioChannels
 ///                  _boolean_,
 ///     Returns true if there are radio channels available
 ///   }
-///   \table_row3{   <b>`Pvr.HasNonRecordingTimer`</b>,
-///                  \anchor Pvr_HasNonRecordingTimer
+///   \table_row3{   <b>`PVR.HasNonRecordingTimer`</b>,
+///                  \anchor PVR_HasNonRecordingTimer
 ///                  _boolean_,
 ///     Returns true if there are timers present who currently not do recording
 ///   }
-///   \table_row3{   <b>`Pvr.NowRecordingTitle`</b>,
-///                  \anchor Pvr_NowRecordingTitle
+///   \table_row3{   <b>`PVR.NowRecordingTitle`</b>,
+///                  \anchor PVR_NowRecordingTitle
 ///                  _string_,
 ///     Title of the programme being recorded
 ///   }
-///   \table_row3{   <b>`Pvr.NowRecordingDateTime`</b>,
-///                  \anchor Pvr_NowRecordingDateTime
+///   \table_row3{   <b>`PVR.NowRecordingDateTime`</b>,
+///                  \anchor PVR_NowRecordingDateTime
 ///                  _Date/Time string_,
 ///     Start date and time of the current recording
 ///   }
-///   \table_row3{   <b>`Pvr.NowRecordingChannel`</b>,
-///                  \anchor Pvr_NowRecordingChannel
+///   \table_row3{   <b>`PVR.NowRecordingChannel`</b>,
+///                  \anchor PVR_NowRecordingChannel
 ///                  _string_,
 ///     Channel name of the current recording
 ///   }
-///   \table_row3{   <b>`Pvr.NowRecordingChannelIcon`</b>,
-///                  \anchor Pvr_NowRecordingChannelIcon
-///                  _path_,
+///   \table_row3{   <b>`PVR.NowRecordingChannelIcon`</b>,
+///                  \anchor PVR_NowRecordingChannelIcon
+///                  _string_,
 ///     Icon of the current recording channel
 ///   }
-///   \table_row3{   <b>`Pvr.NextRecordingTitle`</b>,
-///                  \anchor Pvr_NextRecordingTitle
+///   \table_row3{   <b>`PVR.NextRecordingTitle`</b>,
+///                  \anchor PVR_NextRecordingTitle
 ///                  _string_,
 ///     Title of the next programme that will be recorded
 ///   }
-///   \table_row3{   <b>`Pvr.NextRecordingDateTime`</b>,
-///                  \anchor Pvr_NextRecordingDateTime
+///   \table_row3{   <b>`PVR.NextRecordingDateTime`</b>,
+///                  \anchor PVR_NextRecordingDateTime
 ///                  _Date/Time string_,
 ///     Start date and time of the next recording
 ///   }
-///   \table_row3{   <b>`Pvr.NextRecordingChannel`</b>,
-///                  \anchor Pvr_NextRecordingChannel
+///   \table_row3{   <b>`PVR.NextRecordingChannel`</b>,
+///                  \anchor PVR_NextRecordingChannel
 ///                  _string_,
 ///     Channel name of the next recording
 ///   }
-///   \table_row3{   <b>`Pvr.NextRecordingChannelIcon`</b>,
-///                  \anchor Pvr_NextRecordingChannelIcon
-///                  _path_,
+///   \table_row3{   <b>`PVR.NextRecordingChannelIcon`</b>,
+///                  \anchor PVR_NextRecordingChannelIcon
+///                  _string_,
 ///     Icon of the next recording channel
 ///   }
-///   \table_row3{   <b>`Pvr.BackendName`</b>,
-///                  \anchor Pvr_BackendName
+///   \table_row3{   <b>`PVR.BackendName`</b>,
+///                  \anchor PVR_BackendName
 ///                  _string_,
 ///     Name of the backend being used
 ///   }
-///   \table_row3{   <b>`Pvr.BackendVersion`</b>,
-///                  \anchor Pvr_BackendVersion
+///   \table_row3{   <b>`PVR.BackendVersion`</b>,
+///                  \anchor PVR_BackendVersion
 ///                  _string_,
 ///     Version of the backend that's being used
 ///   }
-///   \table_row3{   <b>`Pvr.BackendHost`</b>,
-///                  \anchor Pvr_BackendHost
+///   \table_row3{   <b>`PVR.BackendHost`</b>,
+///                  \anchor PVR_BackendHost
 ///                  _string_,
 ///     Backend hostname
 ///   }
-///   \table_row3{   <b>`Pvr.BackendDiskSpace`</b>,
-///                  \anchor Pvr_BackendDiskSpace
+///   \table_row3{   <b>`PVR.BackendDiskSpace`</b>,
+///                  \anchor PVR_BackendDiskSpace
 ///                  _string_,
 ///     Available diskspace on the backend as string with size
 ///   }
-///   \table_row3{   <b>`Pvr.BackendDiskSpaceProgr`</b>,
-///                  \anchor Pvr_BackendDiskSpaceProgr
+///   \table_row3{   <b>`PVR.BackendDiskSpaceProgr`</b>,
+///                  \anchor PVR_BackendDiskSpaceProgr
 ///                  _integer_,
 ///     Available diskspace on the backend as percent value
 ///   }
-///   \table_row3{   <b>`Pvr.BackendChannels`</b>,
-///                  \anchor Pvr_BackendChannels
+///   \table_row3{   <b>`PVR.BackendChannels`</b>,
+///                  \anchor PVR_BackendChannels
 ///                  _string (integer)_,
 ///     Number of available channels the backend provides
 ///   }
-///   \table_row3{   <b>`Pvr.BackendTimers`</b>,
-///                  \anchor Pvr_BackendTimers
+///   \table_row3{   <b>`PVR.BackendTimers`</b>,
+///                  \anchor PVR_BackendTimers
 ///                  _string (integer)_,
 ///     Number of timers set for the backend
 ///   }
-///   \table_row3{   <b>`Pvr.BackendRecordings`</b>,
-///                  \anchor Pvr_BackendRecordings
+///   \table_row3{   <b>`PVR.BackendRecordings`</b>,
+///                  \anchor PVR_BackendRecordings
 ///                  _string (integer)_,
 ///     Number of recording available on the backend
 ///   }
-///   \table_row3{   <b>`Pvr.BackendDeletedRecordings`</b>,
-///                  \anchor Pvr_BackendDeletedRecordings
+///   \table_row3{   <b>`PVR.BackendDeletedRecordings`</b>,
+///                  \anchor PVR_BackendDeletedRecordings
 ///                  _string (integer)_,
 ///     Number of deleted recording present on the backend
 ///   }
-///   \table_row3{   <b>`Pvr.BackendNumber`</b>,
-///                  \anchor Pvr_BackendNumber
+///   \table_row3{   <b>`PVR.BackendNumber`</b>,
+///                  \anchor PVR_BackendNumber
 ///                  _string_,
 ///     Backend number
 ///   }
-///   \table_row3{   <b>`Pvr.TotalDiscSpace`</b>,
-///                  \anchor Pvr_TotalDiscSpace
+///   \table_row3{   <b>`PVR.TotalDiscSpace`</b>,
+///                  \anchor PVR_TotalDiscSpace
 ///                  _string_,
 ///     Total diskspace available for recordings
 ///   }
-///   \table_row3{   <b>`Pvr.NextTimer`</b>,
-///                  \anchor Pvr_NextTimer
+///   \table_row3{   <b>`PVR.NextTimer`</b>,
+///                  \anchor PVR_NextTimer
 ///                  _boolean_,
 ///     Next timer date
 ///   }
-///   \table_row3{   <b>`Pvr.IsPlayingTv`</b>,
-///                  \anchor Pvr_IsPlayingTv
+///   \table_row3{   <b>`PVR.IsPlayingTV`</b>,
+///                  \anchor PVR_IsPlayingTV
 ///                  _boolean_,
 ///     Returns true when live tv is being watched.
 ///   }
-///   \table_row3{   <b>`Pvr.IsPlayingRadio`</b>,
-///                  \anchor Pvr_IsPlayingRadio
+///   \table_row3{   <b>`PVR.IsPlayingRadio`</b>,
+///                  \anchor PVR_IsPlayingRadio
 ///                  _boolean_,
 ///     Returns true when live radio is being listened to.
 ///   }
-///   \table_row3{   <b>`Pvr.IsPlayingRecording`</b>,
-///                  \anchor Pvr_IsPlayingRecording
+///   \table_row3{   <b>`PVR.IsPlayingRecording`</b>,
+///                  \anchor PVR_IsPlayingRecording
 ///                  _boolean_,
 ///     Returns true when a recording is being watched.
 ///   }
-///   \table_row3{   <b>`Pvr.IsPlayingEpgTag`</b>,
-///                  \anchor Pvr_IsPlayingEpgTag
+///   \table_row3{   <b>`PVR.IsPlayingEpgTag`</b>,
+///                  \anchor PVR_IsPlayingEpgTag
 ///                  _boolean_,
 ///     Returns true when an epg tag is being watched.
 ///   }
-///   \table_row3{   <b>`Pvr.Duration`</b>,
-///                  \anchor Pvr_Duration
-///                  _time string_,
-///     Returns the duration of the currently played title on TV
+///   \table_row3{   <b>`PVR.EpgEventDuration`</b>,
+///                  \anchor PVR_EpgEventDuration
+///                  _string_,
+///     Returns the duration of the currently playing epg event
 ///   }
-///   \table_row3{   <b>`Pvr.Time`</b>,
-///                  \anchor Pvr_Time
-///                  _time string_,
-///     Returns the time position of the currently played title on TV
+///   \table_row3{   <b>`PVR.EpgEventElapsedTime`</b>,
+///                  \anchor PVR_EpgEventElapsedTime
+///                  _string_,
+///     Returns the time of the current position of the currently playing epg event
 ///   }
-///   \table_row3{   <b>`Pvr.Progress`</b>,
-///                  \anchor Pvr_Progress
+///   \table_row3{   <b>`PVR.EpgEventRemainingTime`</b>,
+///                  \anchor PVR_EpgEventRemainingTime
+///                  _string_,
+///     Returns the remaining time for currently playing epg event
+///   }
+///   \table_row3{   <b>`PVR.EpgEventFinishTime`</b>,
+///                  \anchor PVR_EpgEventFinishTime
+///                  _string_,
+///     Returns the time the currently playing epg event will end
+///   }
+///   \table_row3{   <b>`PVR.EpgEventProgress`</b>,
+///                  \anchor PVR_EpgEventProgress
 ///                  _integer_,
-///     Returns the position of currently played title on TV as integer
+///     Returns the percentage complete of the currently playing epg event
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamClient`</b>,
-///                  \anchor Pvr_ActStreamClient
+///   \table_row3{   <b>`PVR.ActStreamClient`</b>,
+///                  \anchor PVR_ActStreamClient
 ///                  _string_,
 ///     Stream client name
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamDevice`</b>,
-///                  \anchor Pvr_ActStreamDevice
+///   \table_row3{   <b>`PVR.ActStreamDevice`</b>,
+///                  \anchor PVR_ActStreamDevice
 ///                  _string_,
 ///     Stream device name
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamStatus`</b>,
-///                  \anchor Pvr_ActStreamStatus
+///   \table_row3{   <b>`PVR.ActStreamStatus`</b>,
+///                  \anchor PVR_ActStreamStatus
 ///                  _string_,
 ///     Status of the stream
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamSignal`</b>,
-///                  \anchor Pvr_ActStreamSignal
+///   \table_row3{   <b>`PVR.ActStreamSignal`</b>,
+///                  \anchor PVR_ActStreamSignal
 ///                  _string_,
 ///     Signal quality of the stream
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamSnr`</b>,
-///                  \anchor Pvr_ActStreamSnr
+///   \table_row3{   <b>`PVR.ActStreamSnr`</b>,
+///                  \anchor PVR_ActStreamSnr
 ///                  _string_,
 ///     Signal to noise ratio of the stream
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamBer`</b>,
-///                  \anchor Pvr_ActStreamBer
+///   \table_row3{   <b>`PVR.ActStreamBer`</b>,
+///                  \anchor PVR_ActStreamBer
 ///                  _string_,
 ///     Bit error rate of the stream
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamUnc`</b>,
-///                  \anchor Pvr_ActStreamUnc
+///   \table_row3{   <b>`PVR.ActStreamUnc`</b>,
+///                  \anchor PVR_ActStreamUnc
 ///                  _string_,
 ///     UNC value of the stream
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamProgrSignal`</b>,
-///                  \anchor Pvr_ActStreamProgrSignal
+///   \table_row3{   <b>`PVR.ActStreamProgrSignal`</b>,
+///                  \anchor PVR_ActStreamProgrSignal
 ///                  _integer_,
 ///     Signal quality of the programme
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamProgrSnr`</b>,
-///                  \anchor Pvr_ActStreamProgrSnr
+///   \table_row3{   <b>`PVR.ActStreamProgrSnr`</b>,
+///                  \anchor PVR_ActStreamProgrSnr
 ///                  _integer_,
 ///     Signal to noise ratio of the programme
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamIsEncrypted`</b>,
-///                  \anchor Pvr_ActStreamIsEncrypted
+///   \table_row3{   <b>`PVR.ActStreamIsEncrypted`</b>,
+///                  \anchor PVR_ActStreamIsEncrypted
 ///                  _boolean_,
 ///     Returns true when channel is encrypted on source
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamEncryptionName`</b>,
-///                  \anchor Pvr_ActStreamEncryptionName
+///   \table_row3{   <b>`PVR.ActStreamEncryptionName`</b>,
+///                  \anchor PVR_ActStreamEncryptionName
 ///                  _string_,
 ///     Encryption used on the stream
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamServiceName`</b>,
-///                  \anchor Pvr_ActStreamServiceName
+///   \table_row3{   <b>`PVR.ActStreamServiceName`</b>,
+///                  \anchor PVR_ActStreamServiceName
 ///                  _string_,
 ///     Returns the service name of played channel if available
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamMux`</b>,
-///                  \anchor Pvr_ActStreamMux
+///   \table_row3{   <b>`PVR.ActStreamMux`</b>,
+///                  \anchor PVR_ActStreamMux
 ///                  _string_,
 ///     Returns the multiplex type of played channel if available
 ///   }
-///   \table_row3{   <b>`Pvr.ActStreamProviderName`</b>,
-///                  \anchor Pvr_ActStreamProviderName
+///   \table_row3{   <b>`PVR.ActStreamProviderName`</b>,
+///                  \anchor PVR_ActStreamProviderName
 ///                  _string_,
 ///     Returns the provider name of the played channel if available
 ///   }
-///   \table_row3{   <b>`Pvr.IsTimeShift`</b>,
-///                  \anchor Pvr_IsTimeShift
+///   \table_row3{   <b>`PVR.IsTimeShift`</b>,
+///                  \anchor PVR_IsTimeShift
 ///                  _boolean_,
 ///     Returns true when for channel is timeshift available
 ///   }
-///   \table_row3{   <b>`Pvr.TimeShiftStart`</b>,
-///                  \anchor Pvr_TimeShiftStart
+///   \table_row3{   <b>`PVR.TimeShiftStart`</b>,
+///                  \anchor PVR_TimeShiftStart
 ///                  _time string_,
 ///     Start position of the timeshift
 ///   }
-///   \table_row3{   <b>`Pvr.TimeShiftEnd`</b>,
-///                  \anchor Pvr_TimeShiftEnd
+///   \table_row3{   <b>`PVR.TimeShiftEnd`</b>,
+///                  \anchor PVR_TimeShiftEnd
 ///                  _time string_,
 ///     End position of the timeshift
 ///   }
-///   \table_row3{   <b>`Pvr.TimeShiftCur`</b>,
-///                  \anchor Pvr_TimeShiftCur
+///   \table_row3{   <b>`PVR.TimeShiftCur`</b>,
+///                  \anchor PVR_TimeShiftCur
 ///                  _time string_,
 ///     Current position of the timeshift
 ///   }
-///   \table_row3{   <b>`Pvr.TimeShiftProgress`</b>,
-///                  \anchor Pvr_TimeShiftProgress
+///   \table_row3{   <b>`PVR.TimeShiftProgress`</b>,
+///                  \anchor PVR_TimeShiftProgress
 ///                  _integer_,
 ///     Returns the position of currently timeshifted title on TV as integer
 ///   }
-///   \table_row3{   <b>`Pvr.TVNowRecordingTitle`</b>,
-///                  \anchor Pvr_TVNowRecordingTitle
+///   \table_row3{   <b>`PVR.TVNowRecordingTitle`</b>,
+///                  \anchor PVR_TVNowRecordingTitle
 ///                  _string_,
 ///     Title of the tv programme being recorded
 ///   }
-///   \table_row3{   <b>`Pvr.TVNowRecordingDateTime`</b>,
-///                  \anchor Pvr_TVNowRecordingDateTime
+///   \table_row3{   <b>`PVR.TVNowRecordingDateTime`</b>,
+///                  \anchor PVR_TVNowRecordingDateTime
 ///                  _Date/Time string_,
 ///     Start date and time of the current tv recording
 ///   }
-///   \table_row3{   <b>`Pvr.TVNowRecordingChannel`</b>,
-///                  \anchor Pvr_TVNowRecordingChannel
+///   \table_row3{   <b>`PVR.TVNowRecordingChannel`</b>,
+///                  \anchor PVR_TVNowRecordingChannel
 ///                  _string_,
 ///     Channel name of the current tv recording
 ///   }
-///   \table_row3{   <b>`Pvr.TVNowRecordingChannelIcon`</b>,
-///                  \anchor Pvr_TVNowRecordingChannelIcon
-///                  _path_,
+///   \table_row3{   <b>`PVR.TVNowRecordingChannelIcon`</b>,
+///                  \anchor PVR_TVNowRecordingChannelIcon
+///                  _string_,
 ///     Icon of the current recording TV channel
 ///   }
-///   \table_row3{   <b>`Pvr.TVNextRecordingTitle`</b>,
-///                  \anchor Pvr_TVNextRecordingTitle
+///   \table_row3{   <b>`PVR.TVNextRecordingTitle`</b>,
+///                  \anchor PVR_TVNextRecordingTitle
 ///                  _string_,
 ///     Title of the next tv programme that will be recorded
 ///   }
-///   \table_row3{   <b>`Pvr.TVNextRecordingDateTime`</b>,
-///                  \anchor Pvr_TVNextRecordingDateTime
+///   \table_row3{   <b>`PVR.TVNextRecordingDateTime`</b>,
+///                  \anchor PVR_TVNextRecordingDateTime
 ///                  _Date/Time string_,
 ///     Start date and time of the next tv recording
 ///   }
-///   \table_row3{   <b>`Pvr.TVNextRecordingChannel`</b>,
-///                  \anchor Pvr_TVNextRecordingChannel
+///   \table_row3{   <b>`PVR.TVNextRecordingChannel`</b>,
+///                  \anchor PVR_TVNextRecordingChannel
 ///                  _string_,
 ///     Channel name of the next tv recording
 ///   }
-///   \table_row3{   <b>`Pvr.TVNextRecordingChannelIcon`</b>,
-///                  \anchor Pvr_TVNextRecordingChannelIcon
-///                  _path_,
+///   \table_row3{   <b>`PVR.TVNextRecordingChannelIcon`</b>,
+///                  \anchor PVR_TVNextRecordingChannelIcon
+///                     ,
 ///     Icon of the next recording tv channel
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNowRecordingTitle`</b>,
-///                  \anchor Pvr_RadioNowRecordingTitle
+///   \table_row3{   <b>`PVR.RadioNowRecordingTitle`</b>,
+///                  \anchor PVR_RadioNowRecordingTitle
 ///                  _string_,
 ///     Title of the radio programme being recorded
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNowRecordingDateTime`</b>,
-///                  \anchor Pvr_RadioNowRecordingDateTime
+///   \table_row3{   <b>`PVR.RadioNowRecordingDateTime`</b>,
+///                  \anchor PVR_RadioNowRecordingDateTime
 ///                  _Date/Time string_,
 ///     Start date and time of the current radio recording
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNowRecordingChannel`</b>,
-///                  \anchor Pvr_RadioNowRecordingChannel
+///   \table_row3{   <b>`PVR.RadioNowRecordingChannel`</b>,
+///                  \anchor PVR_RadioNowRecordingChannel
 ///                  _string_,
 ///     Channel name of the current radio recording
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNowRecordingChannelIcon`</b>,
-///                  \anchor Pvr_RadioNowRecordingChannelIcon
-///                  _path_,
+///   \table_row3{   <b>`PVR.RadioNowRecordingChannelIcon`</b>,
+///                  \anchor PVR_RadioNowRecordingChannelIcon
+///                  _string_,
 ///     Icon of the current recording radio channel
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNextRecordingTitle`</b>,
-///                  \anchor Pvr_RadioNextRecordingTitle
+///   \table_row3{   <b>`PVR.RadioNextRecordingTitle`</b>,
+///                  \anchor PVR_RadioNextRecordingTitle
 ///                  _string_,
 ///     Title of the next radio programme that will be recorded
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNextRecordingDateTime`</b>,
-///                  \anchor Pvr_RadioNextRecordingDateTime
+///   \table_row3{   <b>`PVR.RadioNextRecordingDateTime`</b>,
+///                  \anchor PVR_RadioNextRecordingDateTime
 ///                  _Date/Time string_,
 ///     Start date and time of the next radio recording
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNextRecordingChannel`</b>,
-///                  \anchor Pvr_RadioNextRecordingChannel
+///   \table_row3{   <b>`PVR.RadioNextRecordingChannel`</b>,
+///                  \anchor PVR_RadioNextRecordingChannel
 ///                  _string_,
 ///     Channel name of the next radio recording
 ///   }
-///   \table_row3{   <b>`Pvr.RadioNextRecordingChannelIcon`</b>,
-///                  \anchor Pvr_RadioNextRecordingChannelIcon
-///                  _path_,
+///   \table_row3{   <b>`PVR.RadioNextRecordingChannelIcon`</b>,
+///                  \anchor PVR_RadioNextRecordingChannelIcon
+///                  _string_,
 ///     Icon of the next recording radio channel
 ///   }
-///   \table_row3{   <b>`Pvr.IsRecordingTV`</b>,
-///                  \anchor Pvr_IsRecordingTV
+///   \table_row3{   <b>`PVR.IsRecordingTV`</b>,
+///                  \anchor PVR_IsRecordingTV
 ///                  _boolean_,
 ///     Returns true when the system is recording a tv programme.
 ///   }
-///   \table_row3{   <b>`Pvr.HasTVTimer`</b>,
-///                  \anchor Pvr_HasTVTimer
+///   \table_row3{   <b>`PVR.HasTVTimer`</b>,
+///                  \anchor PVR_HasTVTimer
 ///                  _boolean_,
 ///     Returns true if at least one tv timer is active.
 ///   }
-///   \table_row3{   <b>`Pvr.HasNonRecordingTVTimer`</b>,
-///                  \anchor Pvr_HasNonRecordingTVTimer
+///   \table_row3{   <b>`PVR.HasNonRecordingTVTimer`</b>,
+///                  \anchor PVR_HasNonRecordingTVTimer
 ///                  _boolean_,
 ///     Returns true if there are tv timers present who currently not do recording
 ///   }
-///   \table_row3{   <b>`Pvr.IsRecordingRadio`</b>,
-///                  \anchor Pvr_IsRecordingRadio
+///   \table_row3{   <b>`PVR.IsRecordingRadio`</b>,
+///                  \anchor PVR_IsRecordingRadio
 ///                  _boolean_,
 ///     Returns true when the system is recording a radio programme.
 ///   }
-///   \table_row3{   <b>`Pvr.HasRadioTimer`</b>,
-///                  \anchor Pvr_HasRadioTimer
+///   \table_row3{   <b>`PVR.HasRadioTimer`</b>,
+///                  \anchor PVR_HasRadioTimer
 ///                  _boolean_,
 ///     Returns true if at least one radio timer is active.
 ///   }
-///   \table_row3{   <b>`Pvr.HasNonRecordingRadioTimer`</b>,
-///                  \anchor Pvr_HasNonRecordingRadioTimer
+///   \table_row3{   <b>`PVR.HasNonRecordingRadioTimer`</b>,
+///                  \anchor PVR_HasNonRecordingRadioTimer
 ///                  _boolean_,
 ///     Returns true if there are radio timers present who currently not do recording
 ///   }
-///   \table_row3{   <b>`Pvr.ChannelNumberInput`</b>,
-///                  \anchor Pvr_ChannelNumberInput
+///   \table_row3{   <b>`PVR.ChannelNumberInput`</b>,
+///                  \anchor PVR_ChannelNumberInput
 ///                  _string_,
 ///     Returns the currently entered channel number while in numeric channel input mode, an empty string otherwise
+///   }
+///   \table_row3{   <b>`PVR.CanRecordPlayingChannel`</b>,
+///                  \anchor PVR_CanRecordPlayingChannel
+///                  _boolean_,
+///     Returns true if PVR is currently playing a channel and if this channel can be recorded.
+///   }
+///   \table_row3{   <b>`PVR.IsRecordingPlayingChannel`</b>,
+///                  \anchor PVR_IsRecordingPlayingChannel
+///                  _boolean_,
+///     Returns true if PVR is currently playing a channel and if this channel is currently recorded.
 ///   }
 /// \table_end
 ///
@@ -4609,9 +4671,11 @@ const infomap pvr[] =            {{ "isrecording",              PVR_IS_RECORDING
                                   { "isplayingradio",           PVR_IS_PLAYING_RADIO },
                                   { "isplayingrecording",       PVR_IS_PLAYING_RECORDING },
                                   { "isplayingepgtag",          PVR_IS_PLAYING_EPGTAG },
-                                  { "duration",                 PVR_PLAYING_DURATION },
-                                  { "time",                     PVR_PLAYING_TIME },
-                                  { "progress",                 PVR_PLAYING_PROGRESS },
+                                  { "epgeventduration",         PVR_EPG_EVENT_DURATION },
+                                  { "epgeventelapsedtime",      PVR_EPG_EVENT_ELAPSED_TIME },
+                                  { "epgeventremainingtime",    PVR_EPG_EVENT_REMAINING_TIME },
+                                  { "epgeventfinishtime",       PVR_EPG_EVENT_FINISH_TIME },
+                                  { "epgeventprogress",         PVR_EPG_EVENT_PROGRESS },
                                   { "actstreamclient",          PVR_ACTUAL_STREAM_CLIENT },
                                   { "actstreamdevice",          PVR_ACTUAL_STREAM_DEVICE },
                                   { "actstreamstatus",          PVR_ACTUAL_STREAM_STATUS },
@@ -4661,7 +4725,9 @@ const infomap pvr[] =            {{ "isrecording",              PVR_IS_RECORDING
                                   { "isrecordingradio",           PVR_IS_RECORDING_RADIO },
                                   { "hasradiotimer",              PVR_HAS_RADIO_TIMER },
                                   { "hasnonrecordingradiotimer",  PVR_HAS_NONRECORDING_RADIO_TIMER },
-                                  { "channelnumberinput",         PVR_CHANNEL_NUMBER_INPUT }};
+                                  { "channelnumberinput",         PVR_CHANNEL_NUMBER_INPUT },
+                                  { "canrecordplayingchannel",    PVR_CAN_RECORD_PLAYING_CHANNEL },
+                                  { "isrecordingplayingchannel",  PVR_IS_RECORDING_PLAYING_CHANNEL }};
 
 /// \page modules__General__List_of_gui_access
 /// \section modules__General__List_of_gui_access_ADSP ADSP
@@ -4730,12 +4796,12 @@ const infomap pvr[] =            {{ "isrecording",              PVR_IS_RECORDING
 ///   }
 ///   \table_row3{   <b>`ADSP.MasterOwnIcon`</b>,
 ///                  \anchor ADSP_MasterOwnIcon
-///                  _path_,
+///                  _string_,
 ///     Icon to use for selected master mode
 ///   }
 ///   \table_row3{   <b>`ADSP.MasterOverrideIcon`</b>,
 ///                  \anchor ADSP_MasterOverrideIcon
-///                  _path_,
+///                  _string_,
 ///     Icon to override Kodi's codec icon with one of add-on\, e.g. Dolby
 ///     Digital EX on Dolby Digital
 ///   }
@@ -5550,6 +5616,14 @@ int CGUIInfoManager::TranslateSingleString(const std::string &strCondition, bool
           return videoplayer[i].val;
       }
     }
+    else if (cat.name == "retroplayer")
+    {
+      for (size_t i = 0; i < sizeof(retroplayer) / sizeof(infomap); i++)
+      {
+        if (prop.name == retroplayer[i].str)
+          return retroplayer[i].val;
+      }
+    }
     else if (cat.name == "slideshow")
     {
       for (size_t i = 0; i < sizeof(slideshow) / sizeof(infomap); i++)
@@ -5836,7 +5910,7 @@ int CGUIInfoManager::TranslateListItem(const Property &info)
     }
     if (info.name == "art")
       return AddListItemProp(info.param(), LISTITEM_ART_OFFSET);
-    if (info.name == "ratings")
+    if (info.name == "rating")
       return AddListItemProp(info.param(), LISTITEM_RATING_OFFSET);
     if (info.name == "votes")
       return AddListItemProp(info.param(), LISTITEM_VOTES_OFFSET);
@@ -5918,6 +5992,8 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     return strLabel;
   }
 
+  const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
   switch (info)
   {
   case PVR_NEXT_RECORDING_CHANNEL:
@@ -5939,9 +6015,11 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
   case PVR_BACKEND_NUMBER:
   case PVR_TOTAL_DISKSPACE:
   case PVR_NEXT_TIMER:
-  case PVR_PLAYING_DURATION:
-  case PVR_PLAYING_TIME:
-  case PVR_PLAYING_PROGRESS:
+  case PVR_EPG_EVENT_DURATION:
+  case PVR_EPG_EVENT_ELAPSED_TIME:
+  case PVR_EPG_EVENT_REMAINING_TIME:
+  case PVR_EPG_EVENT_FINISH_TIME:
+  case PVR_EPG_EVENT_PROGRESS:
   case PVR_ACTUAL_STREAM_CLIENT:
   case PVR_ACTUAL_STREAM_DEVICE:
   case PVR_ACTUAL_STREAM_STATUS:
@@ -5980,19 +6058,19 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     strLabel = CServiceBroker::GetPVRManager().GUIActions()->GetChannelNumberInputHandler().GetChannelNumberAsString();
     break;
   case WEATHER_CONDITIONS:
-    strLabel = g_weatherManager.GetInfo(WEATHER_LABEL_CURRENT_COND);
+    strLabel = CServiceBroker::GetWeatherManager().GetInfo(WEATHER_LABEL_CURRENT_COND);
     StringUtils::Trim(strLabel);
     break;
   case WEATHER_TEMPERATURE:
     strLabel = StringUtils::Format("%s%s",
-                                   g_weatherManager.GetInfo(WEATHER_LABEL_CURRENT_TEMP).c_str(),
+                                   CServiceBroker::GetWeatherManager().GetInfo(WEATHER_LABEL_CURRENT_TEMP).c_str(),
                                    g_langInfo.GetTemperatureUnitString().c_str());
     break;
   case WEATHER_LOCATION:
-    strLabel = g_weatherManager.GetInfo(WEATHER_LABEL_LOCATION);
+    strLabel = CServiceBroker::GetWeatherManager().GetInfo(WEATHER_LABEL_LOCATION);
     break;
   case WEATHER_FANART_CODE:
-    strLabel = URIUtils::GetFileName(g_weatherManager.GetInfo(WEATHER_IMAGE_CURRENT_ICON));
+    strLabel = URIUtils::GetFileName(CServiceBroker::GetWeatherManager().GetInfo(WEATHER_IMAGE_CURRENT_ICON));
     URIUtils::RemoveExtension(strLabel);
     break;
   case WEATHER_PLUGIN:
@@ -6008,37 +6086,32 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     strLabel = StringUtils::Format("%2.1f dB", CAEUtil::PercentToGain(g_application.GetVolume(false)));
     break;
   case PLAYER_SUBTITLE_DELAY:
-    strLabel = StringUtils::Format("%2.3f s", CMediaSettings::GetInstance().GetCurrentVideoSettings().m_SubtitleDelay);
+    strLabel = StringUtils::Format("%2.3f s", g_application.GetAppPlayer().GetVideoSettings().m_SubtitleDelay);
     break;
   case PLAYER_AUDIO_DELAY:
-    strLabel = StringUtils::Format("%2.3f s", CMediaSettings::GetInstance().GetCurrentVideoSettings().m_AudioDelay);
+    strLabel = StringUtils::Format("%2.3f s", g_application.GetAppPlayer().GetVideoSettings().m_AudioDelay);
     break;
   case PLAYER_CHAPTER:
-    if(g_application.m_pPlayer->IsPlaying())
-      strLabel = StringUtils::Format("%02d", g_application.m_pPlayer->GetChapter());
+    strLabel = StringUtils::Format("%02d", g_application.GetAppPlayer().GetChapter());
     break;
   case PLAYER_CHAPTERCOUNT:
-    if(g_application.m_pPlayer->IsPlaying())
-      strLabel = StringUtils::Format("%02d", g_application.m_pPlayer->GetChapterCount());
+    strLabel = StringUtils::Format("%02d", g_application.GetAppPlayer().GetChapterCount());
     break;
   case PLAYER_CHAPTERNAME:
-    if(g_application.m_pPlayer->IsPlaying())
-      g_application.m_pPlayer->GetChapterName(strLabel);
+    g_application.GetAppPlayer().GetChapterName(strLabel);
     break;
   case PLAYER_CACHELEVEL:
     {
       int iLevel = 0;
-      if(g_application.m_pPlayer->IsPlaying() && GetInt(iLevel, PLAYER_CACHELEVEL) && iLevel >= 0)
+      if (GetInt(iLevel, PLAYER_CACHELEVEL) && iLevel >= 0)
         strLabel = StringUtils::Format("%i", iLevel);
     }
     break;
   case PLAYER_TIME:
-    if(g_application.m_pPlayer->IsPlaying())
-      strLabel = GetCurrentPlayTime(TIME_FORMAT_HH_MM);
+    strLabel = GetCurrentPlayTime(TIME_FORMAT_HH_MM);
     break;
   case PLAYER_DURATION:
-    if(g_application.m_pPlayer->IsPlaying())
-      strLabel = GetDuration(TIME_FORMAT_HH_MM);
+    strLabel = GetDuration(TIME_FORMAT_HH_MM);
     break;
   case PLAYER_PATH:
   case PLAYER_FILENAME:
@@ -6073,8 +6146,8 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
           if (!m_currentFile->GetPVRRadioRDSInfoTag()->GetTitle().empty())
             return m_currentFile->GetPVRRadioRDSInfoTag()->GetTitle();
           /*! If no plus present load the RDS Radiotext info line 0 if present */
-          if (!g_application.m_pPlayer->GetRadioText(0).empty())
-            return g_application.m_pPlayer->GetRadioText(0);
+          if (!g_application.GetAppPlayer().GetRadioText(0).empty())
+            return g_application.GetAppPlayer().GetRadioText(0);
         }
         if (m_currentFile->HasPVRChannelInfoTag())
         {
@@ -6088,26 +6161,18 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
           return m_currentFile->GetVideoInfoTag()->m_strTitle;
         if (m_currentFile->HasMusicInfoTag() && !m_currentFile->GetMusicInfoTag()->GetTitle().empty())
           return m_currentFile->GetMusicInfoTag()->GetTitle();
-        // don't have the title, so use VideoPlayer, label, or drop down to title from path
-        if (!g_application.m_pPlayer->GetPlayingTitle().empty())
-          return g_application.m_pPlayer->GetPlayingTitle();
+        // don't have the title, so use label or drop down to title from path
         if (!m_currentFile->GetLabel().empty())
           return m_currentFile->GetLabel();
         return CUtil::GetTitleFromPath(m_currentFile->GetPath());
       }
-      else
-      {
-        if (!g_application.m_pPlayer->GetPlayingTitle().empty())
-          return g_application.m_pPlayer->GetPlayingTitle();
-      }
     }
     break;
   case PLAYER_PLAYSPEED:
-      if(g_application.m_pPlayer->IsPlaying())
       {
-        float speed = g_application.m_pPlayer->GetPlaySpeed();
+        float speed = g_application.GetAppPlayer().GetPlaySpeed();
         if (speed == 1.0)
-          speed = g_application.m_pPlayer->GetPlayTempo();
+          speed = g_application.GetAppPlayer().GetPlayTempo();
         strLabel = StringUtils::Format("%.2f", speed);
       }
       break;
@@ -6135,8 +6200,6 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
   case MUSICPLAYER_LYRICS:
   case MUSICPLAYER_CHANNEL_NAME:
   case MUSICPLAYER_CHANNEL_NUMBER:
-  case MUSICPLAYER_SUB_CHANNEL_NUMBER:
-  case MUSICPLAYER_CHANNEL_NUMBER_LBL:
   case MUSICPLAYER_CHANNEL_GROUP:
   case MUSICPLAYER_PLAYCOUNT:
   case MUSICPLAYER_LASTPLAYED:
@@ -6181,8 +6244,6 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
   case VIDEOPLAYER_NEXT_DURATION:
   case VIDEOPLAYER_CHANNEL_NAME:
   case VIDEOPLAYER_CHANNEL_NUMBER:
-  case VIDEOPLAYER_SUB_CHANNEL_NUMBER:
-  case VIDEOPLAYER_CHANNEL_NUMBER_LBL:
   case VIDEOPLAYER_CHANNEL_GROUP:
   case VIDEOPLAYER_PARENTAL_RATING:
   case VIDEOPLAYER_PLAYCOUNT:
@@ -6192,72 +6253,44 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
   case VIDEOPLAYER_EPISODENAME:
     strLabel = GetVideoLabel(info);
   break;
+  case RETROPLAYER_VIEWMODE:
+    strLabel = GetGameLabel(info);
+    break;
   case VIDEOPLAYER_VIDEO_CODEC:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      strLabel = m_videoInfo.videoCodecName;
-    }
+    strLabel = m_videoInfo.codecName;
     break;
   case VIDEOPLAYER_VIDEO_RESOLUTION:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      return CStreamDetails::VideoDimsToResolutionDescription(m_videoInfo.width, m_videoInfo.height);
-    }
+    strLabel = CStreamDetails::VideoDimsToResolutionDescription(m_videoInfo.width, m_videoInfo.height);
     break;
   case VIDEOPLAYER_AUDIO_CODEC:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      strLabel = m_audioInfo.audioCodecName;
-    }
+    strLabel = m_audioInfo.codecName;
     break;
   case VIDEOPLAYER_VIDEO_ASPECT:
-    if (g_application.m_pPlayer->IsPlaying())
-    {
-      strLabel = CStreamDetails::VideoAspectToAspectDescription(CServiceBroker::GetDataCacheCore().GetVideoDAR());
-    }
+    strLabel = CStreamDetails::VideoAspectToAspectDescription(CServiceBroker::GetDataCacheCore().GetVideoDAR());
     break;
   case VIDEOPLAYER_AUDIO_CHANNELS:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      if (m_audioInfo.channels > 0)
-        strLabel = StringUtils::Format("%i", m_audioInfo.channels);
-    }
+    if (m_audioInfo.channels > 0)
+      strLabel = StringUtils::Format("%i", m_audioInfo.channels);
     break;
   case VIDEOPLAYER_AUDIO_BITRATE:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      std::string strBitrate = "";
-      if (m_audioInfo.bitrate > 0)
-        strBitrate = StringUtils::Format("%li", lrint(static_cast<double>(m_audioInfo.bitrate) / 1000.0));
-      return strBitrate;
-    }
+    if (m_audioInfo.bitrate > 0)
+      strLabel = StringUtils::Format("%li", lrint(static_cast<double>(m_audioInfo.bitrate) / 1000.0));
     break;
   case VIDEOPLAYER_VIDEO_BITRATE:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      std::string strBitrate = "";
-      if (m_videoInfo.bitrate > 0)
-        strBitrate = StringUtils::Format("%li", lrint(static_cast<double>(m_videoInfo.bitrate) / 1000.0));
-      return strBitrate;
-    }
+    if (m_videoInfo.bitrate > 0)
+      strLabel = StringUtils::Format("%li", lrint(static_cast<double>(m_videoInfo.bitrate) / 1000.0));
     break;
   case VIDEOPLAYER_AUDIO_LANG:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      strLabel = m_audioInfo.language;
-    }
+    strLabel = m_audioInfo.language;
     break;
   case VIDEOPLAYER_STEREOSCOPIC_MODE:
-    if(g_application.m_pPlayer->IsPlaying())
-    {
-      strLabel = m_videoInfo.stereoMode;
-    }
+    strLabel = CServiceBroker::GetDataCacheCore().GetVideoStereoMode();
     break;
   case VIDEOPLAYER_SUBTITLES_LANG:
-    if(g_application.m_pPlayer && g_application.m_pPlayer->IsPlaying() && g_application.m_pPlayer->GetSubtitleVisible())
+    if (g_application.GetAppPlayer().GetSubtitleVisible())
     {
-      SPlayerSubtitleStreamInfo info;
-      g_application.m_pPlayer->GetSubtitleStreamInfo(g_application.m_pPlayer->GetSubtitle(), info);
+      SubtitleStreamInfo info;
+      g_application.GetAppPlayer().GetSubtitleStreamInfo(g_application.GetAppPlayer().GetSubtitle(), info);
       strLabel = info.language;
     }
     break;
@@ -6382,7 +6415,7 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     break;
 
   case SYSTEM_SCREEN_RESOLUTION:
-    if(g_Windowing.IsFullScreen())
+    if(CServiceBroker::GetWinSystem().IsFullScreen())
       strLabel = StringUtils::Format("%ix%i@%.2fHz - %s",
         CDisplaySettings::GetInstance().GetCurrentResolutionInfo().iScreenWidth,
         CDisplaySettings::GetInstance().GetCurrentResolutionInfo().iScreenHeight,
@@ -6550,15 +6583,14 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     strLabel = StringUtils::Format("%i", g_graphicsContext.GetResInfo().iScreenHeight);
     break;
   case SYSTEM_CURRENT_WINDOW:
-    return g_localizeStrings.Get(g_windowManager.GetFocusedWindow());
-    break;
+    return g_localizeStrings.Get(g_windowManager.GetActiveWindowOrDialog());
   case SYSTEM_STARTUP_WINDOW:
     strLabel = StringUtils::Format("%i", CServiceBroker::GetSettings().GetInt(CSettings::SETTING_LOOKANDFEEL_STARTUPWINDOW));
     break;
   case SYSTEM_CURRENT_CONTROL:
   case SYSTEM_CURRENT_CONTROL_ID:
     {
-      CGUIWindow *window = g_windowManager.GetWindow(g_windowManager.GetFocusedWindow());
+      CGUIWindow *window = g_windowManager.GetWindow(g_windowManager.GetActiveWindowOrDialog());
       if (window)
       {
         CGUIControl *control = window->GetFocusedControl();
@@ -6590,15 +6622,15 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     }
     break;
   case SYSTEM_PROFILENAME:
-    strLabel = CProfilesManager::GetInstance().GetCurrentProfile().getName();
+    strLabel = profileManager.GetCurrentProfile().getName();
     break;
   case SYSTEM_PROFILECOUNT:
-    strLabel = StringUtils::Format("{0}", CProfilesManager::GetInstance().GetNumberOfProfiles());
+    strLabel = StringUtils::Format("{0}", profileManager.GetNumberOfProfiles());
     break;
   case SYSTEM_PROFILEAUTOLOGIN:
     {
-      int profileId = CProfilesManager::GetInstance().GetAutoLoginProfileId();
-      if ((profileId < 0) || (!CProfilesManager::GetInstance().GetProfileName(profileId, strLabel)))
+      int profileId = profileManager.GetAutoLoginProfileId();
+      if ((profileId < 0) || (!profileManager.GetProfileName(profileId, strLabel)))
         strLabel = g_localizeStrings.Get(37014); // Last used profile
     }
     break;
@@ -6640,35 +6672,35 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     break;
   case NETWORK_IP_ADDRESS:
     {
-      CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+      CNetworkInterface* iface = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
       if (iface)
         return iface->GetCurrentIPAddress();
     }
     break;
   case NETWORK_SUBNET_MASK:
     {
-      CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+      CNetworkInterface* iface = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
       if (iface)
         return iface->GetCurrentNetmask();
     }
     break;
   case NETWORK_GATEWAY_ADDRESS:
     {
-      CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+      CNetworkInterface* iface = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
       if (iface)
         return iface->GetCurrentDefaultGateway();
     }
     break;
   case NETWORK_DNS1_ADDRESS:
     {
-      std::vector<std::string> nss = g_application.getNetwork().GetNameServers();
+      std::vector<std::string> nss = CServiceBroker::GetNetwork().GetNameServers();
       if (nss.size() >= 1)
         return nss[0];
     }
     break;
   case NETWORK_DNS2_ADDRESS:
     {
-      std::vector<std::string> nss = g_application.getNetwork().GetNameServers();
+      std::vector<std::string> nss = CServiceBroker::GetNetwork().GetNameServers();
       if (nss.size() >= 2)
         return nss[1];
     }
@@ -6683,7 +6715,7 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     {
       std::string linkStatus = g_localizeStrings.Get(151);
       linkStatus += " ";
-      CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+      CNetworkInterface* iface = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
       if (iface && iface->IsConnected())
         linkStatus += g_localizeStrings.Get(15207);
       else
@@ -6744,13 +6776,13 @@ std::string CGUIInfoManager::GetLabel(int info, int contextWindow, std::string *
     }
     break;
   case SYSTEM_RENDER_VENDOR:
-    strLabel = g_Windowing.GetRenderVendor();
+    strLabel = CServiceBroker::GetRenderSystem().GetRenderVendor();
     break;
   case SYSTEM_RENDER_RENDERER:
-    strLabel = g_Windowing.GetRenderRenderer();
+    strLabel = CServiceBroker::GetRenderSystem().GetRenderRenderer();
     break;
   case SYSTEM_RENDER_VERSION:
-    strLabel = g_Windowing.GetRenderVersionString();
+    strLabel = CServiceBroker::GetRenderSystem().GetRenderVersionString();
     break;
   }
 
@@ -6776,10 +6808,10 @@ bool CGUIInfoManager::GetInt(int &value, int info, int contextWindow, const CGUI
   }
 
   value = 0;
-  switch( info )
+  switch (info)
   {
     case PLAYER_VOLUME:
-      value = (int)g_application.GetVolume();
+      value = static_cast<int>(g_application.GetVolume());
       return true;
     case PLAYER_SUBTITLE_DELAY:
       value = g_application.GetSubtitleDelay();
@@ -6788,43 +6820,22 @@ bool CGUIInfoManager::GetInt(int &value, int info, int contextWindow, const CGUI
       value = g_application.GetAudioDelay();
       return true;
     case PLAYER_PROGRESS:
+      value = lrintf(g_application.GetPercentage());
+      return true;
     case PLAYER_PROGRESS_CACHE:
+      value = lrintf(g_application.GetCachePercentage());
+      return true;
     case PLAYER_SEEKBAR:
+      value = lrintf(GetSeekPercent());
+      return true;
     case PLAYER_CACHELEVEL:
+      value = g_application.GetAppPlayer().GetCacheLevel();
+      return true;
     case PLAYER_CHAPTER:
+      value = g_application.GetAppPlayer().GetChapter();
+      return true;
     case PLAYER_CHAPTERCOUNT:
-      {
-        if( g_application.m_pPlayer->IsPlaying())
-        {
-          switch( info )
-          {
-          case PLAYER_PROGRESS:
-            {
-              const CPVREpgInfoTagPtr tag(GetEpgInfoTag());
-              if (tag)
-                value = lrintf(tag->ProgressPercentage());
-              else
-                value = lrintf(g_application.GetPercentage());
-              break;
-            }
-          case PLAYER_PROGRESS_CACHE:
-            value = lrintf(g_application.GetCachePercentage());
-            break;
-          case PLAYER_SEEKBAR:
-            value = lrintf(GetSeekPercent());
-            break;
-          case PLAYER_CACHELEVEL:
-            value = g_application.m_pPlayer->GetCacheLevel();
-            break;
-          case PLAYER_CHAPTER:
-            value = g_application.m_pPlayer->GetChapter();
-            break;
-          case PLAYER_CHAPTERCOUNT:
-            value = g_application.m_pPlayer->GetChapterCount();
-            break;
-          }
-        }
-      }
+      value = g_application.GetAppPlayer().GetChapterCount();
       return true;
     case SYSTEM_FREE_MEMORY:
     case SYSTEM_USED_MEMORY:
@@ -6855,15 +6866,15 @@ bool CGUIInfoManager::GetInt(int &value, int info, int contextWindow, const CGUI
     case SYSTEM_CPU_USAGE:
       value = g_cpuInfo.getUsedPercentage();
       return true;
-    case PVR_PLAYING_PROGRESS:
+    case PVR_EPG_EVENT_PROGRESS:
     case PVR_ACTUAL_STREAM_SIG_PROGR:
     case PVR_ACTUAL_STREAM_SNR_PROGR:
     case PVR_BACKEND_DISKSPACE_PROGR:
     case PVR_TIMESHIFT_PROGRESS:
-      value = CServiceBroker::GetPVRManager().TranslateIntInfo(info);
+      value = CServiceBroker::GetPVRManager().TranslateIntInfo(*m_currentFile, info);
       return true;
     case SYSTEM_BATTERY_LEVEL:
-      value = g_powerManager.BatteryLevel();
+      value = CServiceBroker::GetPowerManager().BatteryLevel();
       return true;
   }
   return false;
@@ -6921,231 +6932,18 @@ bool CGUIInfoManager::GetBool(int condition1, int contextWindow, const CGUIListI
       }
     }
   }
-  // Ethernet Link state checking
-  // Will check if system has a Ethernet Link connection! [Cable in!]
-  // This can used for the skinner to switch off Network or Inter required functions
-  else if ( condition == SYSTEM_ALWAYS_TRUE)
-    bReturn = true;
-  else if (condition == SYSTEM_ALWAYS_FALSE)
-    bReturn = false;
-  else if (condition == SYSTEM_ETHERNET_LINK_ACTIVE)
-    bReturn = true;
-  else if (condition == WINDOW_IS_MEDIA)
-  { // note: This doesn't return true for dialogs (content, favourites, login, videoinfo)
-    CGUIWindow *pWindow = g_windowManager.GetWindow(g_windowManager.GetActiveWindow());
-    bReturn = (pWindow && pWindow->IsMediaWindow());
-  }
-  else if (condition == PLAYER_MUTED)
-    bReturn = (g_application.IsMuted() || g_application.GetVolume(false) <= VOLUME_MINIMUM);
   else if (condition >= LIBRARY_HAS_MUSIC && condition <= LIBRARY_HAS_COMPILATIONS)
+  {
     bReturn = GetLibraryBool(condition);
-  else if (condition == LIBRARY_IS_SCANNING)
-  {
-    if (g_application.IsMusicScanning() || g_application.IsVideoScanning())
-      bReturn = true;
-    else
-      bReturn = false;
   }
-  else if (condition == LIBRARY_IS_SCANNING_VIDEO)
-  {
-    bReturn = g_application.IsVideoScanning();
-  }
-  else if (condition == LIBRARY_IS_SCANNING_MUSIC)
-  {
-    bReturn = g_application.IsMusicScanning();
-  }
-  else if (condition == SYSTEM_PLATFORM_LINUX)
-#if defined(TARGET_LINUX) || defined(TARGET_FREEBSD)
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_PLATFORM_WINDOWS)
-#ifdef TARGET_WINDOWS
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_PLATFORM_DARWIN)
-#ifdef TARGET_DARWIN
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_PLATFORM_DARWIN_OSX)
-#ifdef TARGET_DARWIN_OSX
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_PLATFORM_DARWIN_IOS)
-#ifdef TARGET_DARWIN_IOS
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_PLATFORM_ANDROID)
-#if defined(TARGET_ANDROID)
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_PLATFORM_LINUX_RASPBERRY_PI)
-#if defined(TARGET_RASPBERRY_PI)
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_MEDIA_DVD)
-    bReturn = g_mediaManager.IsDiscInDrive();
-#ifdef HAS_DVD_DRIVE
-  else if (condition == SYSTEM_DVDREADY)
-    bReturn = g_mediaManager.GetDriveStatus() != DRIVE_NOT_READY;
-  else if (condition == SYSTEM_TRAYOPEN)
-    bReturn = g_mediaManager.GetDriveStatus() == DRIVE_OPEN;
-#endif
-  else if (condition == SYSTEM_CAN_POWERDOWN)
-    bReturn = g_powerManager.CanPowerdown();
-  else if (condition == SYSTEM_CAN_SUSPEND)
-    bReturn = g_powerManager.CanSuspend();
-  else if (condition == SYSTEM_CAN_HIBERNATE)
-    bReturn = g_powerManager.CanHibernate();
-  else if (condition == SYSTEM_CAN_REBOOT)
-    bReturn = g_powerManager.CanReboot();
-  else if (condition == SYSTEM_SCREENSAVER_ACTIVE)
-    bReturn = g_application.IsInScreenSaver();
-  else if (condition == SYSTEM_DPMS_ACTIVE)
-    bReturn = g_application.IsDPMSActive();
-
-  else if (condition == PLAYER_SHOWINFO)
-    bReturn = m_playerShowInfo;
-  else if (condition == PLAYER_IS_CHANNEL_PREVIEW_ACTIVE)
-    bReturn = IsPlayerChannelPreviewActive();
   else if (condition >= MULTI_INFO_START && condition <= MULTI_INFO_END)
   {
-    return GetMultiInfoBool(m_multiInfo[condition - MULTI_INFO_START], contextWindow, item);
+    bReturn = GetMultiInfoBool(m_multiInfo[condition - MULTI_INFO_START], contextWindow, item);
   }
-  else if (condition == SYSTEM_HASLOCKS)
-    bReturn = CProfilesManager::GetInstance().GetMasterProfile().getLockMode() != LOCK_MODE_EVERYONE;
-  else if (condition == SYSTEM_HAS_PVR)
-    bReturn = true;
-  else if (condition == SYSTEM_HAS_PVR_ADDON)
-  {
-    VECADDONS pvrAddons;
-    CBinaryAddonCache &addonCache = CServiceBroker::GetBinaryAddonCache();
-    addonCache.GetAddons(pvrAddons, ADDON::ADDON_PVRDLL);
-    bReturn = (pvrAddons.size() > 0);
-  }
-  else if (condition == SYSTEM_HAS_ADSP)
-    bReturn = true;
-  else if (condition == SYSTEM_HAS_CMS)
-#if defined(HAS_GL) || defined(HAS_DX)
-    bReturn = true;
-#else
-    bReturn = false;
-#endif
-  else if (condition == SYSTEM_ISMASTER)
-    bReturn = CProfilesManager::GetInstance().GetMasterProfile().getLockMode() != LOCK_MODE_EVERYONE && g_passwordManager.bMasterUser;
-  else if (condition == SYSTEM_ISFULLSCREEN)
-    bReturn = g_Windowing.IsFullScreen();
-  else if (condition == SYSTEM_ISSTANDALONE)
-    bReturn = g_application.IsStandAlone();
-  else if (condition == SYSTEM_ISINHIBIT)
-    bReturn = g_application.IsIdleShutdownInhibited();
-  else if (condition == SYSTEM_HAS_SHUTDOWN)
-    bReturn = (CServiceBroker::GetSettings().GetInt(CSettings::SETTING_POWERMANAGEMENT_SHUTDOWNTIME) > 0);
-  else if (condition == SYSTEM_LOGGEDON)
-    bReturn = !(g_windowManager.GetActiveWindow() == WINDOW_LOGIN_SCREEN);
-  else if (condition == SYSTEM_SHOW_EXIT_BUTTON)
-    bReturn = g_advancedSettings.m_showExitButton;
-  else if (condition == SYSTEM_HAS_LOGINSCREEN)
-    bReturn = CProfilesManager::GetInstance().UsingLoginScreen();
-  else if (condition == SYSTEM_HAS_ACTIVE_MODAL_DIALOG)
-    bReturn = g_windowManager.HasModalDialog();
-  else if (condition == SYSTEM_HAS_VISIBLE_MODAL_DIALOG)
-    bReturn = g_windowManager.HasVisibleModalDialog();
-  else if (condition == WEATHER_IS_FETCHED)
-    bReturn = g_weatherManager.IsFetched();
   else if (condition >= PVR_CONDITIONS_START && condition <= PVR_CONDITIONS_END)
+  {
     bReturn = CServiceBroker::GetPVRManager().TranslateBoolInfo(condition);
-  else if (condition == SYSTEM_INTERNET_STATE)
-  {
-    g_sysinfo.GetInfo(condition);
-    bReturn = g_sysinfo.HasInternet();
   }
-  else if (condition == SYSTEM_HAS_INPUT_HIDDEN)
-  {
-    CGUIDialogNumeric *pNumeric = g_windowManager.GetWindow<CGUIDialogNumeric>(WINDOW_DIALOG_NUMERIC);
-    CGUIDialogKeyboardGeneric *pKeyboard = g_windowManager.GetWindow<CGUIDialogKeyboardGeneric>(WINDOW_DIALOG_KEYBOARD);
-
-    if (pNumeric && pNumeric->IsActive())
-      bReturn = pNumeric->IsInputHidden();
-    else if (pKeyboard && pKeyboard->IsActive())
-      bReturn = pKeyboard->IsInputHidden();
-  }
-  else if (condition == CONTAINER_HASFILES || condition == CONTAINER_HASFOLDERS)
-  {
-    CGUIWindow *pWindow = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
-    if (pWindow)
-    {
-      const CFileItemList& items=static_cast<CGUIMediaWindow*>(pWindow)->CurrentDirectory();
-      for (int i=0;i<items.Size();++i)
-      {
-        CFileItemPtr item=items.Get(i);
-        if (!item->m_bIsFolder && condition == CONTAINER_HASFILES)
-        {
-          bReturn=true;
-          break;
-        }
-        else if (item->m_bIsFolder && !item->IsParentFolder() && condition == CONTAINER_HASFOLDERS)
-        {
-          bReturn=true;
-          break;
-        }
-      }
-    }
-  }
-  else if (condition == CONTAINER_STACKED)
-  {
-    CGUIWindow *pWindow = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
-    if (pWindow)
-      bReturn = static_cast<CGUIMediaWindow*>(pWindow)->CurrentDirectory().GetProperty("isstacked").asBoolean();
-  }
-  else if (condition == CONTAINER_HAS_THUMB)
-  {
-    CGUIWindow *pWindow = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
-    if (pWindow)
-      bReturn = static_cast<CGUIMediaWindow*>(pWindow)->CurrentDirectory().HasArt("thumb");
-  }
-  else if (condition == CONTAINER_HAS_NEXT || condition == CONTAINER_HAS_PREVIOUS ||
-           condition == CONTAINER_SCROLLING || condition == CONTAINER_ISUPDATING ||
-           condition == CONTAINER_HAS_PARENT_ITEM)
-  {
-    auto activeContainer = GetActiveContainer(0, contextWindow);
-    if (activeContainer)
-      bReturn = activeContainer->GetCondition(condition, 0);
-  }
-  else if (condition == CONTAINER_CAN_FILTER)
-  {
-    CGUIWindow *window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
-    if (window)
-      bReturn = !static_cast<CGUIMediaWindow*>(window)->CanFilterAdvanced();
-  }
-  else if (condition == CONTAINER_CAN_FILTERADVANCED)
-  {
-    CGUIWindow *window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
-    if (window)
-      bReturn = static_cast<CGUIMediaWindow*>(window)->CanFilterAdvanced();
-  }
-  else if (condition == CONTAINER_FILTERED)
-  {
-    CGUIWindow *window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
-    if (window)
-      bReturn = static_cast<CGUIMediaWindow*>(window)->IsFiltered();
-  }
-  else if (condition == VIDEOPLAYER_HAS_INFO)
-    bReturn = ((m_currentFile->HasVideoInfoTag() && !m_currentFile->GetVideoInfoTag()->IsEmpty()) ||
-               (m_currentFile->HasPVRChannelInfoTag()  && !m_currentFile->GetPVRChannelInfoTag()->IsEmpty()));
   else if (condition >= CONTAINER_SCROLL_PREVIOUS && condition <= CONTAINER_SCROLL_NEXT)
   {
     // no parameters, so we assume it's just requested for a media window.  It therefore
@@ -7163,268 +6961,533 @@ bool CGUIInfoManager::GetBool(int condition1, int contextWindow, const CGUIListI
       }
     }
   }
-  else if (condition == SLIDESHOW_ISPAUSED)
+  else
   {
-    CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
-    bReturn = (slideShow && slideShow->IsPaused());
-  }
-  else if (condition == SLIDESHOW_ISRANDOM)
-  {
-    CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
-    bReturn = (slideShow && slideShow->IsShuffled());
-  }
-  else if (condition == SLIDESHOW_ISACTIVE)
-  {
-    CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
-    bReturn = (slideShow && slideShow->InSlideShow());
-  }
-  else if (condition == SLIDESHOW_ISVIDEO)
-  {
-    CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
-    bReturn = (slideShow && slideShow->GetCurrentSlide() && slideShow->GetCurrentSlide()->IsVideo());
-  }
-  else if (g_application.m_pPlayer->IsPlaying())
-  {
+    const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
     switch (condition)
     {
-    case PLAYER_HAS_MEDIA:
-      bReturn = true;
-      break;
-    case PLAYER_HAS_AUDIO:
-      bReturn = g_application.m_pPlayer->IsPlayingAudio();
-      break;
-    case PLAYER_HAS_VIDEO:
-      bReturn = g_application.m_pPlayer->IsPlayingVideo();
-      break;
-    case PLAYER_HAS_GAME:
-      bReturn = g_application.m_pPlayer->IsPlayingGame();
-      break;
-    case PLAYER_PLAYING:
-      {
-        float speed = g_application.m_pPlayer->GetPlaySpeed();
-        bReturn = (speed == 1.0);
-      }
-      break;
-    case PLAYER_PAUSED:
-      bReturn = g_application.m_pPlayer->IsPausedPlayback();
-      break;
-    case PLAYER_REWINDING:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() < 0;
-      break;
-    case PLAYER_FORWARDING:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() > 1.5;
-      break;
-    case PLAYER_REWINDING_2x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == -2;
-      break;
-    case PLAYER_REWINDING_4x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == -4;
-      break;
-    case PLAYER_REWINDING_8x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == -8;
-      break;
-    case PLAYER_REWINDING_16x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == -16;
-      break;
-    case PLAYER_REWINDING_32x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == -32;
-      break;
-    case PLAYER_FORWARDING_2x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == 2;
-      break;
-    case PLAYER_FORWARDING_4x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == 4;
-      break;
-    case PLAYER_FORWARDING_8x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == 8;
-      break;
-    case PLAYER_FORWARDING_16x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == 16;
-      break;
-    case PLAYER_FORWARDING_32x:
-      bReturn = g_application.m_pPlayer->GetPlaySpeed() == 32;
-      break;
-    case PLAYER_CAN_RECORD:
-      bReturn = g_application.m_pPlayer->CanRecord();
-      break;
-    case PLAYER_CAN_PAUSE:
-      bReturn = g_application.m_pPlayer->CanPause();
-      break;
-    case PLAYER_CAN_SEEK:
-      bReturn = g_application.m_pPlayer->CanSeek();
-      break;
-    case PLAYER_SUPPORTS_TEMPO:
-      bReturn = g_application.m_pPlayer->SupportsTempo();
-      break;
-    case PLAYER_IS_TEMPO:
-      {
-        float tempo = g_application.m_pPlayer->GetPlayTempo();
-        float speed = g_application.m_pPlayer->GetPlaySpeed();
-        bReturn = (speed == 1.0 && tempo != 1.0);
-      }
-      break;
-    case PLAYER_RECORDING:
-      bReturn = g_application.m_pPlayer->IsRecording();
-    break;
-    case PLAYER_DISPLAY_AFTER_SEEK:
-      bReturn = GetDisplayAfterSeek();
-    break;
-    case PLAYER_CACHING:
-      bReturn = g_application.m_pPlayer->IsCaching();
-    break;
-    case PLAYER_SEEKBAR:
-      {
-        CGUIDialog *seekBar = g_windowManager.GetDialog(WINDOW_DIALOG_SEEK_BAR);
-        bReturn = seekBar ? seekBar->IsDialogRunning() : false;
-      }
-    break;
-    case PLAYER_SEEKING:
-      bReturn = CSeekHandler::GetInstance().InProgress();
-    break;
-    case PLAYER_SHOWTIME:
-      bReturn = m_playerShowTime;
-    break;
-    case PLAYER_PASSTHROUGH:
-      bReturn = g_application.m_pPlayer->IsPassthrough();
-      break;
-    case PLAYER_ISINTERNETSTREAM:
-      bReturn = m_currentFile && URIUtils::IsInternetStream(m_currentFile->GetPath());
-      break;
-    case MUSICPM_ENABLED:
-      bReturn = g_partyModeManager.IsEnabled();
-    break;
-    case MUSICPLAYER_HASPREVIOUS:
-      {
-        // requires current playlist be PLAYLIST_MUSIC
-        bReturn = false;
-        if (CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
-          bReturn = (CServiceBroker::GetPlaylistPlayer().GetCurrentSong() > 0); // not first song
-      }
-      break;
-    case MUSICPLAYER_HASNEXT:
-      {
-        // requires current playlist be PLAYLIST_MUSIC
-        bReturn = false;
-        if (CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
-          bReturn = (CServiceBroker::GetPlaylistPlayer().GetCurrentSong() < (CServiceBroker::GetPlaylistPlayer().GetPlaylist(PLAYLIST_MUSIC).size() - 1)); // not last song
-      }
-      break;
-    case MUSICPLAYER_PLAYLISTPLAYING:
-      {
-        bReturn = false;
-        if (g_application.m_pPlayer->IsPlayingAudio() && CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
-          bReturn = true;
-      }
-      break;
-    case VIDEOPLAYER_USING_OVERLAYS:
-      bReturn = (CServiceBroker::GetSettings().GetInt(CSettings::SETTING_VIDEOPLAYER_RENDERMETHOD) == RENDER_OVERLAYS);
-    break;
-    case VIDEOPLAYER_ISFULLSCREEN:
-      bReturn = g_windowManager.GetActiveWindow() == WINDOW_FULLSCREEN_VIDEO ||
-                g_windowManager.GetActiveWindow() == WINDOW_FULLSCREEN_GAME;
-    break;
-    case VIDEOPLAYER_HASMENU:
-      bReturn = g_application.m_pPlayer->HasMenu();
-    break;
-    case PLAYLIST_ISRANDOM:
-      bReturn = CServiceBroker::GetPlaylistPlayer().IsShuffled(CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist());
-    break;
-    case PLAYLIST_ISREPEAT:
-      bReturn = CServiceBroker::GetPlaylistPlayer().GetRepeat(CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist()) == PLAYLIST::REPEAT_ALL;
-    break;
-    case PLAYLIST_ISREPEATONE:
-      bReturn = CServiceBroker::GetPlaylistPlayer().GetRepeat(CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist()) == PLAYLIST::REPEAT_ONE;
-    break;
-    case PLAYER_HASDURATION:
-      bReturn = g_application.GetTotalTime() > 0;
-      break;
-    case VIDEOPLAYER_HASTELETEXT:
-      if (g_application.m_pPlayer->GetTeletextCache())
+      // Ethernet Link state checking
+      // Will check if system has a Ethernet Link connection! [Cable in!]
+      // This can used for the skinner to switch off Network or Inter required functions
+      case SYSTEM_ALWAYS_TRUE:
         bReturn = true;
-      break;
-    case VIDEOPLAYER_HASSUBTITLES:
-      bReturn = g_application.m_pPlayer->GetSubtitleCount() > 0;
-      break;
-    case VIDEOPLAYER_SUBTITLESENABLED:
-      bReturn = g_application.m_pPlayer->GetSubtitleVisible();
-      break;
-    case VISUALISATION_LOCKED:
-      {
-        CGUIMessage msg(GUI_MSG_GET_VISUALISATION, 0, 0);
-        g_windowManager.SendMessage(msg);
-        if (msg.GetPointer())
-        {
-          CGUIVisualisationControl *pVis = static_cast<CGUIVisualisationControl*>(msg.GetPointer());
-          bReturn = pVis->IsLocked();
+        break;
+      case SYSTEM_ALWAYS_FALSE:
+        bReturn = false;
+        break;
+      case SYSTEM_ETHERNET_LINK_ACTIVE:
+        bReturn = true;
+        break;
+      case WINDOW_IS_MEDIA:
+        { // note: This doesn't return true for dialogs (content, favourites, login, videoinfo)
+          CGUIWindow *pWindow = g_windowManager.GetWindow(g_windowManager.GetActiveWindow());
+          bReturn = (pWindow && pWindow->IsMediaWindow());
         }
-      }
-    break;
-    case VISUALISATION_ENABLED:
-      bReturn = !CServiceBroker::GetSettings().GetString(CSettings::SETTING_MUSICPLAYER_VISUALISATION).empty();
-    break;
-    case VIDEOPLAYER_HAS_EPG:
-      if (m_currentFile->HasPVRChannelInfoTag())
-        bReturn = (m_currentFile->GetPVRChannelInfoTag()->GetEPGNow().get() != NULL);
-    break;
-    case VIDEOPLAYER_IS_STEREOSCOPIC:
-      if(g_application.m_pPlayer->IsPlaying())
-      {
-        bReturn = !m_videoInfo.stereoMode.empty();
-      }
-      break;
-    case VIDEOPLAYER_CAN_RESUME_LIVE_TV:
-      if (m_currentFile->HasPVRRecordingInfoTag())
-      {
-        CPVREpgInfoTagPtr epgTag = CServiceBroker::GetPVRManager().EpgContainer().GetTagById(m_currentFile->GetPVRRecordingInfoTag()->Channel(), m_currentFile->GetPVRRecordingInfoTag()->BroadcastUid());
-        bReturn = (epgTag && epgTag->IsActive() && epgTag->Channel());
-      }
-      break;
-    case VISUALISATION_HAS_PRESETS:
-    {
-      CGUIMessage msg(GUI_MSG_GET_VISUALISATION, 0, 0);
-      g_windowManager.SendMessage(msg);
-      if (msg.GetPointer())
-      {
-        CGUIVisualisationControl* viz = static_cast<CGUIVisualisationControl*>(msg.GetPointer());
-        bReturn = (viz && viz->HasPresets());
-      }
-    }
-    break;
-    case RDS_HAS_RDS:
-      bReturn = g_application.m_pPlayer->IsPlayingRDS();
-    break;
-    case RDS_HAS_RADIOTEXT:
-      if (m_currentFile->HasPVRRadioRDSInfoTag())
-        bReturn = m_currentFile->GetPVRRadioRDSInfoTag()->IsPlayingRadiotext();
-    break;
-    case RDS_HAS_RADIOTEXT_PLUS:
-      if (m_currentFile->HasPVRRadioRDSInfoTag())
-        bReturn = m_currentFile->GetPVRRadioRDSInfoTag()->IsPlayingRadiotextPlus();
-    break;
-    case RDS_HAS_HOTLINE_DATA:
-      if (m_currentFile->HasPVRRadioRDSInfoTag())
-        bReturn = (!m_currentFile->GetPVRRadioRDSInfoTag()->GetEMailHotline().empty() ||
-                   !m_currentFile->GetPVRRadioRDSInfoTag()->GetPhoneHotline().empty());
-    break;
-    case RDS_HAS_STUDIO_DATA:
-      if (m_currentFile->HasPVRRadioRDSInfoTag())
-        bReturn = (!m_currentFile->GetPVRRadioRDSInfoTag()->GetEMailStudio().empty() ||
-                   !m_currentFile->GetPVRRadioRDSInfoTag()->GetSMSStudio().empty() ||
-                   !m_currentFile->GetPVRRadioRDSInfoTag()->GetPhoneStudio().empty());
-    break;
-    case PLAYER_PROCESS_VIDEOHWDECODER:
+        break;
+      case PLAYER_MUTED:
+        bReturn = (g_application.IsMuted() || g_application.GetVolume(false) <= VOLUME_MINIMUM);
+        break;
+      case LIBRARY_IS_SCANNING:
+        bReturn = (g_application.IsMusicScanning() || g_application.IsVideoScanning());
+        break;
+      case LIBRARY_IS_SCANNING_VIDEO:
+        bReturn = g_application.IsVideoScanning();
+        break;
+      case LIBRARY_IS_SCANNING_MUSIC:
+        bReturn = g_application.IsMusicScanning();
+        break;
+      case SYSTEM_PLATFORM_LINUX:
+#if defined(TARGET_LINUX) || defined(TARGET_FREEBSD)
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_PLATFORM_WINDOWS:
+#ifdef TARGET_WINDOWS
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_PLATFORM_DARWIN:
+#ifdef TARGET_DARWIN
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_PLATFORM_DARWIN_OSX:
+#ifdef TARGET_DARWIN_OSX
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_PLATFORM_DARWIN_IOS:
+#ifdef TARGET_DARWIN_IOS
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_PLATFORM_ANDROID:
+#if defined(TARGET_ANDROID)
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_PLATFORM_LINUX_RASPBERRY_PI:
+#if defined(TARGET_RASPBERRY_PI)
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_MEDIA_DVD:
+        bReturn = g_mediaManager.IsDiscInDrive();
+        break;
+#ifdef HAS_DVD_DRIVE
+      case SYSTEM_DVDREADY:
+        bReturn = g_mediaManager.GetDriveStatus() != DRIVE_NOT_READY;
+        break;
+      case SYSTEM_TRAYOPEN:
+        bReturn = g_mediaManager.GetDriveStatus() == DRIVE_OPEN;
+        break;
+#endif
+      case SYSTEM_CAN_POWERDOWN:
+        bReturn = CServiceBroker::GetPowerManager().CanPowerdown();
+        break;
+      case SYSTEM_CAN_SUSPEND:
+        bReturn = CServiceBroker::GetPowerManager().CanSuspend();
+        break;
+      case SYSTEM_CAN_HIBERNATE:
+        bReturn = CServiceBroker::GetPowerManager().CanHibernate();
+        break;
+      case SYSTEM_CAN_REBOOT:
+        bReturn = CServiceBroker::GetPowerManager().CanReboot();
+        break;
+      case SYSTEM_SCREENSAVER_ACTIVE:
+        bReturn = g_application.IsInScreenSaver();
+        break;
+      case SYSTEM_DPMS_ACTIVE:
+        bReturn = g_application.IsDPMSActive();
+        break;
+      case PLAYER_SHOWINFO:
+        bReturn = m_playerShowInfo;
+        break;
+      case PLAYER_IS_CHANNEL_PREVIEW_ACTIVE:
+        bReturn = IsPlayerChannelPreviewActive();
+        break;
+      case SYSTEM_HASLOCKS:
+        bReturn = profileManager.GetMasterProfile().getLockMode() != LOCK_MODE_EVERYONE;
+        break;
+      case SYSTEM_HAS_PVR:
+        bReturn = true;
+        break;
+      case SYSTEM_HAS_PVR_ADDON:
+        {
+          VECADDONS pvrAddons;
+          CBinaryAddonCache &addonCache = CServiceBroker::GetBinaryAddonCache();
+          addonCache.GetAddons(pvrAddons, ADDON::ADDON_PVRDLL);
+          bReturn = (pvrAddons.size() > 0);
+        }
+        break;
+      case SYSTEM_HAS_ADSP:
+        bReturn = true;
+        break;
+      case SYSTEM_HAS_CMS:
+#if defined(HAS_GL) || defined(HAS_DX)
+        bReturn = true;
+#else
+        bReturn = false;
+#endif
+        break;
+      case SYSTEM_ISMASTER:
+        bReturn = profileManager.GetMasterProfile().getLockMode() != LOCK_MODE_EVERYONE && g_passwordManager.bMasterUser;
+        break;
+      case SYSTEM_ISFULLSCREEN:
+        bReturn = CServiceBroker::GetWinSystem().IsFullScreen();
+        break;
+      case SYSTEM_ISSTANDALONE:
+        bReturn = g_application.IsStandAlone();
+        break;
+      case SYSTEM_ISINHIBIT:
+        bReturn = g_application.IsIdleShutdownInhibited();
+        break;
+      case SYSTEM_HAS_SHUTDOWN:
+        bReturn = (CServiceBroker::GetSettings().GetInt(CSettings::SETTING_POWERMANAGEMENT_SHUTDOWNTIME) > 0);
+        break;
+      case SYSTEM_LOGGEDON:
+        bReturn = !(g_windowManager.GetActiveWindow() == WINDOW_LOGIN_SCREEN);
+        break;
+      case SYSTEM_SHOW_EXIT_BUTTON:
+        bReturn = g_advancedSettings.m_showExitButton;
+        break;
+      case SYSTEM_HAS_LOGINSCREEN:
+        bReturn = profileManager.UsingLoginScreen();
+        break;
+      case SYSTEM_HAS_ACTIVE_MODAL_DIALOG:
+        bReturn = g_windowManager.HasModalDialog();
+        break;
+      case SYSTEM_HAS_VISIBLE_MODAL_DIALOG:
+        bReturn = g_windowManager.HasVisibleModalDialog();
+        break;
+      case WEATHER_IS_FETCHED:
+        bReturn = CServiceBroker::GetWeatherManager().IsFetched();
+        break;
+      case SYSTEM_INTERNET_STATE:
+        {
+          g_sysinfo.GetInfo(condition);
+          bReturn = g_sysinfo.HasInternet();
+        }
+        break;
+      case SYSTEM_HAS_INPUT_HIDDEN:
+        {
+          CGUIDialogNumeric *pNumeric = g_windowManager.GetWindow<CGUIDialogNumeric>(WINDOW_DIALOG_NUMERIC);
+          CGUIDialogKeyboardGeneric *pKeyboard = g_windowManager.GetWindow<CGUIDialogKeyboardGeneric>(WINDOW_DIALOG_KEYBOARD);
+
+          if (pNumeric && pNumeric->IsActive())
+            bReturn = pNumeric->IsInputHidden();
+          else if (pKeyboard && pKeyboard->IsActive())
+            bReturn = pKeyboard->IsInputHidden();
+        }
+        break;
+      case CONTAINER_HASFILES:
+      case CONTAINER_HASFOLDERS:
+        {
+          CGUIWindow *pWindow = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
+          if (pWindow)
+          {
+            const CFileItemList& items=static_cast<CGUIMediaWindow*>(pWindow)->CurrentDirectory();
+            for (int i=0;i<items.Size();++i)
+            {
+              CFileItemPtr item=items.Get(i);
+              if (!item->m_bIsFolder && condition == CONTAINER_HASFILES)
+              {
+                bReturn=true;
+                break;
+              }
+              else if (item->m_bIsFolder && !item->IsParentFolder() && condition == CONTAINER_HASFOLDERS)
+              {
+                bReturn=true;
+                break;
+              }
+            }
+          }
+        }
+        break;
+      case CONTAINER_STACKED:
+        {
+          CGUIWindow *pWindow = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
+          if (pWindow)
+            bReturn = static_cast<CGUIMediaWindow*>(pWindow)->CurrentDirectory().GetProperty("isstacked").asBoolean();
+        }
+        break;
+      case CONTAINER_HAS_THUMB:
+        {
+          CGUIWindow *pWindow = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
+          if (pWindow)
+            bReturn = static_cast<CGUIMediaWindow*>(pWindow)->CurrentDirectory().HasArt("thumb");
+        }
+        break;
+      case CONTAINER_HAS_NEXT:
+      case CONTAINER_HAS_PREVIOUS:
+      case CONTAINER_SCROLLING:
+      case CONTAINER_ISUPDATING:
+      case CONTAINER_HAS_PARENT_ITEM:
+        {
+          auto activeContainer = GetActiveContainer(0, contextWindow);
+          if (activeContainer)
+            bReturn = activeContainer->GetCondition(condition, 0);
+        }
+        break;
+      case CONTAINER_CAN_FILTER:
+        {
+          CGUIWindow *window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
+          if (window)
+            bReturn = !static_cast<CGUIMediaWindow*>(window)->CanFilterAdvanced();
+        }
+        break;
+      case CONTAINER_CAN_FILTERADVANCED:
+        {
+          CGUIWindow *window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
+          if (window)
+            bReturn = static_cast<CGUIMediaWindow*>(window)->CanFilterAdvanced();
+        }
+        break;
+      case CONTAINER_FILTERED:
+        {
+          CGUIWindow *window = GetWindowWithCondition(contextWindow, WINDOW_CONDITION_IS_MEDIA_WINDOW);
+          if (window)
+            bReturn = static_cast<CGUIMediaWindow*>(window)->IsFiltered();
+        }
+        break;
+      case VIDEOPLAYER_HAS_INFO:
+        bReturn = ((m_currentFile->HasVideoInfoTag() && !m_currentFile->GetVideoInfoTag()->IsEmpty()) ||
+                   (m_currentFile->HasPVRChannelInfoTag()  && !m_currentFile->GetPVRChannelInfoTag()->IsEmpty()));
+        break;
+      case SLIDESHOW_ISPAUSED:
+        {
+          CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
+          bReturn = (slideShow && slideShow->IsPaused());
+        }
+        break;
+      case SLIDESHOW_ISRANDOM:
+        {
+          CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
+          bReturn = (slideShow && slideShow->IsShuffled());
+        }
+        break;
+      case SLIDESHOW_ISACTIVE:
+        {
+          CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
+          bReturn = (slideShow && slideShow->InSlideShow());
+        }
+        break;
+      case SLIDESHOW_ISVIDEO:
+        {
+          CGUIWindowSlideShow *slideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
+          bReturn = (slideShow && slideShow->GetCurrentSlide() && slideShow->GetCurrentSlide()->IsVideo());
+        }
+        break;
+      case PLAYER_HAS_MEDIA:
+        bReturn = g_application.GetAppPlayer().IsPlaying();
+        break;
+      case PLAYER_HAS_AUDIO:
+        bReturn = g_application.GetAppPlayer().IsPlayingAudio();
+        break;
+      case PLAYER_HAS_VIDEO:
+        bReturn = g_application.GetAppPlayer().IsPlayingVideo();
+        break;
+      case PLAYER_HAS_GAME:
+        bReturn = g_application.GetAppPlayer().IsPlayingGame();
+        break;
+      case PLAYER_PLAYING:
+        {
+          float speed = g_application.GetAppPlayer().GetPlaySpeed();
+          bReturn = (speed == 1.0);
+        }
+        break;
+      case PLAYER_PAUSED:
+        bReturn = g_application.GetAppPlayer().IsPausedPlayback();
+        break;
+      case PLAYER_REWINDING:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() < 0;
+        break;
+      case PLAYER_FORWARDING:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() > 1.5;
+        break;
+      case PLAYER_REWINDING_2x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == -2;
+        break;
+      case PLAYER_REWINDING_4x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == -4;
+        break;
+      case PLAYER_REWINDING_8x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == -8;
+        break;
+      case PLAYER_REWINDING_16x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == -16;
+        break;
+      case PLAYER_REWINDING_32x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == -32;
+        break;
+      case PLAYER_FORWARDING_2x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == 2;
+        break;
+      case PLAYER_FORWARDING_4x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == 4;
+        break;
+      case PLAYER_FORWARDING_8x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == 8;
+        break;
+      case PLAYER_FORWARDING_16x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == 16;
+        break;
+      case PLAYER_FORWARDING_32x:
+        bReturn = g_application.GetAppPlayer().GetPlaySpeed() == 32;
+        break;
+      case PLAYER_CAN_PAUSE:
+        bReturn = g_application.GetAppPlayer().CanPause();
+        break;
+      case PLAYER_CAN_SEEK:
+        bReturn = g_application.GetAppPlayer().CanSeek();
+        break;
+      case PLAYER_SUPPORTS_TEMPO:
+        bReturn = g_application.GetAppPlayer().SupportsTempo();
+        break;
+      case PLAYER_IS_TEMPO:
+        {
+          float tempo = g_application.GetAppPlayer().GetPlayTempo();
+          float speed = g_application.GetAppPlayer().GetPlaySpeed();
+          bReturn = (speed == 1.0 && tempo != 1.0);
+        }
+        break;
+      case PLAYER_DISPLAY_AFTER_SEEK:
+        bReturn = GetDisplayAfterSeek();
+        break;
+      case PLAYER_CACHING:
+        bReturn = g_application.GetAppPlayer().IsCaching();
+        break;
+      case PLAYER_SEEKBAR:
+        {
+          CGUIDialog *seekBar = g_windowManager.GetDialog(WINDOW_DIALOG_SEEK_BAR);
+          bReturn = seekBar ? seekBar->IsDialogRunning() : false;
+        }
+        break;
+      case PLAYER_SEEKING:
+        bReturn = g_application.GetAppPlayer().GetSeekHandler().InProgress();
+        break;
+      case PLAYER_SHOWTIME:
+        bReturn = m_playerShowTime;
+        break;
+      case PLAYER_PASSTHROUGH:
+        bReturn = g_application.GetAppPlayer().IsPassthrough();
+        break;
+      case PLAYER_ISINTERNETSTREAM:
+        bReturn = m_currentFile && URIUtils::IsInternetStream(m_currentFile->GetPath());
+        break;
+      case PLAYER_HAS_PROGRAMS:
+        bReturn = (g_application.GetAppPlayer().GetProgramsCount() > 1) ? true : false;
+        break;
+      case MUSICPM_ENABLED:
+        bReturn = g_partyModeManager.IsEnabled();
+        break;
+      case MUSICPLAYER_HASPREVIOUS:
+        {
+          // requires current playlist be PLAYLIST_MUSIC
+          bReturn = false;
+          if (CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
+            bReturn = (CServiceBroker::GetPlaylistPlayer().GetCurrentSong() > 0); // not first song
+        }
+        break;
+      case MUSICPLAYER_HASNEXT:
+        {
+          // requires current playlist be PLAYLIST_MUSIC
+          bReturn = false;
+          if (CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
+            bReturn = (CServiceBroker::GetPlaylistPlayer().GetCurrentSong() < (CServiceBroker::GetPlaylistPlayer().GetPlaylist(PLAYLIST_MUSIC).size() - 1)); // not last song
+        }
+        break;
+      case MUSICPLAYER_PLAYLISTPLAYING:
+        {
+          bReturn = false;
+          if (g_application.GetAppPlayer().IsPlayingAudio() && CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
+            bReturn = true;
+        }
+        break;
+      case VIDEOPLAYER_USING_OVERLAYS:
+        bReturn = (CServiceBroker::GetSettings().GetInt(CSettings::SETTING_VIDEOPLAYER_RENDERMETHOD) == RENDER_OVERLAYS);
+        break;
+      case VIDEOPLAYER_ISFULLSCREEN:
+        bReturn = g_windowManager.GetActiveWindow() == WINDOW_FULLSCREEN_VIDEO ||
+                  g_windowManager.GetActiveWindow() == WINDOW_FULLSCREEN_GAME;
+        break;
+      case VIDEOPLAYER_HASMENU:
+        bReturn = g_application.GetAppPlayer().HasMenu();
+        break;
+      case PLAYLIST_ISRANDOM:
+        bReturn = CServiceBroker::GetPlaylistPlayer().IsShuffled(CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist());
+        break;
+      case PLAYLIST_ISREPEAT:
+        bReturn = CServiceBroker::GetPlaylistPlayer().GetRepeat(CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist()) == PLAYLIST::REPEAT_ALL;
+        break;
+      case PLAYLIST_ISREPEATONE:
+        bReturn = CServiceBroker::GetPlaylistPlayer().GetRepeat(CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist()) == PLAYLIST::REPEAT_ONE;
+        break;
+      case PLAYER_HASDURATION:
+        bReturn = g_application.GetTotalTime() > 0;
+        break;
+      case VIDEOPLAYER_HASTELETEXT:
+        if (g_application.GetAppPlayer().GetTeletextCache())
+          bReturn = true;
+        break;
+      case VIDEOPLAYER_HASSUBTITLES:
+        bReturn = g_application.GetAppPlayer().GetSubtitleCount() > 0;
+        break;
+      case VIDEOPLAYER_SUBTITLESENABLED:
+        bReturn = g_application.GetAppPlayer().GetSubtitleVisible();
+        break;
+      case VISUALISATION_LOCKED:
+        {
+          CGUIMessage msg(GUI_MSG_GET_VISUALISATION, 0, 0);
+          g_windowManager.SendMessage(msg);
+          if (msg.GetPointer())
+          {
+            CGUIVisualisationControl *pVis = static_cast<CGUIVisualisationControl*>(msg.GetPointer());
+            bReturn = pVis->IsLocked();
+          }
+        }
+        break;
+      case VISUALISATION_ENABLED:
+        bReturn = !CServiceBroker::GetSettings().GetString(CSettings::SETTING_MUSICPLAYER_VISUALISATION).empty();
+        break;
+      case VIDEOPLAYER_HAS_EPG:
+        if (m_currentFile->HasPVRChannelInfoTag())
+          bReturn = (m_currentFile->GetPVRChannelInfoTag()->GetEPGNow().get() != NULL);
+        break;
+      case VIDEOPLAYER_IS_STEREOSCOPIC:
+        bReturn =  !CServiceBroker::GetDataCacheCore().GetVideoStereoMode().empty();
+        break;
+      case VIDEOPLAYER_CAN_RESUME_LIVE_TV:
+        if (m_currentFile->HasPVRRecordingInfoTag())
+        {
+          CPVREpgInfoTagPtr epgTag = CServiceBroker::GetPVRManager().EpgContainer().GetTagById(m_currentFile->GetPVRRecordingInfoTag()->Channel(), m_currentFile->GetPVRRecordingInfoTag()->BroadcastUid());
+          bReturn = (epgTag && epgTag->IsActive() && epgTag->Channel());
+        }
+        break;
+      case VISUALISATION_HAS_PRESETS:
+        {
+          CGUIMessage msg(GUI_MSG_GET_VISUALISATION, 0, 0);
+          g_windowManager.SendMessage(msg);
+          if (msg.GetPointer())
+          {
+            CGUIVisualisationControl* viz = static_cast<CGUIVisualisationControl*>(msg.GetPointer());
+            bReturn = (viz && viz->HasPresets());
+          }
+        }
+        break;
+      case RDS_HAS_RDS:
+        bReturn = g_application.GetAppPlayer().IsPlayingRDS();
+        break;
+      case RDS_HAS_RADIOTEXT:
+        if (m_currentFile->HasPVRRadioRDSInfoTag())
+          bReturn = m_currentFile->GetPVRRadioRDSInfoTag()->IsPlayingRadiotext();
+        break;
+      case RDS_HAS_RADIOTEXT_PLUS:
+        if (m_currentFile->HasPVRRadioRDSInfoTag())
+          bReturn = m_currentFile->GetPVRRadioRDSInfoTag()->IsPlayingRadiotextPlus();
+        break;
+      case RDS_HAS_HOTLINE_DATA:
+        if (m_currentFile->HasPVRRadioRDSInfoTag())
+          bReturn = (!m_currentFile->GetPVRRadioRDSInfoTag()->GetEMailHotline().empty() ||
+                     !m_currentFile->GetPVRRadioRDSInfoTag()->GetPhoneHotline().empty());
+        break;
+      case RDS_HAS_STUDIO_DATA:
+        {
+          if (m_currentFile->HasPVRRadioRDSInfoTag())
+            bReturn = (!m_currentFile->GetPVRRadioRDSInfoTag()->GetEMailStudio().empty() ||
+                       !m_currentFile->GetPVRRadioRDSInfoTag()->GetSMSStudio().empty() ||
+                       !m_currentFile->GetPVRRadioRDSInfoTag()->GetPhoneStudio().empty());
+        }
+        break;
+      case PLAYER_PROCESS_VIDEOHWDECODER:
         bReturn = CServiceBroker::GetDataCacheCore().IsVideoHwDecoder();
         break;
-    default: // default, use integer value different from 0 as true
-      {
-        int val;
-        bReturn = GetInt(val, condition) && val != 0;
-      }
+      default: // default, use integer value different from 0 as true
+        {
+          int val;
+          bReturn = GetInt(val, condition) && val != 0;
+        }
     }
   }
-  if (condition1 < 0)
-    bReturn = !bReturn;
-  return bReturn;
+
+  return condition1 < 0
+    ? !bReturn
+    : bReturn;
 }
 
 /// \brief Examines the multi information sent and returns true or false accordingly.
@@ -7633,6 +7696,16 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
         if (info.GetData1())
         {
           CGUIWindow *window = g_windowManager.GetWindow(contextWindow);
+          if (!window)
+          {
+            // try topmost dialog
+            window = g_windowManager.GetWindow(g_windowManager.GetTopmostModalDialog());
+            if (!window)
+            {
+              // try active window
+              window = g_windowManager.GetWindow(g_windowManager.GetActiveWindow());
+            }
+          }
           bReturn = (window && window->GetID() == static_cast<int>(info.GetData1()));
         }
         else
@@ -7644,17 +7717,23 @@ bool CGUIInfoManager::GetMultiInfoBool(const GUIInfo &info, int contextWindow, c
         else
           bReturn = g_windowManager.IsWindowVisible(m_stringParameters[info.GetData2()]);
         break;
-      case WINDOW_IS_TOPMOST:
-        if (info.GetData1())
-          bReturn = g_windowManager.IsWindowTopMost(info.GetData1());
-        else
-          bReturn = g_windowManager.IsWindowTopMost(m_stringParameters[info.GetData2()]);
-        break;
       case WINDOW_IS_ACTIVE:
         if (info.GetData1())
           bReturn = g_windowManager.IsWindowActive(info.GetData1());
         else
           bReturn = g_windowManager.IsWindowActive(m_stringParameters[info.GetData2()]);
+        break;
+      case WINDOW_IS_DIALOG_TOPMOST:
+        if (info.GetData1())
+          bReturn = g_windowManager.IsDialogTopmost(info.GetData1());
+        else
+          bReturn = g_windowManager.IsDialogTopmost(m_stringParameters[info.GetData2()]);
+        break;
+      case WINDOW_IS_MODAL_DIALOG_TOPMOST:
+        if (info.GetData1())
+          bReturn = g_windowManager.IsModalDialogTopmost(info.GetData1());
+        else
+          bReturn = g_windowManager.IsModalDialogTopmost(m_stringParameters[info.GetData2()]);
         break;
       case SYSTEM_HAS_ALARM:
         bReturn = g_alarmClock.HasAlarm(m_stringParameters[info.GetData1()]);
@@ -7977,8 +8056,8 @@ std::string CGUIInfoManager::GetMultiInfoLabel(const GUIInfo &info, int contextW
   {
     CDateTime time(CDateTime::GetCurrentDateTime());
     int playTimeRemaining = GetPlayTimeRemaining();
-    float speed = g_application.m_pPlayer->GetPlaySpeed();
-    float tempo = g_application.m_pPlayer->GetPlayTempo();
+    float speed = g_application.GetAppPlayer().GetPlaySpeed();
+    float tempo = g_application.GetAppPlayer().GetPlayTempo();
     if (speed == 1.0)
       playTimeRemaining /= tempo;
     time += CDateTimeSpan(0, 0, 0, playTimeRemaining);
@@ -7986,13 +8065,13 @@ std::string CGUIInfoManager::GetMultiInfoLabel(const GUIInfo &info, int contextW
   }
   else if (info.m_info == PLAYER_START_TIME)
   {
-    CDateTime time(g_application.m_pPlayer->GetStartTime());
+    CDateTime time(g_application.GetAppPlayer().GetStartTime());
     return LocalizeTime(time, (TIME_FORMAT)info.GetData1());
   }
   else if (info.m_info == PLAYER_TIME_SPEED)
   {
     std::string strTime;
-    float speed = g_application.m_pPlayer->GetPlaySpeed();
+    float speed = g_application.GetAppPlayer().GetPlaySpeed();
     if (speed != 1.0)
       strTime = StringUtils::Format("%s (%ix)", GetCurrentPlayTime((TIME_FORMAT)info.GetData1()).c_str(), (int)speed);
     else
@@ -8017,7 +8096,7 @@ std::string CGUIInfoManager::GetMultiInfoLabel(const GUIInfo &info, int contextW
   }
   else if (info.m_info == PLAYER_SEEKSTEPSIZE)
   {
-    int seekSize = CSeekHandler::GetInstance().GetSeekSize();
+    int seekSize = g_application.GetAppPlayer().GetSeekHandler().GetSeekSize();
     std::string strSeekSize = StringUtils::SecondsToTimeString(abs(seekSize), (TIME_FORMAT)info.GetData1());
     if (seekSize < 0)
       return "-" + strSeekSize;
@@ -8026,9 +8105,9 @@ std::string CGUIInfoManager::GetMultiInfoLabel(const GUIInfo &info, int contextW
   }
   else if (info.m_info == PLAYER_SEEKNUMERIC)
   {
-    if (!CSeekHandler::GetInstance().HasTimeCode())
+    if (!g_application.GetAppPlayer().GetSeekHandler().HasTimeCode())
       return "";
-    int seekTimeCode = CSeekHandler::GetInstance().GetTimeCodeSeconds();
+    int seekTimeCode = g_application.GetAppPlayer().GetSeekHandler().GetTimeCodeSeconds();
     TIME_FORMAT format = (TIME_FORMAT)info.GetData1();
     if (format == TIME_FORMAT_GUESS && seekTimeCode >= 3600)
       format = TIME_FORMAT_HH_MM_SS;
@@ -8163,7 +8242,7 @@ std::string CGUIInfoManager::GetMultiInfoLabel(const GUIInfo &info, int contextW
   }
   else if (info.m_info == RDS_GET_RADIOTEXT_LINE)
   {
-    return g_application.m_pPlayer->GetRadioText(info.GetData1());
+    return g_application.GetAppPlayer().GetRadioText(info.GetData1());
   }
 
   return "";
@@ -8180,24 +8259,26 @@ std::string CGUIInfoManager::GetImage(int info, int contextWindow, std::string *
     return GetMultiInfoLabel(m_multiInfo[info - MULTI_INFO_START], contextWindow, fallback);
   }
   else if (info == WEATHER_CONDITIONS)
-    return g_weatherManager.GetInfo(WEATHER_IMAGE_CURRENT_ICON);
+    return CServiceBroker::GetWeatherManager().GetInfo(WEATHER_IMAGE_CURRENT_ICON);
   else if (info == SYSTEM_PROFILETHUMB)
   {
-    std::string thumb = CProfilesManager::GetInstance().GetCurrentProfile().getThumb();
+    const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
+    std::string thumb = profileManager.GetCurrentProfile().getThumb();
     if (thumb.empty())
       thumb = "DefaultUser.png";
     return thumb;
   }
   else if (info == MUSICPLAYER_COVER)
   {
-    if (!g_application.m_pPlayer->IsPlayingAudio()) return "";
+    if (!g_application.GetAppPlayer().IsPlayingAudio()) return "";
     if (fallback)
       *fallback = "DefaultAlbumCover.png";
     return m_currentFile->HasArt("thumb") ? m_currentFile->GetArt("thumb") : "DefaultAlbumCover.png";
   }
   else if (info == VIDEOPLAYER_COVER)
   {
-    if (!g_application.m_pPlayer->IsPlayingVideo()) return "";
+    if (!g_application.GetAppPlayer().IsPlayingVideo()) return "";
     if (fallback)
       *fallback = "DefaultVideoCover.png";
     if(m_currentMovieThumb.empty())
@@ -8270,13 +8351,13 @@ std::string CGUIInfoManager::LocalizeTime(const CDateTime &time, TIME_FORMAT for
 
 std::string CGUIInfoManager::GetDuration(TIME_FORMAT format) const
 {
-  if (g_application.m_pPlayer->IsPlayingAudio() && m_currentFile->HasMusicInfoTag())
+  if (g_application.GetAppPlayer().IsPlayingAudio() && m_currentFile->HasMusicInfoTag())
   {
     const CMusicInfoTag& tag = *m_currentFile->GetMusicInfoTag();
     if (tag.GetDuration() > 0)
       return StringUtils::SecondsToTimeString(tag.GetDuration(), format);
   }
-  if (g_application.m_pPlayer->IsPlayingVideo() && !m_currentMovieDuration.empty())
+  if (g_application.GetAppPlayer().IsPlayingVideo() && !m_currentMovieDuration.empty())
     return m_currentMovieDuration;
   int iTotal = lrint(g_application.GetTotalTime());
   if (iTotal > 0)
@@ -8372,7 +8453,7 @@ const std::string CGUIInfoManager::GetMusicPlaylistInfo(const GUIInfo& info)
 
 std::string CGUIInfoManager::GetPlaylistLabel(int item, int playlistid /* = PLAYLIST_NONE */) const
 {
-  if (playlistid <= PLAYLIST_NONE && !g_application.m_pPlayer->IsPlaying())
+  if (playlistid < PLAYLIST_NONE)
     return "";
 
   int iPlaylist = playlistid == PLAYLIST_NONE ? CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() : playlistid;
@@ -8412,8 +8493,7 @@ std::string CGUIInfoManager::GetPlaylistLabel(int item, int playlistid /* = PLAY
 
 std::string CGUIInfoManager::GetRadioRDSLabel(int item)
 {
-  if (!g_application.m_pPlayer->IsPlaying() ||
-      !m_currentFile->HasPVRChannelInfoTag() ||
+  if (!m_currentFile->HasPVRChannelInfoTag() ||
       !m_currentFile->HasPVRRadioRDSInfoTag())
     return "";
 
@@ -8428,8 +8508,8 @@ std::string CGUIInfoManager::GetRadioRDSLabel(int item)
       if (!tag.GetLanguage().empty())
         return tag.GetLanguage();
 
-      SPlayerAudioStreamInfo info;
-      g_application.m_pPlayer->GetAudioStreamInfo(g_application.m_pPlayer->GetAudioStream(), info);
+      AudioStreamInfo info;
+      g_application.GetAppPlayer().GetAudioStreamInfo(g_application.GetAppPlayer().GetAudioStream(), info);
       return info.language;
     }
 
@@ -8580,7 +8660,8 @@ std::string CGUIInfoManager::GetRadioRDSLabel(int item)
 
 std::string CGUIInfoManager::GetMusicLabel(int item)
 {
-  if (!g_application.m_pPlayer->IsPlaying() || !m_currentFile->HasMusicInfoTag()) return "";
+  if (!m_currentFile->HasMusicInfoTag())
+    return "";
 
   switch (item)
   {
@@ -8632,7 +8713,7 @@ std::string CGUIInfoManager::GetMusicLabel(int item)
     break;
   case MUSICPLAYER_CODEC:
     {
-      return StringUtils::Format("%s", m_audioInfo.audioCodecName.c_str());
+      return StringUtils::Format("%s", m_audioInfo.codecName.c_str());
     }
     break;
   }
@@ -8723,19 +8804,7 @@ std::string CGUIInfoManager::GetMusicTagLabel(int info, const CFileItem *item)
   case MUSICPLAYER_CHANNEL_NUMBER:
     {
       if (m_currentFile->HasPVRChannelInfoTag())
-        return StringUtils::Format("%i", m_currentFile->GetPVRChannelInfoTag()->ChannelNumber());
-    }
-    break;
-  case MUSICPLAYER_SUB_CHANNEL_NUMBER:
-    {
-      if (m_currentFile->HasPVRChannelInfoTag())
-        return StringUtils::Format("%i", m_currentFile->GetPVRChannelInfoTag()->SubChannelNumber());
-    }
-    break;
-  case MUSICPLAYER_CHANNEL_NUMBER_LBL:
-    {
-      if (m_currentFile->HasPVRChannelInfoTag())
-        return m_currentFile->GetPVRChannelInfoTag()->FormattedChannelNumber();
+        return m_currentFile->GetPVRChannelInfoTag()->ChannelNumber().FormattedChannelNumber();
     }
     break;
   case MUSICPLAYER_CHANNEL_GROUP:
@@ -8758,9 +8827,6 @@ std::string CGUIInfoManager::GetMusicTagLabel(int info, const CFileItem *item)
 
 std::string CGUIInfoManager::GetVideoLabel(int item)
 {
-  if (!g_application.m_pPlayer->IsPlaying())
-    return "";
-
   if (m_currentFile->IsPVR())
   {
     std::string strValue;
@@ -8928,6 +8994,21 @@ std::string CGUIInfoManager::GetVideoLabel(int item)
   return "";
 }
 
+std::string CGUIInfoManager::GetGameLabel(int item)
+{
+  switch (item)
+  {
+    case RETROPLAYER_VIEWMODE:
+    {
+      ViewMode viewMode = CMediaSettings::GetInstance().GetCurrentGameSettings().ViewMode();
+      return RETRO::CRetroPlayerUtils::ViewModeToDescription(viewMode);
+    }
+    default:
+      break;
+  }
+  return "";
+}
+
 int64_t CGUIInfoManager::GetPlayTime() const
 {
   int64_t ret = lrint(g_application.GetTime() * 1000);
@@ -8938,16 +9019,14 @@ std::string CGUIInfoManager::GetCurrentPlayTime(TIME_FORMAT format) const
 {
   if (format == TIME_FORMAT_GUESS && GetTotalPlayTime() >= 3600)
     format = TIME_FORMAT_HH_MM_SS;
-  if (g_application.m_pPlayer->IsPlaying())
-    return StringUtils::SecondsToTimeString(lrint(GetPlayTime()/1000.0), format);
-  return "";
+  return StringUtils::SecondsToTimeString(lrint(GetPlayTime()/1000.0), format);
 }
 
 std::string CGUIInfoManager::GetCurrentSeekTime(TIME_FORMAT format) const
 {
   if (format == TIME_FORMAT_GUESS && GetTotalPlayTime() >= 3600)
     format = TIME_FORMAT_HH_MM_SS;
-  return StringUtils::SecondsToTimeString(g_application.GetTime() + CSeekHandler::GetInstance().GetSeekSize(), format);
+  return StringUtils::SecondsToTimeString(g_application.GetTime() + g_application.GetAppPlayer().GetSeekHandler().GetSeekSize(), format);
 }
 
 int CGUIInfoManager::GetTotalPlayTime() const
@@ -8969,7 +9048,7 @@ float CGUIInfoManager::GetSeekPercent() const
 
   float percentPlayTime = static_cast<float>(GetPlayTime()) / GetTotalPlayTime() * 0.1f;
   float percentPerSecond = 100.0f / static_cast<float>(GetTotalPlayTime());
-  float percent = percentPlayTime + percentPerSecond * CSeekHandler::GetInstance().GetSeekSize();
+  float percent = percentPlayTime + percentPerSecond * g_application.GetAppPlayer().GetSeekHandler().GetSeekSize();
 
   if (percent > 100.0f)
     percent = 100.0f;
@@ -8984,7 +9063,7 @@ std::string CGUIInfoManager::GetCurrentPlayTimeRemaining(TIME_FORMAT format) con
   if (format == TIME_FORMAT_GUESS && GetTotalPlayTime() >= 3600)
     format = TIME_FORMAT_HH_MM_SS;
   int timeRemaining = GetPlayTimeRemaining();
-  if (timeRemaining && g_application.m_pPlayer->IsPlaying())
+  if (timeRemaining)
     return StringUtils::SecondsToTimeString(timeRemaining, format);
   return "";
 }
@@ -9107,7 +9186,7 @@ void CGUIInfoManager::SetCurrentMovie(CFileItem &item)
   if (item.IsInternetStream())
   {
     // case where .strm is used to start an audio stream
-    if (g_application.m_pPlayer->IsPlayingAudio())
+    if (g_application.GetAppPlayer().IsPlayingAudio())
     {
       SetCurrentSong(item);
       return;
@@ -9186,6 +9265,8 @@ CTemperature CGUIInfoManager::GetGPUTemperature()
 #if defined(TARGET_DARWIN_OSX)
   value = SMCGetTemperature(SMC_KEY_GPU_TEMP);
   return CTemperature::CreateFromCelsius(value);
+#elif defined(TARGET_WINDOWS_STORE)
+  return CTemperature::CreateFromCelsius(0);
 #else
   std::string  cmd   = g_advancedSettings.m_gpuTempCmd;
   int         ret   = 0;
@@ -9282,19 +9363,16 @@ void CGUIInfoManager::UpdateFPS()
 
 void CGUIInfoManager::UpdateAVInfo()
 {
-  if (g_application.m_pPlayer->IsPlaying())
+  if (CServiceBroker::GetDataCacheCore().HasAVInfoChanges())
   {
-    if (CServiceBroker::GetDataCacheCore().HasAVInfoChanges())
-    {
-      SPlayerVideoStreamInfo video;
-      SPlayerAudioStreamInfo audio;
+    VideoStreamInfo video;
+    AudioStreamInfo audio;
 
-      g_application.m_pPlayer->GetVideoStreamInfo(CURRENT_STREAM, video);
-      g_application.m_pPlayer->GetAudioStreamInfo(CURRENT_STREAM, audio);
+    g_application.GetAppPlayer().GetVideoStreamInfo(CURRENT_STREAM, video);
+    g_application.GetAppPlayer().GetAudioStreamInfo(CURRENT_STREAM, audio);
 
-      m_videoInfo = video;
-      m_audioInfo = audio;
-    }
+    m_videoInfo = video;
+    m_audioInfo = audio;
   }
 }
 
@@ -9577,15 +9655,15 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     {
       CPVREpgInfoTagPtr tag(item->GetPVRChannelInfoTag()->GetEPGNow());
       if (tag)
-        return tag->Director();
+        return tag->GetDirectorsLabel();
     }
     if (item->HasEPGInfoTag())
-      return item->GetEPGInfoTag()->Director();
+      return item->GetEPGInfoTag()->GetDirectorsLabel();
     if (item->HasPVRTimerInfoTag())
     {
       const CPVREpgInfoTagPtr epgTag(item->GetPVRTimerInfoTag()->GetEpgInfoTag());
       if (epgTag)
-        return epgTag->Director();
+        return epgTag->GetDirectorsLabel();
     }
     if (item->HasVideoInfoTag())
       return StringUtils::Join(item->GetVideoInfoTag()->m_director, g_advancedSettings.m_videoItemSeparator);
@@ -9641,15 +9719,15 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     if (item->HasPVRChannelInfoTag())
     {
       CPVREpgInfoTagPtr epgTag(item->GetPVRChannelInfoTag()->GetEPGNow());
-      return epgTag ? StringUtils::Join(epgTag->Genre(), g_advancedSettings.m_videoItemSeparator) : "";
+      return epgTag ? epgTag->GetGenresLabel() : "";
     }
     if (item->HasEPGInfoTag())
-      return StringUtils::Join(item->GetEPGInfoTag()->Genre(), g_advancedSettings.m_videoItemSeparator);
+      return item->GetEPGInfoTag()->GetGenresLabel();
     if (item->HasPVRTimerInfoTag())
     {
       const CPVREpgInfoTagPtr epgTag(item->GetPVRTimerInfoTag()->GetEpgInfoTag());
       if (epgTag)
-        return StringUtils::Join(epgTag->Genre(), g_advancedSettings.m_videoItemSeparator);
+        return epgTag->GetGenresLabel();
     }
     if (item->HasVideoInfoTag())
       return StringUtils::Join(item->GetVideoInfoTag()->m_genre, g_advancedSettings.m_videoItemSeparator);
@@ -9838,30 +9916,25 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
       if (item->HasPVRChannelInfoTag())
       {
         CPVREpgInfoTagPtr tag(item->GetPVRChannelInfoTag()->GetEPGNow());
-        if (tag)
+        if (tag && tag->EpisodeNumber() > 0)
         {
-          if (tag->SeriesNumber() > 0)
-            iSeason = tag->SeriesNumber();
-          if (tag->EpisodeNumber() > 0)
-            iEpisode = tag->EpisodeNumber();
+          iEpisode = tag->EpisodeNumber();
+          iSeason = tag->SeriesNumber();
         }
       }
-      else if (item->HasEPGInfoTag())
+      else if (item->HasEPGInfoTag() &&
+               item->GetEPGInfoTag()->EpisodeNumber() > 0)
       {
-        if (item->GetEPGInfoTag()->SeriesNumber() > 0)
-          iSeason = item->GetEPGInfoTag()->SeriesNumber();
-        if (item->GetEPGInfoTag()->EpisodeNumber() > 0)
-          iEpisode = item->GetEPGInfoTag()->EpisodeNumber();
+        iSeason = item->GetEPGInfoTag()->SeriesNumber();
+        iEpisode = item->GetEPGInfoTag()->EpisodeNumber();
       }
       else if (item->HasPVRTimerInfoTag())
       {
         const CPVREpgInfoTagPtr tag(item->GetPVRTimerInfoTag()->GetEpgInfoTag());
-        if (tag)
+        if (tag && tag->EpisodeNumber() > 0)
         {
-          if (tag->SeriesNumber() > 0)
-            iSeason = tag->SeriesNumber();
-          if (tag->EpisodeNumber() > 0)
-            iEpisode = tag->EpisodeNumber();
+          iSeason = tag->SeriesNumber();
+          iEpisode = tag->EpisodeNumber();
         }
       }
       else if (item->HasVideoInfoTag() &&
@@ -9992,7 +10065,7 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     if (item->HasVideoInfoTag())
       return item->GetVideoInfoTag()->GetCast();
     if (item->HasEPGInfoTag())
-      return item->GetEPGInfoTag()->Cast();
+      return item->GetEPGInfoTag()->GetCastLabel();
     break;
   case LISTITEM_CAST_AND_ROLE:
     if (item->HasVideoInfoTag())
@@ -10002,7 +10075,7 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     if (item->HasVideoInfoTag())
       return StringUtils::Join(item->GetVideoInfoTag()->m_writingCredits, g_advancedSettings.m_videoItemSeparator);
     if (item->HasEPGInfoTag())
-      return item->GetEPGInfoTag()->Writer();
+      return item->GetEPGInfoTag()->GetWritersLabel();
     break;
   case LISTITEM_TAGLINE:
     if (item->HasVideoInfoTag())
@@ -10040,12 +10113,12 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     break;
   case LISTITEM_SET:
     if (item->HasVideoInfoTag())
-      return item->GetVideoInfoTag()->m_strSet;
+      return item->GetVideoInfoTag()->m_set.title;
     break;
   case LISTITEM_SETID:
     if (item->HasVideoInfoTag())
     {
-      int iSetId = item->GetVideoInfoTag()->m_iSetId;
+      int iSetId = item->GetVideoInfoTag()->m_set.id;
       if (iSetId > 0)
         return StringUtils::Format("%d", iSetId);
     }
@@ -10167,32 +10240,6 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     break;
   case LISTITEM_CHANNEL_NUMBER:
     {
-      std::string number;
-      if (item->HasPVRChannelInfoTag())
-        number = StringUtils::Format("%i", item->GetPVRChannelInfoTag()->ChannelNumber());
-      if (item->HasEPGInfoTag() && item->GetEPGInfoTag()->HasChannel())
-        number = StringUtils::Format("%i", item->GetEPGInfoTag()->ChannelNumber());
-      if (item->HasPVRTimerInfoTag())
-        number = StringUtils::Format("%i", item->GetPVRTimerInfoTag()->ChannelNumber());
-
-      return number;
-    }
-    break;
-  case LISTITEM_SUB_CHANNEL_NUMBER:
-    {
-      std::string number;
-      if (item->HasPVRChannelInfoTag())
-        number = StringUtils::Format("%i", item->GetPVRChannelInfoTag()->SubChannelNumber());
-      if (item->HasEPGInfoTag() && item->GetEPGInfoTag()->HasChannel())
-        number = StringUtils::Format("%i", item->GetEPGInfoTag()->Channel()->SubChannelNumber());
-      if (item->HasPVRTimerInfoTag() && item->GetPVRTimerInfoTag()->HasChannel())
-        number = StringUtils::Format("%i", item->GetPVRTimerInfoTag()->Channel()->SubChannelNumber());
-
-      return number;
-    }
-    break;
-  case LISTITEM_CHANNEL_NUMBER_LBL:
-    {
       CPVRChannelPtr channel;
       if (item->HasPVRChannelInfoTag())
         channel = item->GetPVRChannelInfoTag();
@@ -10201,16 +10248,14 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
       else if (item->HasPVRTimerInfoTag())
         channel = item->GetPVRTimerInfoTag()->Channel();
 
-      return channel ?
-          channel->FormattedChannelNumber() :
-          "";
+      return channel ? channel->ChannelNumber().FormattedChannelNumber() : "";
     }
     break;
   case LISTITEM_CHANNEL_NAME:
     if (item->HasPVRChannelInfoTag())
       return item->GetPVRChannelInfoTag()->ChannelName();
     if (item->HasEPGInfoTag() && item->GetEPGInfoTag()->HasChannel())
-      return item->GetEPGInfoTag()->ChannelName();
+      return item->GetEPGInfoTag()->Channel()->ChannelName();
     if (item->HasPVRRecordingInfoTag())
       return item->GetPVRRecordingInfoTag()->m_strChannelName;
     if (item->HasPVRTimerInfoTag())
@@ -10277,7 +10322,7 @@ std::string CGUIInfoManager::GetItemLabel(const CFileItem *item, int info, std::
     {
       CPVREpgInfoTagPtr tag(item->GetPVRChannelInfoTag()->GetEPGNext());
       if (tag)
-        return StringUtils::Join(tag->Genre(), g_advancedSettings.m_videoItemSeparator);
+        return tag->GetGenresLabel();
     }
     return "";
   case LISTITEM_NEXT_TITLE:
@@ -10701,7 +10746,7 @@ CGUIWindow *CGUIInfoManager::GetWindowWithCondition(int contextWindow, int condi
     return window;
 
   // try topmost dialog
-  window = g_windowManager.GetWindow(g_windowManager.GetTopMostModalDialogID());
+  window = g_windowManager.GetWindow(g_windowManager.GetTopmostModalDialog());
   if (CheckWindowCondition(window, condition))
     return window;
 

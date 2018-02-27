@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Christian Browet
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@
 #include "guilib/GUIWindowManager.h"
 #include "GUIUserMessages.h"
 #include "network/DNSNameCache.h"
-#include "system.h"
 #include "threads/SingleLock.h"
 #include "utils/log.h"
 #include "threads/SingleLock.h"
@@ -80,7 +79,8 @@ bool CZeroconfBrowserAndroid::doRemoveServiceType(const std::string& fcr_service
       return false;
     }
     discover = it->second;
-    m_manager.stopServiceDiscovery(*discover);
+    if (discover->IsActive())
+      m_manager.stopServiceDiscovery(*discover);
     // Be extra careful: Discover listener is gone as of now
     m_service_browsers.erase(it);
   }
@@ -213,17 +213,20 @@ void CZeroconfBrowserAndroid::removeDiscoveredService(CZeroconfBrowserAndroidDis
 CZeroconfBrowserAndroidDiscover::CZeroconfBrowserAndroidDiscover(CZeroconfBrowserAndroid* browser)
   : CJNIXBMCNsdManagerDiscoveryListener()
   , m_browser(browser)
+  , m_isActive(false)
 {
 }
 
 void CZeroconfBrowserAndroidDiscover::onDiscoveryStarted(const std::string& serviceType)
 {
   CLog::Log(LOGDEBUG, "CZeroconfBrowserAndroidDiscover::onDiscoveryStarted type: %s", serviceType.c_str());
+  m_isActive = true;
 }
 
 void CZeroconfBrowserAndroidDiscover::onDiscoveryStopped(const std::string& serviceType)
 {
   CLog::Log(LOGDEBUG, "CZeroconfBrowserAndroidDiscover::onDiscoveryStopped type: %s", serviceType.c_str());
+  m_isActive = false;
 }
 
 void CZeroconfBrowserAndroidDiscover::onServiceFound(const jni::CJNINsdServiceInfo& serviceInfo)
@@ -261,11 +264,13 @@ void CZeroconfBrowserAndroidDiscover::onServiceLost(const jni::CJNINsdServiceInf
 void CZeroconfBrowserAndroidDiscover::onStartDiscoveryFailed(const std::string& serviceType, int errorCode)
 {
   CLog::Log(LOGDEBUG, "CZeroconfBrowserAndroidDiscover::onStartDiscoveryFailed type: %s, error: %d", serviceType.c_str(), errorCode);
+  m_isActive = false;
 }
 
 void CZeroconfBrowserAndroidDiscover::onStopDiscoveryFailed(const std::string& serviceType, int errorCode)
 {
   CLog::Log(LOGDEBUG, "CZeroconfBrowserAndroidDiscover::onStopDiscoveryFailed type: %s, error: %d", serviceType.c_str(), errorCode);
+  m_isActive = false;
 }
 
 /***************************************/

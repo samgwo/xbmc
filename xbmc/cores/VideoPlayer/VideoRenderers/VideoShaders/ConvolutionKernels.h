@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,11 +18,11 @@
  *
  */
 
-#ifndef CONVOLUTIONKERNELS
-#define CONVOLUTIONKERNELS
+#pragma once
 
-#include "system.h"
-#include "settings/VideoSettings.h"
+#include "cores/VideoSettings.h"
+
+#include <stdint.h>
 
 class CConvolutionKernel
 {
@@ -57,5 +57,3 @@ class CConvolutionKernel
     uint8_t* m_intfractpixels;
     uint8_t* m_uint8pixels;
 };
-
-#endif //CONVOLUTIONKERNELS

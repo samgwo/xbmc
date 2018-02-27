@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -130,6 +130,7 @@ public:
   static const std::string SETTING_VIDEOPLAYER_LIMITGUIUPDATE;
   static const std::string SETTING_VIDEOPLAYER_SUPPORTMVC;
   static const std::string SETTING_MYVIDEOS_SELECTACTION;
+  static const std::string SETTING_MYVIDEOS_USETAGS;
   static const std::string SETTING_MYVIDEOS_EXTRACTFLAGS;
   static const std::string SETTING_MYVIDEOS_EXTRACTCHAPTERTHUMBS;
   static const std::string SETTING_MYVIDEOS_REPLACELABELS;
@@ -163,9 +164,11 @@ public:
   static const std::string SETTING_SCRAPERS_MOVIESDEFAULT;
   static const std::string SETTING_SCRAPERS_TVSHOWSDEFAULT;
   static const std::string SETTING_SCRAPERS_MUSICVIDEOSDEFAULT;
+  static const std::string SETTING_PVRMANAGER_PRESELECTPLAYINGCHANNEL;
   static const std::string SETTING_PVRMANAGER_SYNCCHANNELGROUPS;
   static const std::string SETTING_PVRMANAGER_BACKENDCHANNELORDER;
   static const std::string SETTING_PVRMANAGER_USEBACKENDCHANNELNUMBERS;
+  static const std::string SETTING_PVRMANAGER_CLIENTPRIORITIES;
   static const std::string SETTING_PVRMANAGER_CHANNELMANAGER;
   static const std::string SETTING_PVRMANAGER_GROUPMANAGER;
   static const std::string SETTING_PVRMANAGER_CHANNELSCAN;
@@ -205,6 +208,7 @@ public:
   static const std::string SETTING_PVRTIMERS_HIDEDISABLEDTIMERS;
   static const std::string SETTING_MUSICLIBRARY_SHOWCOMPILATIONARTISTS;
   static const std::string SETTING_MUSICLIBRARY_DOWNLOADINFO;
+  static const std::string SETTING_MUSICLIBRARY_ARTISTSFOLDER;
   static const std::string SETTING_MUSICLIBRARY_ALBUMSSCRAPER;
   static const std::string SETTING_MUSICLIBRARY_ARTISTSSCRAPER;
   static const std::string SETTING_MUSICLIBRARY_OVERRIDETAGS;
@@ -213,6 +217,13 @@ public:
   static const std::string SETTING_MUSICLIBRARY_BACKGROUNDUPDATE;
   static const std::string SETTING_MUSICLIBRARY_CLEANUP;
   static const std::string SETTING_MUSICLIBRARY_EXPORT;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_FILETYPE;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_FOLDER;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_ITEMS;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_UNSCRAPED;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_OVERWRITE;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_ARTWORK;
+  static const std::string SETTING_MUSICLIBRARY_EXPORT_SKIPNFO;
   static const std::string SETTING_MUSICLIBRARY_IMPORT;
   static const std::string SETTING_MUSICPLAYER_AUTOPLAYNEXTITEM;
   static const std::string SETTING_MUSICPLAYER_QUEUEBYDEFAULT;
@@ -261,6 +272,7 @@ public:
   static const std::string SETTING_SERVICES_WEBSERVERPORT;
   static const std::string SETTING_SERVICES_WEBSERVERUSERNAME;
   static const std::string SETTING_SERVICES_WEBSERVERPASSWORD;
+  static const std::string SETTING_SERVICES_WEBSERVERSSL;
   static const std::string SETTING_SERVICES_WEBSKIN;
   static const std::string SETTING_SERVICES_ESENABLED;
   static const std::string SETTING_SERVICES_ESPORT;
@@ -277,7 +289,9 @@ public:
   static const std::string SETTING_SERVICES_AIRPLAYVIDEOSUPPORT;
   static const std::string SETTING_SMB_WINSSERVER;
   static const std::string SETTING_SMB_WORKGROUP;
+  static const std::string SETTING_SMB_MINPROTOCOL;
   static const std::string SETTING_SMB_MAXPROTOCOL;
+  static const std::string SETTING_SMB_LEGACYSECURITY;
   static const std::string SETTING_VIDEOSCREEN_MONITOR;
   static const std::string SETTING_VIDEOSCREEN_SCREEN;
   static const std::string SETTING_VIDEOSCREEN_RESOLUTION;
@@ -370,15 +384,6 @@ public:
   static const std::string SETTING_SOURCE_VIDEOS;
   static const std::string SETTING_SOURCE_MUSIC;
   static const std::string SETTING_SOURCE_PICTURES;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERS;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_1;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_2;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_3;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_4;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_5;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_6;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_7;
-  static const std::string SETTING_GAMES_KEYBOARD_PLAYERCONFIG_8;
   static const std::string SETTING_GAMES_ENABLE;
   static const std::string SETTING_GAMES_ENABLEREWIND;
   static const std::string SETTING_GAMES_REWINDTIME;
@@ -452,6 +457,7 @@ protected:
   void InitializeOptionFillers() override;
   void UninitializeOptionFillers() override;
   void InitializeConditions() override;
+  void UninitializeConditions() override;
   void InitializeVisibility() override;
   void InitializeDefaults() override;
   void InitializeISettingsHandlers() override;

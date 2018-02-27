@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #include "utils/log.h"  //CLog
 #include <string.h>     //memset, memcpy
 #ifdef TARGET_POSIX
-#include "linux/XMemUtils.h"
+#include "platform/linux/XMemUtils.h"
 #endif
 
 /**

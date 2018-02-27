@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2017 Team Kodi
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,10 +21,9 @@
 #include "platform/Filesystem.h"
 #include "platform/win32/CharsetConverter.h"
 
-#if !defined(WIN32_LEAN_AND_MEAN)
-#define WIN32_LEAN_AND_MEAN
-#endif
 #include <Windows.h>
+
+namespace win = KODI::PLATFORM::WINDOWS;
 
 namespace KODI
 {
@@ -34,11 +33,10 @@ namespace FILESYSTEM
 {
 space_info space(const std::string& path, std::error_code& ec)
 {
-  using WINDOWS::ToW;
 
   ec.clear();
   space_info sp;
-  auto pathW = ToW(path);
+  auto pathW = win::ToW(path);
 
   ULARGE_INTEGER capacity;
   ULARGE_INTEGER available;
@@ -60,6 +58,69 @@ space_info space(const std::string& path, std::error_code& ec)
 
   return sp;
 }
+
+std::string temp_directory_path(std::error_code &ec)
+{
+  wchar_t lpTempPathBuffer[MAX_PATH + 1];
+
+  if (!GetTempPathW(MAX_PATH, lpTempPathBuffer))
+  {
+    ec.assign(GetLastError(), std::system_category());
+    return std::string();
+  }
+
+  ec.clear();
+  return win::FromW(lpTempPathBuffer);
+}
+
+std::string create_temp_directory(std::error_code &ec)
+{
+  wchar_t lpTempPathBuffer[MAX_PATH + 1];
+
+  std::wstring xbmcTempPath = win::ToW(temp_directory_path(ec));
+
+  if (ec)
+    return std::string();
+
+  if (!GetTempFileNameW(xbmcTempPath.c_str(), L"xbm", 0, lpTempPathBuffer))
+  {
+    ec.assign(GetLastError(), std::system_category());
+    return std::string();
+  }
+
+  DeleteFileW(lpTempPathBuffer);
+
+  if (!CreateDirectoryW(lpTempPathBuffer, nullptr))
+  {
+    ec.assign(GetLastError(), std::system_category());
+    return std::string();
+  }
+
+  ec.clear();
+  return win::FromW(lpTempPathBuffer);
+}
+
+std::string temp_file_path(std::string, std::error_code &ec)
+{
+  wchar_t lpTempPathBuffer[MAX_PATH + 1];
+
+  std::wstring xbmcTempPath = win::ToW(create_temp_directory(ec));
+
+  if (ec)
+    return std::string();
+
+  if (!GetTempFileNameW(xbmcTempPath.c_str(), L"xbm", 0, lpTempPathBuffer))
+  {
+    ec.assign(GetLastError(), std::system_category());
+    return std::string();
+  }
+
+  DeleteFileW(lpTempPathBuffer);
+
+  ec.clear();
+  return win::FromW(lpTempPathBuffer);
+}
+
 }
 }
 }

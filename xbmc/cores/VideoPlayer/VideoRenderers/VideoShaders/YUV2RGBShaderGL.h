@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2007-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,151 +21,136 @@
 
 #include "guilib/TransformMatrix.h"
 #include "ShaderFormats.h"
-
-void CalculateYUVMatrix(TransformMatrix &matrix
-                        , unsigned int  flags
-                        , EShaderFormat format
-                        , float         black
-                        , float         contrast
-                        , bool          limited);
-
 #include "GLSLOutput.h"
-
-#ifndef __GNUC__
-#pragma warning( push )
-#pragma warning( disable : 4250 )
-#endif
-
 #include "guilib/Shader.h"
+#include "cores/VideoSettings.h"
+
+#include <memory>
+
+extern "C" {
+#include "libavutil/pixfmt.h"
+#include "libavutil/mastering_display_metadata.h"
+}
+
+class CConvertMatrix;
 
 namespace Shaders {
 
-  class BaseYUV2RGBShader : virtual public CShaderProgram
-  {
-  public:
-    BaseYUV2RGBShader() : m_convertFullRange(false) {};
-    ~BaseYUV2RGBShader() override = default;
-    virtual void SetField(int field) {};
-    virtual void SetWidth(int width) {};
-    virtual void SetHeight(int width) {};
+class BaseYUV2RGBGLSLShader : public CGLSLShaderProgram
+{
+public:
+  BaseYUV2RGBGLSLShader(bool rect, EShaderFormat format, bool stretch,
+                        AVColorPrimaries dst, AVColorPrimaries src,
+                        bool toneMap,
+                        std::shared_ptr<GLSLOutput> output);
+  virtual ~BaseYUV2RGBGLSLShader();
 
-    virtual void SetBlack(float black) {};
-    virtual void SetContrast(float contrast) {};
-    virtual void SetNonLinStretch(float stretch) {};
+  void SetField(int field) { m_field  = field; }
+  void SetWidth(int w) { m_width  = w; }
+  void SetHeight(int h) { m_height = h; }
 
-    void SetConvertFullColorRange(bool convertFullRange) { m_convertFullRange = convertFullRange; }
+  void SetColParams(AVColorSpace colSpace, int bits, bool limited, int textureBits);
+  void SetBlack(float black) { m_black = black; }
+  void SetContrast(float contrast) { m_contrast = contrast; }
+  void SetNonLinStretch(float stretch) { m_stretch = stretch; }
+  void SetDisplayMetadata(bool hasDisplayMetadata, AVMasteringDisplayMetadata displayMetadata,
+                          bool hasLightMetadata, AVContentLightMetadata lightMetadata);
 
-  protected:
-    bool m_convertFullRange;
-  };
+  void SetConvertFullColorRange(bool convertFullRange) { m_convertFullRange = convertFullRange; }
 
+  GLint GetVertexLoc() { return m_hVertex; }
+  GLint GetYcoordLoc() { return m_hYcoord; }
+  GLint GetUcoordLoc() { return m_hUcoord; }
+  GLint GetVcoordLoc() { return m_hVcoord; }
 
-  class BaseYUV2RGBGLSLShader 
-    : public BaseYUV2RGBShader
-    , public CGLSLShaderProgram
-  {
-  public:
-    BaseYUV2RGBGLSLShader(bool rect, unsigned flags, EShaderFormat format, bool stretch, GLSLOutput *output=NULL);
-   ~BaseYUV2RGBGLSLShader() override;
-    void SetField(int field) override { m_field  = field; }
-    void SetWidth(int w) override { m_width  = w; }
-    void SetHeight(int h) override { m_height = h; }
+  void SetMatrices(GLfloat *p, GLfloat *m) { m_proj = p; m_model = m; }
+  void SetAlpha(GLfloat alpha)  { m_alpha = alpha; }
 
-    void SetBlack(float black) override { m_black    = black; }
-    void SetContrast(float contrast) override { m_contrast = contrast; }
-    void SetNonLinStretch(float stretch) override { m_stretch = stretch; }
+protected:
 
-  protected:
-    void OnCompiledAndLinked() override;
-    bool OnEnabled() override;
-    void OnDisabled() override;
-    void Free() override;
+  void OnCompiledAndLinked() override;
+  bool OnEnabled() override;
+  void OnDisabled() override;
+  void Free();
 
-    unsigned m_flags;
-    EShaderFormat m_format;
-    int m_width;
-    int m_height;
-    int m_field;
+  bool m_convertFullRange;
+  EShaderFormat m_format;
+  int m_width;
+  int m_height;
+  int m_field;
+  bool m_hasDisplayMetadata = false;
+  AVMasteringDisplayMetadata m_displayMetadata;
+  bool m_hasLightMetadata = false;
+  AVContentLightMetadata m_lightMetadata;
+  bool m_toneMapping = false;
 
-    float m_black;
-    float m_contrast;
-    float m_stretch;
+  float m_black;
+  float m_contrast;
+  float m_stretch;
 
-    std::string m_defines;
+  GLfloat *m_proj = nullptr;
+  GLfloat *m_model = nullptr;
+  GLfloat m_alpha = 1.0f;
 
-    Shaders::GLSLOutput *m_glslOutput;
+  std::string m_defines;
 
-    // shader attribute handles
-    GLint m_hYTex;
-    GLint m_hUTex;
-    GLint m_hVTex;
-    GLint m_hMatrix;
-    GLint m_hStretch;
-    GLint m_hStep;
-  };
+  std::shared_ptr<Shaders::GLSLOutput> m_glslOutput;
+  std::shared_ptr<CConvertMatrix> m_pConvMatrix;
 
-  class BaseYUV2RGBARBShader 
-    : public BaseYUV2RGBShader
-    , public CARBShaderProgram
-  {
-  public:
-    BaseYUV2RGBARBShader(unsigned flags, EShaderFormat format);
-   ~BaseYUV2RGBARBShader() override = default;
-    void SetField(int field) override { m_field = field; }
-    void SetWidth(int w) override { m_width = w; }
-    void SetHeight(int h) override { m_height = h; }
+  // pixel shader attribute handles
+  GLint m_hYTex = -1;
+  GLint m_hUTex = -1;
+  GLint m_hVTex = -1;
+  GLint m_hYuvMat = -1;
+  GLint m_hStretch = -1;
+  GLint m_hStep = -1;
+  GLint m_hGammaSrc = -1;
+  GLint m_hGammaDstInv = -1;
+  GLint m_hPrimMat = -1;
+  GLint m_hToneP1 = -1;
+  GLint m_hCoefsDst = -1;
 
-    void SetBlack(float black) override { m_black = black; }
-    void SetContrast(float contrast) override { m_contrast = contrast; }
+  // vertex shader attribute handles
+  GLint m_hVertex = -1;
+  GLint m_hYcoord = -1;
+  GLint m_hUcoord = -1;
+  GLint m_hVcoord = -1;
+  GLint m_hProj = -1;
+  GLint m_hModel = -1;
+  GLint m_hAlpha = -1;
+};
 
-  protected:
-    unsigned m_flags;
-    EShaderFormat m_format;
-    int m_width;
-    int m_height;
-    int m_field;
+class YUV2RGBProgressiveShader : public BaseYUV2RGBGLSLShader
+{
+public:
+  YUV2RGBProgressiveShader(bool rect,
+                           EShaderFormat format,
+                           bool stretch,
+                           AVColorPrimaries dstPrimaries, AVColorPrimaries srcPrimaries,
+                           bool toneMap,
+                           std::shared_ptr<GLSLOutput> output);
+};
 
-    float m_black;
-    float m_contrast;
+class YUV2RGBFilterShader4 : public BaseYUV2RGBGLSLShader
+{
+public:
+  YUV2RGBFilterShader4(bool rect,
+                       EShaderFormat format,
+                       bool stretch,
+                       AVColorPrimaries dstPrimaries, AVColorPrimaries srcPrimaries,
+                       bool toneMap,
+                       ESCALINGMETHOD method,
+                       std::shared_ptr<GLSLOutput> output);
+  ~YUV2RGBFilterShader4() override;
 
-    // shader attribute handles
-    GLint m_hYTex;
-    GLint m_hUTex;
-    GLint m_hVTex;
-  };
+protected:
+  void OnCompiledAndLinked() override;
+  bool OnEnabled() override;
 
-  class YUV2RGBProgressiveShaderARB : public BaseYUV2RGBARBShader
-  {
-  public:
-    YUV2RGBProgressiveShaderARB(bool rect=false, unsigned flags=0, EShaderFormat format=SHADER_NONE);
-    void OnCompiledAndLinked() override;
-    bool OnEnabled() override;
-  };
-
-  class YUV2RGBProgressiveShader : public BaseYUV2RGBGLSLShader
-  {
-  public:
-    YUV2RGBProgressiveShader(bool rect=false,
-                             unsigned flags=0,
-                             EShaderFormat format=SHADER_NONE,
-                             bool stretch = false,
-                             GLSLOutput *output=NULL);
-  };
-
-  class YUV2RGBBobShader : public BaseYUV2RGBGLSLShader
-  {
-  public:
-    YUV2RGBBobShader(bool rect=false, unsigned flags=0, EShaderFormat format=SHADER_NONE);
-    void OnCompiledAndLinked() override;
-    bool OnEnabled() override;
-
-    GLint m_hStepX;
-    GLint m_hStepY;
-    GLint m_hField;
-  };
+  GLuint m_kernelTex = 0;
+  GLint m_hKernTex = -1;
+  ESCALINGMETHOD m_scaling = VS_SCALINGMETHOD_LANCZOS3_FAST;
+};
 
 } // end namespace
 
-#ifndef __GNUC__
-#pragma warning( pop )
-#endif

@@ -17,7 +17,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include "system.h"
 
 #include <functional>
 #include <limits>
@@ -35,7 +34,7 @@
 #include "filesystem/Directory.h"
 #include "DllLibbluray.h"
 #include "URL.h"
-#include "guilib/Geometry.h"
+#include "utils/Geometry.h"
 #include "guilib/LocalizeStrings.h"
 #include "settings/DiscSettings.h"
 #include "utils/LangCodeExpander.h"
@@ -43,7 +42,7 @@
 #include "utils/StringUtils.h"
 
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 #define LIBBLURAY_BYTESEEK 0
@@ -117,7 +116,7 @@ void DllLibbluray::dir_close(BD_DIR_H *dir)
 {
   if (dir)
   {
-    CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - Closed dir (%p)\n", dir);
+    CLog::Log(LOGDEBUG, "CDVDInputStreamBluray - Closed dir (%p)\n", static_cast<void*>(dir));
     delete static_cast<SDirState*>(dir->internal);
     delete dir;
   }

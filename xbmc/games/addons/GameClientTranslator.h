@@ -21,7 +21,8 @@
 
 #include "addons/kodi-addon-dev-kit/include/kodi/kodi_game_types.h"
 #include "cores/AudioEngine/Utils/AEChannelData.h"
-#include "input/Key.h"
+#include "games/controllers/ControllerTypes.h"
+#include "input/keyboard/KeyboardTypes.h"
 
 #include "libavcodec/avcodec.h"
 #include "libavutil/pixfmt.h"
@@ -95,7 +96,7 @@ namespace GAME
      * \param modifiers The key modifiers to translate (e.g. Shift, Ctrl).
      * \return Translated key modifiers.
      */
-    static GAME_KEY_MOD  GetModifiers(CKey::Modifier modifier);
+    static GAME_KEY_MOD GetModifiers(KEYBOARD::Modifier modifier);
 
     /*!
      * \brief Translate region to string representation (e.g. for logging).
@@ -103,6 +104,13 @@ namespace GAME
      * \return Translated region.
      */
     static const char* TranslateRegion(GAME_REGION region);
+
+    /*!
+     * \brief Translate port type (Game API to Kodi)
+     * \param portType  The port type to translate
+     * \return Translated port type
+     */
+    static PORT_TYPE TranslatePortType(GAME_PORT_TYPE portType);
   };
 }
 }

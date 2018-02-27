@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -35,9 +35,9 @@ public:
   CDVDDemuxClient();
   ~CDVDDemuxClient() override;
 
-  bool Open(CDVDInputStream* pInput);
+  bool Open(std::shared_ptr<CDVDInputStream> pInput);
   void Dispose();
-  void Reset() override;
+  bool Reset() override;
   void Abort() override;
   void Flush() override;
   DemuxPacket* Read() override;
@@ -59,8 +59,8 @@ protected:
   void DisposeStreams();
   std::shared_ptr<CDemuxStream> GetStreamInternal(int iStreamId);
   
-  CDVDInputStream* m_pInput;
-  CDVDInputStream::IDemux *m_IDemux;
+  std::shared_ptr<CDVDInputStream> m_pInput;
+  std::shared_ptr<CDVDInputStream::IDemux> m_IDemux;
   std::map<int, std::shared_ptr<CDemuxStream>> m_streams;
   int m_displayTime;
   double m_dtsAtDisplayTime;

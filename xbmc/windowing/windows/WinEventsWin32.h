@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@ class CGenericTouchSwipeDetector;
 class CWinEventsWin32 : public IWinEvents
 {
 public:
-  void MessagePush(XBMC_Event *newEvent) override;
   bool MessagePump() override;
   static LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 

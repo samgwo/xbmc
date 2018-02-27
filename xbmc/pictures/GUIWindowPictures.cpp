@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
  */
 
 #include "threads/SystemClock.h"
-#include "system.h"
 #include "GUIWindowPictures.h"
 #include "ServiceBroker.h"
 #include "URL.h"
@@ -50,7 +49,7 @@
 #include "GUIWindowSlideShow.h"
 
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 #define CONTROL_BTNVIEWASICONS      2
@@ -327,7 +326,7 @@ bool CGUIWindowPictures::ShowPicture(int iItem, bool startSlideShow)
   CGUIWindowSlideShow *pSlideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
   if (!pSlideShow)
     return false;
-  if (g_application.m_pPlayer->IsPlayingVideo())
+  if (g_application.GetAppPlayer().IsPlayingVideo())
     g_application.StopPlaying();
 
   pSlideShow->Reset();
@@ -370,7 +369,7 @@ void CGUIWindowPictures::OnShowPictureRecursive(const std::string& strPath)
   if (pSlideShow)
   {
     // stop any video
-    if (g_application.m_pPlayer->IsPlayingVideo())
+    if (g_application.GetAppPlayer().IsPlayingVideo())
       g_application.StopPlaying();
 
     SortDescription sorting = m_guiState->GetSortMethod();
@@ -561,7 +560,7 @@ void CGUIWindowPictures::LoadPlayList(const std::string& strPlayList)
     CGUIWindowSlideShow *pSlideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
     if (!pSlideShow)
       return;
-    if (g_application.m_pPlayer->IsPlayingVideo())
+    if (g_application.GetAppPlayer().IsPlayingVideo())
       g_application.StopPlaying();
 
     // convert playlist items into slideshow items

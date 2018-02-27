@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
  *
  */
 
-#include "system.h"
 #include "GUIWindowSettingsScreenCalibration.h"
 #include "guilib/GUIMoverControl.h"
 #include "guilib/GUIResizeControl.h"
@@ -33,7 +32,7 @@
 #include "utils/log.h"
 #include "utils/StringUtils.h"
 #include "utils/Variant.h"
-#include "windowing/WindowingFactory.h"
+#include "windowing/WinSystem.h"
 
 #include <string>
 #include <utility>
@@ -93,7 +92,7 @@ bool CGUIWindowSettingsScreenCalibration::OnAction(const CAction &action)
     // choose the next resolution in our list
     {
       m_iCurRes = (m_iCurRes+1) % m_Res.size();
-      g_graphicsContext.SetVideoResolution(m_Res[m_iCurRes]);
+      g_graphicsContext.SetVideoResolution(m_Res[m_iCurRes], false);
       ResetControls();
       return true;
     }
@@ -141,7 +140,7 @@ bool CGUIWindowSettingsScreenCalibration::OnMessage(CGUIMessage& message)
       CServiceBroker::GetSettings().Save();
       g_graphicsContext.SetCalibrating(false);
       // reset our screen resolution to what it was initially
-      g_graphicsContext.SetVideoResolution(CDisplaySettings::GetInstance().GetCurrentResolution());
+      g_graphicsContext.SetVideoResolution(CDisplaySettings::GetInstance().GetCurrentResolution(), false);
       g_windowManager.SendMessage(GUI_MSG_NOTIFY_ALL, 0, 0, GUI_MSG_WINDOW_RESIZE);
     }
     break;
@@ -153,10 +152,10 @@ bool CGUIWindowSettingsScreenCalibration::OnMessage(CGUIMessage& message)
 
       // Get the allowable resolutions that we can calibrate...
       m_Res.clear();
-      if (g_application.m_pPlayer->IsPlayingVideo())
+      if (g_application.GetAppPlayer().IsPlayingVideo())
       { // don't allow resolution switching if we are playing a video
 
-        g_application.m_pPlayer->TriggerUpdateResolution();
+        g_application.GetAppPlayer().TriggerUpdateResolution();
 
         m_iCurRes = 0;
         m_Res.push_back(g_graphicsContext.GetVideoResolution());
@@ -374,7 +373,7 @@ void CGUIWindowSettingsScreenCalibration::UpdateFromControl(int iControl)
 
   // set the label control correctly
   std::string strText;
-  if (g_Windowing.IsFullScreen())
+  if (CServiceBroker::GetWinSystem().IsFullScreen())
     strText = StringUtils::Format("%ix%i@%.2f - %s | %s",
                                   info.iScreenWidth,
                                   info.iScreenHeight,
@@ -393,7 +392,6 @@ void CGUIWindowSettingsScreenCalibration::UpdateFromControl(int iControl)
 
 void CGUIWindowSettingsScreenCalibration::FrameMove()
 {
-  //  g_Windowing.Get3DDevice()->Clear(0, NULL, D3DCLEAR_TARGET, 0, 0, 0);
   m_iControl = GetFocusedControlID();
   if (m_iControl >= 0)
   {

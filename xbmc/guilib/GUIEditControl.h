@@ -3,14 +3,11 @@
 \brief
 */
 
-#ifndef GUILIB_GUIEditControl_H
-#define GUILIB_GUIEditControl_H
-
 #pragma once
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -141,4 +138,3 @@ protected:
   static const char*        smsLetters[10];
   static const unsigned int smsDelay;
 };
-#endif

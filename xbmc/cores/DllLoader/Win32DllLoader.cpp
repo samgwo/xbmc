@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,11 +37,7 @@ extern "C" FARPROC WINAPI dllWin32GetProcAddress(HMODULE hModule, LPCSTR functio
 //dllLoadLibraryA, dllFreeLibrary, dllGetProcAddress are from dllLoader,
 //they are wrapper functions of COFF/PE32 loader.
 extern "C" HMODULE WINAPI dllLoadLibraryA(LPCSTR libname);
-extern "C" HMODULE WINAPI dllLoadLibraryExA(LPCSTR lpLibFileName, HANDLE hFile, DWORD dwFlags);
 extern "C" BOOL WINAPI dllFreeLibrary(HINSTANCE hLibModule);
-extern "C" FARPROC WINAPI dllGetProcAddress(HMODULE hModule, LPCSTR function);
-extern "C" HMODULE WINAPI dllGetModuleHandleA(LPCSTR lpModuleName);
-extern "C" DWORD WINAPI dllGetModuleFileNameA(HMODULE hModule, LPSTR lpFilename, DWORD nSize);
 
 // our exports
 Export win32_exports[] =
@@ -140,9 +136,27 @@ bool Win32DllLoader::Load()
     return true;
 
   std::string strFileName = GetFileName();
-
   auto strDllW = ToW(CSpecialProtocol::TranslatePath(strFileName));
+
+#ifdef TARGET_WINDOWS_STORE
+  // The path cannot be an absolute path or a relative path that contains ".." in the path. 
+  auto appPath = Windows::ApplicationModel::Package::Current->InstalledLocation->Path;
+  std::wstring strAppPathW(appPath->Data());
+  size_t len = appPath->Length();
+
+  if (!strAppPathW.empty() && wcsnicmp(strAppPathW.c_str(), strDllW.c_str(), len) == 0)
+  {
+    if (strDllW.at(len) == '\\' || strDllW.at(len) == '/')
+      len++;
+    std::wstring relative = strDllW.substr(len);
+    m_dllHandle = LoadPackagedLibrary(relative.c_str(), 0);
+  }
+  else
+    m_dllHandle = LoadPackagedLibrary(strDllW.c_str(), 0);
+#else
   m_dllHandle = LoadLibraryExW(strDllW.c_str(), NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+#endif
+
   if (!m_dllHandle)
   {
     DWORD dw = GetLastError();
@@ -225,7 +239,7 @@ void Win32DllLoader::OverrideImports(const std::string &dll)
 {
   using KODI::PLATFORM::WINDOWS::ToW;
   auto strdllW = ToW(CSpecialProtocol::TranslatePath(dll));
-  auto image_base = reinterpret_cast<BYTE*>(GetModuleHandleW(strdllW.c_str()));
+  auto image_base = reinterpret_cast<BYTE*>(m_dllHandle);
 
   if (!image_base)
   {

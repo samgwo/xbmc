@@ -3,7 +3,7 @@
  * from Shairport, by James Laird.
  *
  *      Copyright (C) 2011-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,9 +21,6 @@
  *
  */
 
-#include "system.h"
-
-#ifdef HAS_AIRTUNES
 #include "AirTunesServer.h"
 
 #include <map>
@@ -417,8 +414,8 @@ void CAirTunesServer::AudioOutputFunctions::audio_set_progress(void *cls, void *
   duration /= m_sampleRate;
   position /= m_sampleRate;
 
-  g_application.m_pPlayer->SetTime(position * 1000);
-  g_application.m_pPlayer->SetTotalTime(duration * 1000);
+  g_application.GetAppPlayer().SetTime(position * 1000);
+  g_application.GetAppPlayer().SetTotalTime(duration * 1000);
 }
 
 void CAirTunesServer::SetupRemoteControl()
@@ -432,7 +429,7 @@ void CAirTunesServer::SetupRemoteControl()
   std::vector<CZeroconfBrowser::ZeroconfService> services = CZeroconfBrowser::GetInstance()->GetFoundServices();
   for (auto service : services )
   {
-    if (StringUtils::CompareNoCase(service.GetType(), std::string(ZEROCONF_DACP_SERVICE) + ".") == 0)
+    if (StringUtils::EqualsNoCase(service.GetType(), std::string(ZEROCONF_DACP_SERVICE) + "."))
     {
 #define DACP_NAME_PREFIX "iTunes_Ctrl_"
       // name has the form "iTunes_Ctrl_56B29BB6CB904862"
@@ -549,7 +546,7 @@ bool CAirTunesServer::StartServer(int port, bool nonlocal, bool usePassword, con
 {
   bool success = false;
   std::string pw = password;
-  CNetworkInterface *net = g_application.getNetwork().GetFirstConnectedInterface();
+  CNetworkInterface *net = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
   StopServer(true);
 
   if (net)
@@ -707,7 +704,7 @@ bool CAirTunesServer::Initialize(const std::string &password)
 
       m_pLibShairplay->raop_set_log_callback(m_pRaop, shairplay_log, NULL);
 
-      CNetworkInterface *net = g_application.getNetwork().GetFirstConnectedInterface();
+      CNetworkInterface *net = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
 
       if (net)
       {
@@ -732,6 +729,3 @@ void CAirTunesServer::Deinitialize()
     m_pRaop = nullptr;
   }
 }
-
-#endif
-

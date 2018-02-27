@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -171,6 +171,15 @@ void CGUIDialogProgress::ShowProgressBar(bool bOnOff)
   CSingleLock lock(m_section);
   m_showProgress = bOnOff;
   SetInvalid();
+}
+
+bool CGUIDialogProgress::Wait(int progresstime /*= 10*/)
+{
+  CEvent m_done;
+  while (!m_done.WaitMSec(progresstime) && m_active && !m_bCanceled)
+    Progress();
+
+  return !m_bCanceled;
 }
 
 void CGUIDialogProgress::Process(unsigned int currentTime, CDirtyRegionList &dirtyregions)

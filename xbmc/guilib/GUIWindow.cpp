@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
  *
  */
 
-#include "system.h"
 #include "GUIWindow.h"
 #include "GUIWindowManager.h"
 #include "input/Key.h"
@@ -39,10 +38,6 @@
 #include "settings/AdvancedSettings.h"
 #include "utils/Variant.h"
 #include "utils/StringUtils.h"
-
-#ifdef HAS_PERFORMANCE_SAMPLE
-#include "utils/PerformanceSample.h"
-#endif
 
 using namespace KODI::MESSAGING;
 
@@ -81,10 +76,6 @@ CGUIWindow::~CGUIWindow()
 
 bool CGUIWindow::Load(const std::string& strFileName, bool bContainsPath)
 {
-#ifdef HAS_PERFORMANCE_SAMPLE
-  CPerformanceSample aSample("WindowLoad-" + strFileName, true);
-#endif
-
   if (m_windowLoaded || !g_SkinInfo)
     return true;      // no point loading if it's already there
 
@@ -768,7 +759,7 @@ bool CGUIWindow::NeedLoad() const
   return !m_windowLoaded || g_infoManager.ConditionsChangedValues(m_xmlIncludeConditions);
 }
 
-void CGUIWindow::AllocResources(bool forceLoad /*= FALSE */)
+void CGUIWindow::AllocResources(bool forceLoad /*= false */)
 {
   CSingleLock lock(g_graphicsContext);
 
@@ -816,7 +807,7 @@ void CGUIWindow::AllocResources(bool forceLoad /*= FALSE */)
   m_bAllocated = true;
 }
 
-void CGUIWindow::FreeResources(bool forceUnload /*= FALSE */)
+void CGUIWindow::FreeResources(bool forceUnload /*= false */)
 {
   m_bAllocated = false;
   CGUIControlGroup::FreeResources();

@@ -1,9 +1,9 @@
 include ../../Makefile.include
-DEPS= ../../Makefile.include Makefile
+DEPS= ../../Makefile.include Makefile tvos.patch
 
 # lib name, version
 LIBNAME=libbluray
-VERSION=1.0.1
+VERSION=1.0.2
 SOURCE=$(LIBNAME)-$(VERSION)
 ARCHIVE=$(SOURCE).tar.bz2
 
@@ -12,7 +12,7 @@ CONFIGURE=./configure --prefix=$(PREFIX) --exec-prefix=$(PREFIX) \
   --disable-examples --disable-doxygen-doc \
   --disable-bdjava-jar --without-libxml2 --without-freetype
 
-LIBDYLIB=$(PLATFORM)/src/.libs/libbluray.la
+LIBDYLIB=$(PLATFORM)/.libs/libbluray.la
 
 all: .installed-$(PLATFORM)
 

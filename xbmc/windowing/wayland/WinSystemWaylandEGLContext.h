@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  */
 #pragma once
 
-#include "GLContextEGL.h"
+#include "EGLContext.h"
 #include "WinSystemWayland.h"
 
 namespace KODI
@@ -53,7 +53,9 @@ protected:
   void PresentFrame(bool rendered);
   void SetContextSize(CSizeInt size) override;
 
-  CGLContextEGL m_eglContext;
+  virtual bool CreateContext() = 0;
+
+  CEGLContext m_eglContext;
 };
 
 }

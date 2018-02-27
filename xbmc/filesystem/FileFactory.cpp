@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
  */
 
 #include "network/Network.h"
-#include "system.h"
 #include "FileFactory.h"
 #ifdef TARGET_POSIX
 #include "posix/PosixFile.h"
@@ -36,9 +35,7 @@
 #include "SMBFile.h"
 #endif
 #endif
-#ifdef HAS_FILESYSTEM_CDDA
 #include "CDDAFile.h"
-#endif
 #include "ISOFile.h"
 #if defined(TARGET_ANDROID)
 #include "APKFile.h"
@@ -68,13 +65,15 @@
 #include "UDFFile.h"
 #include "ImageFile.h"
 #include "ResourceFile.h"
-#include "Application.h"
 #include "URL.h"
 #include "utils/log.h"
 #include "network/WakeOnAccess.h"
 #include "utils/StringUtils.h"
 #include "ServiceBroker.h"
 #include "addons/VFSEntry.h"
+#ifdef TARGET_WINDOWS_STORE
+#include "win10/WinLibraryFile.h"
+#endif
 
 using namespace ADDON;
 using namespace XFILE;
@@ -119,9 +118,16 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
 #ifdef TARGET_POSIX
   else if (url.IsProtocol("file") || url.GetProtocol().empty()) return new CPosixFile();
 #elif defined(TARGET_WINDOWS)
-  else if (url.IsProtocol("file") || url.GetProtocol().empty()) return new CWin32File();
+  else if (url.IsProtocol("file") || url.GetProtocol().empty())
+  {
+#ifdef TARGET_WINDOWS_STORE
+    if (CWinLibraryFile::IsInAccessList(url))
+      return new CWinLibraryFile();
+#endif
+    return new CWin32File();
+  }
 #endif // TARGET_WINDOWS 
-#if defined(HAS_FILESYSTEM_CDDA) && defined(HAS_DVD_DRIVE)
+#if defined(HAS_DVD_DRIVE)
   else if (url.IsProtocol("cdda")) return new CFileCDDA();
 #endif
   else if (url.IsProtocol("iso9660")) return new CISOFile();
@@ -135,12 +141,13 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
 #endif
   else if (url.IsProtocol("resource")) return new CResourceFile();
 
-  bool networkAvailable = g_application.getNetwork().IsAvailable();
+  bool networkAvailable = CServiceBroker::GetNetwork().IsAvailable();
   if (networkAvailable)
   {
     if (url.IsProtocol("ftp")
     ||  url.IsProtocol("ftps")
     ||  url.IsProtocol("rss")
+    ||  url.IsProtocol("rsss")
     ||  url.IsProtocol("http") 
     ||  url.IsProtocol("https")) return new CCurlFile();
     else if (url.IsProtocol("dav") || url.IsProtocol("davs")) return new CDAVFile();
@@ -160,6 +167,9 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
 #endif
 #ifdef HAS_UPNP
     else if (url.IsProtocol("upnp")) return new CUPnPFile();
+#endif
+#ifdef TARGET_WINDOWS_STORE
+    else if (CWinLibraryFile::IsValid(url)) return new CWinLibraryFile();
 #endif
   }
 

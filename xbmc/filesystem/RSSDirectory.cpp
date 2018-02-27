@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
 #include "settings/Settings.h"
 #include "threads/SingleLock.h"
 #include "URL.h"
+#include "utils/FileExtensionProvider.h"
 #include "utils/HTMLUtil.h"
 #include "utils/log.h"
 #include "utils/StringUtils.h"
@@ -87,9 +88,9 @@ bool CRSSDirectory::ContainsFiles(const CURL& url)
 static bool IsPathToMedia(const std::string& strPath )
 {
   return URIUtils::HasExtension(strPath,
-                              g_advancedSettings.m_videoExtensions + '|' +
-                              g_advancedSettings.GetMusicExtensions() + '|' +
-                              g_advancedSettings.GetPictureExtensions());
+                                CServiceBroker::GetFileExtensionProvider().GetVideoExtensions() + '|' +
+                                CServiceBroker::GetFileExtensionProvider().GetMusicExtensions() + '|' +
+                                CServiceBroker::GetFileExtensionProvider().GetPictureExtensions());
 }
 
 static bool IsPathToThumbnail(const std::string& strPath )
@@ -97,7 +98,7 @@ static bool IsPathToThumbnail(const std::string& strPath )
   // Currently just check if this is an image, maybe we will add some
   // other checks later
   return URIUtils::HasExtension(strPath,
-                                    g_advancedSettings.GetPictureExtensions());
+                                CServiceBroker::GetFileExtensionProvider().GetPictureExtensions());
 }
 
 static time_t ParseDate(const std::string & strDate)
@@ -521,7 +522,11 @@ static void ParseItem(CFileItem* item, TiXmlElement* root, const std::string& pa
     if(best->mime == "application/rss+xml" && StringUtils::StartsWithNoCase(item->GetPath(), "http://"))
       item->SetPath("rss://" + item->GetPath().substr(7));
 
-    if(StringUtils::StartsWithNoCase(item->GetPath(), "rss://"))
+    if(best->mime == "application/rss+xml" && StringUtils::StartsWithNoCase(item->GetPath(), "https://"))
+      item->SetPath("rsss://" + item->GetPath().substr(8));
+
+    if(StringUtils::StartsWithNoCase(item->GetPath(), "rss://")
+      || StringUtils::StartsWithNoCase(item->GetPath(), "rsss://"))
       item->m_bIsFolder = true;
     else
       item->m_bIsFolder = false;

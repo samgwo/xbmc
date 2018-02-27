@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -209,7 +209,7 @@ bool CGUIDialogPVRGroupManager::ActionButtonUngroupedChannels(CGUIMessage &messa
       else if (m_ungroupedChannels->GetFileCount() > 0)
       {
         CFileItemPtr pItemChannel = m_ungroupedChannels->Get(m_iSelectedUngroupedChannel);
-        if (m_selectedGroup->AddToGroup(pItemChannel->GetPVRChannelInfoTag()))
+        if (m_selectedGroup->AddToGroup(pItemChannel->GetPVRChannelInfoTag(), CPVRChannelNumber(), false))
           Update();
       }
     }
@@ -227,7 +227,7 @@ bool CGUIDialogPVRGroupManager::ActionButtonGroupMembers(CGUIMessage &message)
   if (m_viewGroupMembers.HasControl(iControl))   // list/thumb control
   {
     m_iSelectedGroupMember = m_viewGroupMembers.GetSelectedItem();
-    int iAction      = message.GetParam1();
+    int iAction = message.GetParam1();
 
     if (iAction == ACTION_SELECT_ITEM || iAction == ACTION_MOUSE_LEFT_CLICK)
     {
@@ -369,8 +369,6 @@ void CGUIDialogPVRGroupManager::OnWindowUnload()
 
 void CGUIDialogPVRGroupManager::Update()
 {
-  /* lock our display, as this window is rendered from the player thread */
-  g_graphicsContext.Lock();
   m_viewUngroupedChannels.SetCurrentView(CONTROL_LIST_CHANNELS_LEFT);
   m_viewGroupMembers.SetCurrentView(CONTROL_LIST_CHANNELS_RIGHT);
   m_viewChannelGroups.SetCurrentView(CONTROL_LIST_CHANNEL_GROUPS);
@@ -423,8 +421,6 @@ void CGUIDialogPVRGroupManager::Update()
     m_viewGroupMembers.SetItems(*m_groupMembers);
     m_viewGroupMembers.SetSelectedItem(m_iSelectedGroupMember);
   }
-
-  g_graphicsContext.Unlock();
 }
 
 void CGUIDialogPVRGroupManager::Clear()

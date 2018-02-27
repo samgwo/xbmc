@@ -175,15 +175,16 @@ bool CBinaryAddonManager::AddAddonBaseEntry(BINARY_ADDON_LIST_ENTRY& entry)
 
 void CBinaryAddonManager::OnEvent(const AddonEvent& event)
 {
-  if (auto enableEvent = dynamic_cast<const AddonEvents::Enabled*>(&event))
+  if (typeid(event) == typeid(AddonEvents::Enabled))
   {
-    EnableEvent(enableEvent->id);
+    EnableEvent(event.id);
   }
-  else if (auto disableEvent = dynamic_cast<const AddonEvents::Disabled*>(&event))
+  else if (typeid(event) == typeid(AddonEvents::Disabled))
   {
-    DisableEvent(disableEvent->id);
+    DisableEvent(event.id);
   }
-  else if (typeid(event) == typeid(AddonEvents::InstalledChanged))
+  else if (typeid(event) == typeid(AddonEvents::ReInstalled) ||
+           typeid(event) == typeid(AddonEvents::UnInstalled))
   {
     InstalledChangeEvent();
   }
@@ -202,12 +203,6 @@ void CBinaryAddonManager::EnableEvent(const std::string& addonId)
 
   CLog::Log(LOGDEBUG, "CBinaryAddonManager::%s: Enable addon '%s' on binary addon manager", __FUNCTION__, base->ID().c_str());
   m_enabledAddons[base->ID()] = base;
-
-  /**
-   * @todo add way to inform type addon manager (e.g. for PVR) and parts about changed addons
-   *
-   * Currently only Screensaver and Visualization use the new way and not need informed.
-   */
 }
 
 void CBinaryAddonManager::DisableEvent(const std::string& addonId)
@@ -223,12 +218,6 @@ void CBinaryAddonManager::DisableEvent(const std::string& addonId)
 
   CLog::Log(LOGDEBUG, "CBinaryAddonManager::%s: Disable addon '%s' on binary addon manager", __FUNCTION__, base->ID().c_str());
   m_enabledAddons.erase(base->ID());
-
-  /**
-   * @todo add way to inform type addon manager (e.g. for PVR) and parts about changed addons
-   *
-   * Currently only Screensaver and Visualization use the new way and not need informed.
-   */
 }
 
 void CBinaryAddonManager::InstalledChangeEvent()
@@ -248,12 +237,6 @@ void CBinaryAddonManager::InstalledChangeEvent()
 
       if (!AddAddonBaseEntry(addon))
         continue;
-
-      /**
-       * @todo add way to inform type addon manager (e.g. for PVR) and parts about changed addons
-       *
-       * Currently only Screensaver and Visualization use the new way and not need informed.
-       */
     }
     else
     {
@@ -266,12 +249,6 @@ void CBinaryAddonManager::InstalledChangeEvent()
     CLog::Log(LOGDEBUG, "CBinaryAddonManager::%s: Removing binary addon '%s'", __FUNCTION__, addon.first.c_str());
 
     m_installedAddons.erase(addon.first);
-    m_enabledAddons.erase(addon.first); // Normally should the addon disabled by another event, but to make sure also erased here
-
-    /**
-     * @todo add way to inform type addon manager (e.g. for PVR) and parts about changed addons
-     *
-     * Currently only Screensaver and Visualization use the new way and not need informed.
-     */
+    m_enabledAddons.erase(addon.first);
   }
 }

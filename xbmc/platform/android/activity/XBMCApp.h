@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,8 +19,6 @@
  *
  */
 
-#include "system.h"
-
 #include <math.h>
 #include <pthread.h>
 #include <string>
@@ -33,18 +31,20 @@
 #include <androidjni/Activity.h>
 #include <androidjni/AudioManager.h>
 #include <androidjni/BroadcastReceiver.h>
+#include <androidjni/SurfaceHolder.h>
 #include <androidjni/View.h>
 
 #include "threads/Event.h"
 #include "interfaces/IAnnouncer.h"
 
-#include "guilib/Geometry.h"
 #include "IActivityHandler.h"
 #include "IInputHandler.h"
 #include "JNIMainActivity.h"
 #include "JNIXBMCAudioManagerOnAudioFocusChangeListener.h"
+#include "JNIXBMCMainView.h"
 #include "JNIXBMCMediaSession.h"
 #include "platform/xbmc.h"
+#include "utils/Geometry.h"
 
 // forward declares
 class CJNIWakeLock;
@@ -92,6 +92,7 @@ class CXBMCApp
     , public CJNIMainActivity
     , public CJNIBroadcastReceiver
     , public ANNOUNCEMENT::IAnnouncer
+    , public CJNISurfaceHolderCallback
 {
 public:
   explicit CXBMCApp(ANativeActivity *nativeActivity);
@@ -143,6 +144,7 @@ public:
   static bool EnableWakeLock(bool on);
   static bool HasFocus() { return m_hasFocus; }
   static bool IsHeadsetPlugged();
+  static bool IsHDMIPlugged();
 
   static bool StartActivity(const std::string &package, const std::string &intent = std::string(), const std::string &dataType = std::string(), const std::string &dataURI = std::string());
   static std::vector <androidPackage> GetApplications();
@@ -209,6 +211,7 @@ protected:
 private:
   static CXBMCApp* m_xbmcappinstance;
   CJNIXBMCAudioManagerOnAudioFocusChangeListener m_audioFocusListener;
+  static std::unique_ptr<CJNIXBMCMainView> m_mainView;
   std::unique_ptr<jni::CJNIXBMCMediaSession> m_mediaSession;
   static bool HasLaunchIntent(const std::string &package);
   std::string GetFilenameFromIntent(const CJNIIntent &intent);
@@ -222,6 +225,7 @@ private:
   static int m_batteryLevel;
   static bool m_hasFocus;
   static bool m_headsetPlugged;
+  static bool m_hdmiPlugged;
   static IInputDeviceCallbacks* m_inputDeviceCallbacks;
   static IInputDeviceEventHandler* m_inputDeviceEventHandler;
   static bool m_hasReqVisible;
@@ -234,7 +238,6 @@ private:
   static std::vector<CActivityResultEvent*> m_activityResultEvents;
 
   static ANativeWindow* m_window;
-  static CEvent m_windowCreated;
 
   static CVideoSyncAndroid* m_syncImpl;
   static CEvent m_vsyncEvent;
@@ -245,4 +248,10 @@ private:
   bool XBMC_SetupDisplay();
 
   static uint32_t m_playback_state;
+
+public:
+  // CJNISurfaceHolderCallback interface
+  void surfaceChanged(CJNISurfaceHolder holder, int format, int width, int height) override;
+  void surfaceCreated(CJNISurfaceHolder holder) override;
+  void surfaceDestroyed(CJNISurfaceHolder holder) override;
 };

@@ -22,12 +22,12 @@
 
 #include "addons/kodi-addon-dev-kit/include/kodi/Network.h"
 
-#include "Application.h"
 #include "PasswordManager.h"
 #include "URL.h"
 #include "addons/binary-addons/AddonDll.h"
 #include "network/DNSNameCache.h"
 #include "network/Network.h"
+#include "ServiceBroker.h"
 #include "utils/log.h"
 
 using namespace kodi; // addon-dev-kit namespace
@@ -60,11 +60,11 @@ bool Interface_Network::wake_on_lan(void* kodiBase, const char* mac)
   CAddonDll* addon = static_cast<CAddonDll*>(kodiBase);
   if (addon == nullptr || mac == nullptr)
   {
-    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p', mac='%p')", __FUNCTION__, addon, mac);
+    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p', mac='%p')", __FUNCTION__, kodiBase, mac);
     return false;
   }
 
-  return g_application.getNetwork().WakeOnLan(mac);
+  return CServiceBroker::GetNetwork().WakeOnLan(mac);
 }
 
 char* Interface_Network::get_ip_address(void* kodiBase)
@@ -72,12 +72,12 @@ char* Interface_Network::get_ip_address(void* kodiBase)
   CAddonDll* addon = static_cast<CAddonDll*>(kodiBase);
   if (addon == nullptr)
   {
-    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p')", __FUNCTION__, addon);
+    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p')", __FUNCTION__, kodiBase);
     return nullptr;
   }
 
   std::string titleIP;
-  CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+  CNetworkInterface* iface = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
   if (iface)
     titleIP = iface->GetCurrentIPAddress();
   else
@@ -94,7 +94,8 @@ char* Interface_Network::dns_lookup(void* kodiBase, const char* url, bool* ret)
   CAddonDll* addon = static_cast<CAddonDll*>(kodiBase);
   if (addon == nullptr || url == nullptr || ret == nullptr)
   {
-    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p', url='%p', ret='%p')", __FUNCTION__, addon, url, ret);
+    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p', url='%p', ret='%p')",
+              __FUNCTION__, kodiBase, url, static_cast<void*>(ret));
     return nullptr;
   }
 
@@ -111,7 +112,8 @@ char* Interface_Network::url_encode(void* kodiBase, const char* url)
   CAddonDll* addon = static_cast<CAddonDll*>(kodiBase);
   if (addon == nullptr || url == nullptr)
   {
-    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p', url='%p')", __FUNCTION__, addon, url);
+    CLog::Log(LOGERROR, "Interface_Network::%s - invalid data (addon='%p', url='%p')", __FUNCTION__,
+              kodiBase, url);
     return nullptr;
   }
 

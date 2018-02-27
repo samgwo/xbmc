@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,14 +23,14 @@
 
 #pragma once
 
-#include <vector>
-#include <wrl.h>
-#include <wrl/client.h>
-
 #include "DeviceResources.h"
 #include "threads/Condition.h"
 #include "threads/CriticalSection.h"
 #include "rendering/RenderSystem.h"
+
+#include <vector>
+#include <wrl.h>
+#include <wrl/client.h>
 
 enum PCI_Vendors
 {
@@ -57,7 +57,7 @@ public:
   bool EndRender() override;
   void PresentRender(bool rendered, bool videoLayer) override;
   bool ClearBuffers(color_t color) override;
-  void SetViewPort(CRect& viewPort) override;
+  void SetViewPort(const CRect& viewPort) override;
   void GetViewPort(CRect& viewPort) override;
   void RestoreViewPort() override;
   CRect ClipRectToScissorRect(const CRect &rect) override;
@@ -71,6 +71,7 @@ public:
   bool SupportsStereo(RENDER_STEREO_MODE mode) const override;
   bool TestRender() override;
   void Project(float &x, float &y, float &z) override;
+  bool SupportsNPOT(bool dxt) const override;
 
   // IDeviceNotify overrides
   void OnDXDeviceLost() override;
@@ -88,14 +89,8 @@ public:
   void ReleaseDecodingTime();
   void SetAlphaBlendEnable(bool enable);
 
-  // keeps this for backward compatibility
-  ID3D11Device* Get3D11Device() const { return m_deviceResources->GetD3DDevice(); }
-  ID3D11DeviceContext1* Get3D11Context() const { return m_deviceResources->GetD3DContext(); }
-  ID3D11DeviceContext1* GetImmediateContext() const { return m_deviceResources->GetImmediateContext(); }
-  unsigned GetFeatureLevel() const { return m_deviceResources->GetDeviceFeatureLevel(); }
-
   // empty overrides
-  bool IsExtSupported(const char* extension) override { return false; };
+  bool IsExtSupported(const char* extension) const override { return false; };
   void ApplyHardwareTransform(const TransformMatrix &matrix) override {};
   void RestoreHardwareTransform() override {};
   bool ResetRenderSystem(int width, int height) override { return true; };

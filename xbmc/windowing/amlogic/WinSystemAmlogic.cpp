@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,11 +24,17 @@
 #include <float.h>
 
 #include "ServiceBroker.h"
+#include "cores/RetroPlayer/process/amlogic/RPProcessInfoAmlogic.h"
+#include "cores/RetroPlayer/rendering/VideoRenderers/RPRendererOpenGLES.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.h"
 #include "cores/VideoPlayer/VideoRenderers/LinuxRendererGLES.h"
 #include "cores/VideoPlayer/VideoRenderers/HwDecRender/RendererAML.h"
+// AESink Factory
+#include "cores/AudioEngine/AESinkFactory.h"
+#include "cores/AudioEngine/Sinks/AESinkALSA.h"
 #include "guilib/GraphicContext.h"
 #include "guilib/Resolution.h"
+#include "powermanagement/linux/LinuxPowerSyscall.h"
 #include "settings/Settings.h"
 #include "settings/DisplaySettings.h"
 #include "guilib/DispResource.h"
@@ -36,15 +42,16 @@
 #include "utils/log.h"
 #include "utils/SysfsUtils.h"
 #include "threads/SingleLock.h"
+#include "../WinEventsLinux.h"
 
 #include <linux/fb.h>
 
 #include <EGL/egl.h>
 
+using namespace KODI;
+
 CWinSystemAmlogic::CWinSystemAmlogic()
 {
-  m_eWindowSystem = WINDOW_SYSTEM_AML;
-
   const char *env_framebuffer = getenv("FRAMEBUFFER");
 
   // default to framebuffer 0
@@ -57,7 +64,7 @@ CWinSystemAmlogic::CWinSystemAmlogic()
   }
 
   m_nativeDisplay = EGL_NO_DISPLAY;
-  m_nativeWindow = nullptr;
+  m_nativeWindow = static_cast<EGLNativeWindowType>(NULL);
 
   m_displayWidth = 0;
   m_displayHeight = 0;
@@ -67,13 +74,19 @@ CWinSystemAmlogic::CWinSystemAmlogic()
 
   aml_permissions();
   aml_disable_freeScale();
+
+  m_winEvents.reset(new CWinEventsLinux());
+  // Register sink
+  AE::CAESinkFactory::ClearSinks();
+  CAESinkALSA::Register();
+  CLinuxPowerSyscall::Register();
 }
 
 CWinSystemAmlogic::~CWinSystemAmlogic()
 {
   if(m_nativeWindow)
   {
-    m_nativeWindow = nullptr;
+    m_nativeWindow = static_cast<EGLNativeWindowType>(NULL);
   }
 }
 
@@ -83,7 +96,11 @@ bool CWinSystemAmlogic::InitWindowSystem()
 
   CDVDVideoCodecAmlogic::Register();
   CLinuxRendererGLES::Register();
+  RETRO::CRPProcessInfoAmlogic::Register();
+  RETRO::CRPProcessInfoAmlogic::RegisterRendererFactory(new RETRO::CRendererFactoryOpenGLES);
   CRendererAML::Register();
+
+  aml_set_framebuffer_resolution(1920, 1080, m_framebuffer_name);
 
   return CWinSystemBase::InitWindowSystem();
 }
@@ -136,10 +153,12 @@ bool CWinSystemAmlogic::CreateNewWindow(const std::string& name,
   m_stereo_mode = stereo_mode;
   m_bFullScreen = fullScreen;
 
+#ifdef _FBDEV_WINDOW_H_
   fbdev_window *nativeWindow = new fbdev_window;
   nativeWindow->width = res.iWidth;
   nativeWindow->height = res.iHeight;
   m_nativeWindow = static_cast<EGLNativeWindowType>(nativeWindow);
+#endif
 
   aml_set_native_resolution(res, m_framebuffer_name, stereo_mode);
 
@@ -158,7 +177,7 @@ bool CWinSystemAmlogic::CreateNewWindow(const std::string& name,
 
 bool CWinSystemAmlogic::DestroyWindow()
 {
-  m_nativeWindow = nullptr;
+  m_nativeWindow = static_cast<EGLNativeWindowType>(NULL);
 
   return true;
 }

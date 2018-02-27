@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -169,7 +169,9 @@ CVariant::CVariant(VariantType type)
       m_data.map = new VariantMap();
       break;
     default:
+#ifndef TARGET_WINDOWS_STORE // this corrupts the heap in Win10 UWP version
       memset(&m_data, 0, sizeof(m_data));
+#endif
       break;
   }
 }
@@ -412,6 +414,11 @@ int64_t CVariant::asInteger(int64_t fallback) const
   return fallback;
 }
 
+int32_t CVariant::asInteger32(int32_t fallback) const
+{
+  return static_cast<int32_t>(asInteger(fallback));
+}
+
 uint64_t CVariant::asUnsignedInteger(uint64_t fallback) const
 {
   switch (m_type)
@@ -431,6 +438,11 @@ uint64_t CVariant::asUnsignedInteger(uint64_t fallback) const
   }
   
   return fallback;
+}
+
+uint32_t CVariant::asUnsignedInteger32(uint32_t fallback) const
+{
+  return static_cast<uint32_t>(asUnsignedInteger(fallback));
 }
 
 double CVariant::asDouble(double fallback) const

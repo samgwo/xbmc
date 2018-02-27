@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -145,6 +145,7 @@ private:
   bool m_bSlideShow;
   bool m_bPause;
   bool m_bPlayingVideo;
+  int m_iVideoSlide = -1;
   bool m_bErrorMessage;
 
   std::vector<CFileItemPtr> m_slides;

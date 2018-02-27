@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -55,11 +55,7 @@ public:
 class CMatrixGLStack
 {
 public:
-  explicit CMatrixGLStack(GLenum type)
-#ifdef HAS_GL
-  : m_type(type)
-#endif
-  {}
+  explicit CMatrixGLStack() {}
 
   void Push()
   {
@@ -87,9 +83,6 @@ public:
   CMatrixGL* operator->() { return &m_current; }
 
 private:
-#ifdef HAS_GL
-  GLint                 m_type;
-#endif
   std::stack<CMatrixGL> m_stack;
   CMatrixGL             m_current;
 };

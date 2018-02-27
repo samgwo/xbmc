@@ -29,7 +29,6 @@ export PKG_CONFIG=@prefix@/@tool_dir@/bin/pkg-config
 export PKG_CONFIG_LIBDIR=@prefix@/@deps_dir@/lib/pkgconfig
 export YASM=@prefix@/@tool_dir@/bin/yasm
 export NASM=@prefix@/@tool_dir@/bin/yasm
-export MYSQL_CONFIG=@prefix@/@deps_dir@/bin/mysql_config
 LIBGCRYPT_CONFIG=@prefix@/@deps_dir@/bin/libgcrypt-config
 
 PATH=@prefix@/@tool_dir@/bin:@use_toolchain@/usr/bin:@use_toolchain@/bin:$PATH
@@ -159,7 +158,7 @@ if test "@platform_os@" = "ios"; then
   # tweaks for libffi (ios must use llvm-gcc-4.2)
   if test "${PACKAGE_NAME}" = "libffi" ; then
       case "@use_xcode@" in
-        3.*.* | 4.* | 4.*.*)
+        4.* | 4.*.*)
           export CC="@use_toolchain@/usr/bin/llvm-gcc-4.2"
           export CPP="@use_toolchain@/usr/bin/llvm-gcc-4.2 -E"
           ;;

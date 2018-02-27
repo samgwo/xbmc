@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,9 +21,10 @@
 #include "DVDVideoCodec.h"
 #include "ServiceBroker.h"
 #include "cores/VideoPlayer/DVDCodecs/DVDFactoryCodec.h"
+#include "rendering/RenderSystem.h"
 #include "settings/Settings.h"
 #include "settings/lib/Setting.h"
-#include "windowing/WindowingFactory.h"
+#include "windowing/WinSystem.h"
 #include <string>
 #include <vector>
 
@@ -39,6 +40,39 @@ VideoPicture::~VideoPicture()
   {
     videoBuffer->Release();
   }
+}
+
+void VideoPicture::Reset()
+{
+  if (videoBuffer)
+    videoBuffer->Release();
+  videoBuffer = nullptr;
+  pts = DVD_NOPTS_VALUE;
+  dts = DVD_NOPTS_VALUE;
+  iFlags = 0;
+  iRepeatPicture = 0;
+  iDuration = 0;
+  iFrameType = 0;
+  color_space = AVCOL_SPC_UNSPECIFIED;
+  color_range = 0;
+  chroma_position = 0;
+  color_primaries = 0;
+  color_transfer = 0;
+  colorBits = 8;
+  stereoMode.clear();
+
+  qp_table = nullptr;
+  qstride = 0;
+  qscale_type = 0;
+  pict_type = 0;
+
+  hasDisplayMetadata = false;
+  hasLightMetadata = false;
+
+  iWidth = 0;
+  iHeight = 0;
+  iDisplayWidth = 0;
+  iDisplayHeight = 0;
 }
 
 VideoPicture& VideoPicture::CopyRef(const VideoPicture &pic)
@@ -95,7 +129,7 @@ bool CDVDVideoCodec::IsSettingVisible(const std::string &condition, const std::s
   }
 
   // check if we are running on nvidia hardware
-  std::string gpuvendor = g_Windowing.GetRenderVendor();
+  std::string gpuvendor = CServiceBroker::GetRenderSystem().GetRenderVendor();
   std::transform(gpuvendor.begin(), gpuvendor.end(), gpuvendor.begin(), ::tolower);
   bool isNvidia = (gpuvendor.compare(0, 6, "nvidia") == 0);
   bool isIntel = (gpuvendor.compare(0, 5, "intel") == 0);

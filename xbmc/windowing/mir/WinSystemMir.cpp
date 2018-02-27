@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "guilib/GraphicContext.h"
+#include "powermanagement/linux/LinuxPowerSyscall.h"
 #include "settings/DisplaySettings.h"
 #include "utils/log.h"
 #include "WinEventsMir.h"
@@ -34,6 +35,8 @@ CWinSystemMir::CWinSystemMir() :
   m_pixel_format(mir_pixel_format_invalid)
 {
   m_eWindowSystem = WINDOW_SYSTEM_MIR;
+  m_winEvents.reset(new CWinEventsMir());
+  CLinuxPowerSyscall::Register();
 }
 
 bool CWinSystemMir::InitWindowSystem()

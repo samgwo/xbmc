@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #include <iterator>
 #include <osdefs.h>
 
-#include "system.h"
 #include "PythonInvoker.h"
 #include "Application.h"
 #include "messaging/ApplicationMessenger.h"
@@ -48,7 +47,7 @@
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 #ifdef TARGET_WINDOWS
@@ -230,6 +229,15 @@ bool CPythonInvoker::execute(const std::string &script, const std::vector<std::s
       PyObject *e = PyList_GetItem(pathObj, i); // borrowed ref, no need to delete
       if (e != NULL && PyString_Check(e))
         addNativePath(PyString_AsString(e)); // returns internal data, don't delete or modify
+#ifdef TARGET_WINDOWS_STORE
+      // uwp python operates unicodes
+      else if (e != NULL && PyUnicode_Check(e))
+      {
+        PyObject *utf8 = PyUnicode_AsUTF8String(e);
+        addNativePath(PyString_AsString(utf8));
+        Py_DECREF(utf8);
+      }
+#endif
     }
   }
   else
@@ -635,12 +643,11 @@ bool CPythonInvoker::initializeModule(PythonModuleInitialization module)
 
 void CPythonInvoker::getAddonModuleDeps(const ADDON::AddonPtr& addon, std::set<std::string>& paths)
 {
-  ADDON::ADDONDEPS deps = addon->GetDeps();
-  for (ADDON::ADDONDEPS::const_iterator it = deps.begin(); it != deps.end(); ++it)
+  for (const auto& it : addon->GetDependencies())
   {
     //Check if dependency is a module addon
     ADDON::AddonPtr dependency;
-    if (CServiceBroker::GetAddonMgr().GetAddon(it->first, dependency, ADDON::ADDON_SCRIPT_MODULE))
+    if (CServiceBroker::GetAddonMgr().GetAddon(it.id, dependency, ADDON::ADDON_SCRIPT_MODULE))
     {
       std::string path = CSpecialProtocol::TranslatePath(dependency->LibPath());
       if (paths.find(path) == paths.end())

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,9 +28,9 @@
 #include "platform/win32/CharsetConverter.h"
 
 typedef BOOL (WINAPI *MINIDUMPWRITEDUMP)(HANDLE hProcess, DWORD dwPid, HANDLE hFile, MINIDUMP_TYPE DumpType,
-                                        CONST PMINIDUMP_EXCEPTION_INFORMATION ExceptionParam,
-                                        CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
-                                        CONST PMINIDUMP_CALLBACK_INFORMATION CallbackParam);
+                                        const PMINIDUMP_EXCEPTION_INFORMATION ExceptionParam,
+                                        const PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+                                        const PMINIDUMP_CALLBACK_INFORMATION CallbackParam);
 
 // StackWalk64()
 typedef BOOL (__stdcall *tSW)(

@@ -19,6 +19,7 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,18 +31,20 @@ namespace GAME
 {
 class CController;
 class CControllerFeature;
+class CControllerTopology;
 
 class CControllerLayout
 {
 public:
-  CControllerLayout() = default;
+  CControllerLayout();
+  CControllerLayout(const CControllerLayout &other);
+  ~CControllerLayout();
 
   void Reset(void);
 
   int LabelID(void) const { return m_labelId; }
   const std::string& Icon(void) const { return m_icon; }
   const std::string& Image(void) const   { return m_strImage; }
-  const std::string Models() const { return m_models; }
 
   /*!
    * \brief Ensures the layout was deserialized correctly, and optionally logs if not
@@ -67,6 +70,17 @@ public:
   std::string ImagePath(void) const;
 
   /*!
+   * \brief Get the physical topology of this controller
+   *
+   * The topology of a controller defines its ports and which controllers can
+   * physically be connected to them. Also, the topology defines if the
+   * controller can provide player input, which is false in the case of hubs.
+   *
+   * \return The physical topology of the controller
+   */
+  const CControllerTopology &Topology(void) const { return *m_topology; }
+
+  /*!
    * \brief Deserialize the specified XML element
    *
    * \param pLayoutElement The XML element
@@ -79,8 +93,8 @@ private:
   const CController *m_controller = nullptr;
   int m_labelId = -1;
   std::string m_icon;
-  std::string  m_strImage;
-  std::string m_models;
+  std::string m_strImage;
+  std::unique_ptr<CControllerTopology> m_topology;
 };
 
 }

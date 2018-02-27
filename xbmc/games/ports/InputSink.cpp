@@ -19,14 +19,13 @@
  */
 
 #include "InputSink.h"
-#include "games/addons/GameClient.h"
-#include "input/joysticks/JoystickIDs.h"
+#include "games/controllers/ControllerIDs.h"
 
 using namespace KODI;
 using namespace GAME;
 
-CInputSink::CInputSink(CGameClient &gameClient) :
-  m_gameClient(gameClient)
+CInputSink::CInputSink(JOYSTICK::IInputHandler* gameInput) :
+  m_gameInput(gameInput)
 {
 }
 
@@ -37,7 +36,7 @@ std::string CInputSink::ControllerID(void) const
 
 bool CInputSink::AcceptsInput(const std::string& feature) const
 {
-  return m_gameClient.AcceptsInput();
+  return m_gameInput->AcceptsInput(feature);
 }
 
 bool CInputSink::OnButtonPress(const std::string& feature, bool bPressed)
@@ -56,6 +55,16 @@ bool CInputSink::OnAnalogStickMotion(const std::string& feature, float x, float 
 }
 
 bool CInputSink::OnAccelerometerMotion(const std::string& feature, float x, float y, float z)
+{
+  return true;
+}
+
+bool CInputSink::OnWheelMotion(const std::string& feature, float position, unsigned int motionTimeMs)
+{
+  return true;
+}
+
+bool CInputSink::OnThrottleMotion(const std::string& feature, float position, unsigned int motionTimeMs)
 {
   return true;
 }

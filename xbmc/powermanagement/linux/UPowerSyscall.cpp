@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,11 +18,8 @@
  *
  */
 
-#include "system.h"
 #include "UPowerSyscall.h"
 #include "utils/log.h"
-
-#ifdef HAS_DBUS
 
 CUPowerSource::CUPowerSource(const char *powerSource)
 {
@@ -219,5 +216,3 @@ void CUPowerSyscall::UpdateCapabilities()
   m_CanSuspend   = CDBusUtil::GetVariant("org.freedesktop.UPower", "/org/freedesktop/UPower", "org.freedesktop.UPower", "CanSuspend").asBoolean(false);
   m_CanHibernate = CDBusUtil::GetVariant("org.freedesktop.UPower", "/org/freedesktop/UPower", "org.freedesktop.UPower", "CanHibernate").asBoolean(false);
 }
-
-#endif

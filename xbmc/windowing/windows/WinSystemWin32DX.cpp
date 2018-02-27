@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,10 +20,12 @@
 
 #include "commons/ilog.h"
 #include "guilib/GraphicContext.h"
-#include "rendering/dx/DirectXHelper.h"
+#include "rendering/dx/RenderContext.h"
 #include "utils/SystemInfo.h"
-#include "utils/win32/Win32Log.h"
+#include "utils/log.h"
 #include "WinSystemWin32DX.h"
+#include "platform/win32/CharsetConverter.h"
+#include "system.h"
 
 #ifndef _M_X64
 #pragma comment(lib, "EasyHook32.lib")
@@ -35,6 +37,8 @@
 #include <d3d10umddi.h>
 #pragma warning(default: 4091)
 
+using KODI::PLATFORM::WINDOWS::FromW;
+
 // User Mode Driver hooks definitions
 void APIENTRY HookCreateResource(D3D10DDI_HDEVICE hDevice, const D3D10DDIARG_CREATERESOURCE* pResource, D3D10DDI_HRESOURCE hResource, D3D10DDI_HRTRESOURCE hRtResource);
 HRESULT APIENTRY HookCreateDevice(D3D10DDI_HADAPTER hAdapter, D3D10DDIARG_CREATEDEVICE* pCreateData);
@@ -43,6 +47,12 @@ static PFND3D10DDI_OPENADAPTER s_fnOpenAdapter10_2{ nullptr };
 static PFND3D10DDI_CREATEDEVICE s_fnCreateDeviceOrig{ nullptr };
 static PFND3D10DDI_CREATERESOURCE s_fnCreateResourceOrig{ nullptr };
 
+std::unique_ptr<CWinSystemBase> CWinSystemBase::CreateWinSystem()
+{
+  std::unique_ptr<CWinSystemBase> winSystem(new CWinSystemWin32DX());
+  return winSystem;
+}
+ 
 CWinSystemWin32DX::CWinSystemWin32DX() : CRenderSystemDX()
   , m_hDriverModule(nullptr)
   , m_hHook(nullptr)
@@ -117,6 +127,11 @@ bool CWinSystemWin32DX::ResizeWindow(int newWidth, int newHeight, int newLeft, i
 
 void CWinSystemWin32DX::OnMove(int x, int y)
 {
+  // do not handle moving at window creation because MonitorFromWindow 
+  // returns default system monitor in case of m_hWnd is null
+  if (!m_hWnd) 
+    return;
+
   HMONITOR newMonitor = MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST);
   const MONITOR_DETAILS* monitor = GetMonitor(m_nScreen);
   if (newMonitor != monitor->hMonitor)
@@ -153,6 +168,16 @@ void CWinSystemWin32DX::ResizeDeviceBuffers()
 bool CWinSystemWin32DX::IsStereoEnabled()
 {
   return m_deviceResources->IsStereoEnabled();
+}
+
+void CWinSystemWin32DX::OnScreenChange(int screen)
+{
+  const MONITOR_DETAILS* new_monitor = GetMonitor(screen);
+  const MONITOR_DETAILS* old_monitor = GetMonitor(m_nScreen);
+  if (old_monitor->hMonitor != new_monitor->hMonitor)
+  {
+    m_deviceResources->SetMonitor(new_monitor->hMonitor);
+  }
 }
 
 void CWinSystemWin32DX::OnResize(int width, int height)
@@ -214,7 +239,7 @@ void CWinSystemWin32DX::InitHooks(IDXGIOutput* pOutput)
   if (!deviceFound)
     return;
 
-  CLog::Log(LOGDEBUG, __FUNCTION__": Hooking into UserModeDriver on device %S. ", displayDevice.DeviceKey);
+  CLog::LogF(LOGDEBUG, "Hooking into UserModeDriver on device %s. ", FromW(displayDevice.DeviceKey));
   wchar_t* keyName =
 #ifndef _M_X64
   // on x64 system and x32 build use UserModeDriverNameWow key
@@ -262,7 +287,7 @@ void CWinSystemWin32DX::InitHooks(IDXGIOutput* pOutput)
           if (SUCCEEDED(LhInstallHook(s_fnOpenAdapter10_2, HookOpenAdapter10_2, nullptr, m_hHook))
             && SUCCEEDED(LhSetInclusiveACL(ACLEntries, 1, m_hHook)))
           {
-            CLog::Log(LOGDEBUG, __FUNCTION__": D3D11 hook installed and activated.");
+            CLog::LogF(LOGDEBUG, "D3D11 hook installed and activated.");
             break;
           }
           else
@@ -278,7 +303,7 @@ void CWinSystemWin32DX::InitHooks(IDXGIOutput* pOutput)
   }
 
   if (lstat != ERROR_SUCCESS)
-    CLog::Log(LOGDEBUG, __FUNCTION__": error open registry key with error %ld.", lstat);
+    CLog::LogF(LOGDEBUG, "error open registry key with error %ld.", lstat);
 
   if (hKey != nullptr)
     RegCloseKey(hKey);
@@ -291,16 +316,22 @@ void CWinSystemWin32DX::FixRefreshRateIfNecessary(const D3D10DDIARG_CREATERESOUR
     float refreshRate = RATIONAL_TO_FLOAT(pResource->pPrimaryDesc->ModeDesc.RefreshRate);
     if (refreshRate > 10.0f && refreshRate < 300.0f)
     {
+      // interlaced
+      if (pResource->pPrimaryDesc->ModeDesc.ScanlineOrdering > DXGI_DDI_MODE_SCANLINE_ORDER_PROGRESSIVE)
+        refreshRate /= 2;
+
       uint32_t refreshNum, refreshDen;
       DX::GetRefreshRatio(floor(m_fRefreshRate), &refreshNum, &refreshDen);
       float diff = fabs(refreshRate - static_cast<float>(refreshNum) / static_cast<float>(refreshDen)) / refreshRate;
-      CLog::Log(LOGDEBUG, __FUNCTION__": refreshRate: %0.4f, desired: %0.4f, deviation: %.5f, fixRequired: %s",
-        refreshRate, m_fRefreshRate, diff, (diff > 0.0005) ? "true" : "false");
-      if (diff > 0.0005)
+      CLog::LogF(LOGDEBUG, "refreshRate: %0.4f, desired: %0.4f, deviation: %.5f, fixRequired: %s, %d",
+        refreshRate, m_fRefreshRate, diff, (diff > 0.0005 && diff < 0.1) ? "yes" : "no", pResource->pPrimaryDesc->Flags);
+      if (diff > 0.0005 && diff < 0.1)
       {
         pResource->pPrimaryDesc->ModeDesc.RefreshRate.Numerator = refreshNum;
         pResource->pPrimaryDesc->ModeDesc.RefreshRate.Denominator = refreshDen;
-        CLog::Log(LOGDEBUG, __FUNCTION__": refreshRate fix applied -> %0.3f", RATIONAL_TO_FLOAT(pResource->pPrimaryDesc->ModeDesc.RefreshRate));
+        if (pResource->pPrimaryDesc->ModeDesc.ScanlineOrdering > DXGI_DDI_MODE_SCANLINE_ORDER_PROGRESSIVE)
+          pResource->pPrimaryDesc->ModeDesc.RefreshRate.Numerator *= 2;
+        CLog::LogF(LOGDEBUG, "refreshRate fix applied -> %0.3f", RATIONAL_TO_FLOAT(pResource->pPrimaryDesc->ModeDesc.RefreshRate));
       }
     }
   }
@@ -310,7 +341,7 @@ void APIENTRY HookCreateResource(D3D10DDI_HDEVICE hDevice, const D3D10DDIARG_CRE
 {
   if (pResource && pResource->pPrimaryDesc)
   {
-    g_Windowing.FixRefreshRateIfNecessary(pResource);
+    DX::Windowing().FixRefreshRateIfNecessary(pResource);
   }
   s_fnCreateResourceOrig(hDevice, pResource, hResource, hRtResource);
 }
@@ -320,7 +351,7 @@ HRESULT APIENTRY HookCreateDevice(D3D10DDI_HADAPTER hAdapter, D3D10DDIARG_CREATE
   HRESULT hr = s_fnCreateDeviceOrig(hAdapter, pCreateData);
   if (pCreateData->pDeviceFuncs->pfnCreateResource)
   {
-    CLog::Log(LOGDEBUG, __FUNCTION__": hook into pCreateData->pDeviceFuncs->pfnCreateResource");
+    CLog::LogF(LOGDEBUG, "hook into pCreateData->pDeviceFuncs->pfnCreateResource");
     s_fnCreateResourceOrig = pCreateData->pDeviceFuncs->pfnCreateResource;
     pCreateData->pDeviceFuncs->pfnCreateResource = HookCreateResource;
   }
@@ -332,7 +363,7 @@ HRESULT APIENTRY HookOpenAdapter10_2(D3D10DDIARG_OPENADAPTER *pOpenData)
   HRESULT hr = s_fnOpenAdapter10_2(pOpenData);
   if (pOpenData->pAdapterFuncs->pfnCreateDevice)
   {
-    CLog::Log(LOGDEBUG, __FUNCTION__": hook into pOpenData->pAdapterFuncs->pfnCreateDevice");
+    CLog::LogF(LOGDEBUG, "hook into pOpenData->pAdapterFuncs->pfnCreateDevice");
     s_fnCreateDeviceOrig = pOpenData->pAdapterFuncs->pfnCreateDevice;
     pOpenData->pAdapterFuncs->pfnCreateDevice = HookCreateDevice;
   }

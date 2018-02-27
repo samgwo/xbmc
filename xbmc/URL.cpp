@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
  */
 
 #include "URL.h"
-#include "Application.h"
 #include "utils/log.h"
 #include "utils/URIUtils.h"
 #include "utils/StringUtils.h"
@@ -28,6 +27,7 @@
 #include "FileItem.h"
 #include "filesystem/StackDirectory.h"
 #include "network/Network.h"
+#include "ServiceBroker.h"
 #ifndef TARGET_POSIX
 #include <sys\stat.h>
 #endif
@@ -172,6 +172,7 @@ void CURL::Parse(const std::string& strURL1)
   //! @todo fix all Addon paths
   std::string strProtocol2 = GetTranslatedProtocol();
   if(IsProtocol("rss") ||
+     IsProtocol("rsss") ||
      IsProtocol("rar") ||
      IsProtocol("apk") ||
      IsProtocol("xbt") ||
@@ -394,7 +395,8 @@ const std::string CURL::GetTranslatedProtocol() const
    || IsProtocol("rss"))
     return "http";
 
-  if (IsProtocol("davs"))
+  if (IsProtocol("davs")
+   || IsProtocol("rsss"))
     return "https";
 
   return GetProtocol();
@@ -634,7 +636,7 @@ bool CURL::IsLocal() const
 
 bool CURL::IsLocalHost() const
 {
-  return g_application.getNetwork().IsLocalHost(m_strHostName);
+  return CServiceBroker::GetNetwork().IsLocalHost(m_strHostName);
 }
 
 bool CURL::IsFileOnly(const std::string &url)

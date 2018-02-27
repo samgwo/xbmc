@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,21 +18,20 @@
  *
  */
 
-#include "system.h"
-
 #include "VideoSyncPi.h"
+#include "ServiceBroker.h"
 #include "guilib/GraphicContext.h"
-#include "windowing/WindowingFactory.h"
+#include "windowing/WinSystem.h"
 #include "utils/TimeUtils.h"
 #include "utils/log.h"
-#include "linux/RBP.h"
+#include "platform/linux/RBP.h"
 #include "threads/Thread.h"
 
 bool CVideoSyncPi::Setup(PUPDATECLOCK func)
 {
   UpdateClock = func;
   m_abort = false;
-  g_Windowing.Register(this);
+  CServiceBroker::GetWinSystem().Register(this);
   CLog::Log(LOGDEBUG, "CVideoReferenceClock: setting up RPi");
   return true;
 }
@@ -53,7 +52,7 @@ void CVideoSyncPi::Run(CEvent& stopEvent)
 void CVideoSyncPi::Cleanup()
 {
   CLog::Log(LOGDEBUG, "CVideoReferenceClock: cleaning up RPi");
-  g_Windowing.Unregister(this);
+  CServiceBroker::GetWinSystem().Unregister(this);
 }
 
 float CVideoSyncPi::GetFps()

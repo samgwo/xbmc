@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,5 +41,5 @@ public:
   EGLConfig m_eglConfig;
 protected:
   bool IsSuitableVisual(XVisualInfo *vInfo);
-  EGLConfig getEGLConfig(EGLDisplay eglDisplay, XVisualInfo *vInfo);
+  EGLConfig GetEGLConfig(EGLDisplay eglDisplay, XVisualInfo *vInfo);
 };

@@ -1,7 +1,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,6 +45,10 @@
 #if defined(TARGET_ANDROID)
 #include "platform/android/activity/XBMCApp.h"
 #include "filesystem/File.h"
+#endif
+
+#ifdef TARGET_WINDOWS_STORE
+#include "filesystem/win10/WinLibraryDirectory.h"
 #endif
 
 using namespace XFILE;
@@ -248,6 +252,18 @@ void CGUIDialogMediaSource::OnPathBrowse(int item)
     }
 #endif
 
+#if defined(TARGET_WINDOWS_STORE)
+    // add the default UWP music directory
+    std::string path;
+    if (XFILE::CWinLibraryDirectory::GetStoragePath(m_type, path) && !path.empty() && CDirectory::Exists(path))
+    {
+      share1.strPath = path;
+      share1.strName = g_localizeStrings.Get(20245);
+      share1.m_ignore = true;
+      extraShares.push_back(share1);
+    }
+#endif
+
     // add the music playlist location
     share1.strPath = "special://musicplaylists/";
     share1.strName = g_localizeStrings.Get(20011);
@@ -285,6 +301,17 @@ void CGUIDialogMediaSource::OnPathBrowse(int item)
     {
       share1.strPath = path;
       share1.strName = g_localizeStrings.Get(20241);
+      share1.m_ignore = true;
+      extraShares.push_back(share1);
+    }
+#endif
+#if defined(TARGET_WINDOWS_STORE)
+    // add the default UWP music directory
+    std::string path;
+    if (XFILE::CWinLibraryDirectory::GetStoragePath(m_type, path) && !path.empty() && CDirectory::Exists(path))
+    {
+      share1.strPath = path;
+      share1.strName = g_localizeStrings.Get(20246);
       share1.m_ignore = true;
       extraShares.push_back(share1);
     }
@@ -329,6 +356,25 @@ void CGUIDialogMediaSource::OnPathBrowse(int item)
     {
       share1.strPath = path;
       share1.strName = g_localizeStrings.Get(20243);
+      share1.m_ignore = true;
+      extraShares.push_back(share1);
+    }
+#endif
+#if defined(TARGET_WINDOWS_STORE)
+    // add the default UWP music directory
+    std::string path;
+    if (XFILE::CWinLibraryDirectory::GetStoragePath(m_type, path) && !path.empty() && CDirectory::Exists(path))
+    {
+      share1.strPath = path;
+      share1.strName = g_localizeStrings.Get(20247);
+      share1.m_ignore = true;
+      extraShares.push_back(share1);
+    }
+    path.clear();
+    if (XFILE::CWinLibraryDirectory::GetStoragePath("photos", path) && !path.empty() && CDirectory::Exists(path))
+    {
+      share1.strPath = path;
+      share1.strName = g_localizeStrings.Get(20248);
       share1.m_ignore = true;
       extraShares.push_back(share1);
     }
@@ -402,6 +448,7 @@ void CGUIDialogMediaSource::OnOK()
     m_confirmed = true;
     Close();
     if (!StringUtils::StartsWithNoCase(share.strPath, "rss://") &&
+      !StringUtils::StartsWithNoCase(share.strPath, "rsss://") &&
       !StringUtils::StartsWithNoCase(share.strPath, "upnp://"))
     {
       if (m_type == "video" && !URIUtils::IsLiveTV(share.strPath))
@@ -495,7 +542,7 @@ void CGUIDialogMediaSource::SetTypeOfMedia(const std::string &type, bool editNot
     else if (type == "music")
       heading = g_localizeStrings.Get(10049);
     else if (type == "pictures")
-      heading = g_localizeStrings.Get(10050);
+      heading = g_localizeStrings.Get(13006);
     else if (type == "games")
       heading = g_localizeStrings.Get(35251); // "Add game source"
     else if (type == "programs")

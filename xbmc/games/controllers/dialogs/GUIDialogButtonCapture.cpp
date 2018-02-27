@@ -19,11 +19,11 @@
  */
 
 #include "GUIDialogButtonCapture.h"
+#include "games/controllers/ControllerIDs.h"
 #include "guilib/GUIWindowManager.h"
 #include "guilib/WindowIDs.h"
-#include "input/joysticks/JoystickIDs.h"
-#include "input/joysticks/IButtonMap.h"
-#include "input/joysticks/IButtonMapCallback.h"
+#include "input/joysticks/interfaces/IButtonMap.h"
+#include "input/joysticks/interfaces/IButtonMapCallback.h"
 #include "input/joysticks/JoystickUtils.h"
 #include "input/IKeymap.h"
 #include "input/ActionIDs.h"
@@ -96,7 +96,7 @@ bool CGUIDialogButtonCapture::MapPrimitive(JOYSTICK::IButtonMap* buttonMap,
     std::string feature;
     if (buttonMap->GetFeature(primitive, feature))
     {
-      const auto &actions = keymap->GetActions(JOYSTICK::CJoystickUtils::MakeKeyName(feature));
+      const auto &actions = keymap->GetActions(JOYSTICK::CJoystickUtils::MakeKeyName(feature)).actions;
       if (!actions.empty())
       {
         switch (actions.begin()->actionId)

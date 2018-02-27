@@ -1,5 +1,5 @@
 include ../../Makefile.include
-DEPS= ../../Makefile.include Makefile
+DEPS= ../../Makefile.include Makefile vfstat_redefine.patch
 
 # lib name, version
 LIBNAME=libnfs
@@ -11,8 +11,6 @@ ARCHIVE=$(SOURCE).tar.gz
 CONFIGURE=CFLAGS="-DHAVE_NET_IF_H" ./configure --prefix=$(PREFIX)
 
 LIBDYLIB=$(PLATFORM)/lib/.libs/$(LIBNAME).a
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: .installed-$(PLATFORM)
 

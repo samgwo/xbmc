@@ -22,6 +22,8 @@
  *
  */
 
+#include "PlatformDefs.h"
+
 #include <string.h>
 #include <map>
 #include <vector>

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 
 #include "WinSystem.h"
 #include "ServiceBroker.h"
+#include "guilib/DispResource.h"
 #include "guilib/GraphicContext.h"
 #include "settings/DisplaySettings.h"
 #include "settings/lib/Setting.h"
@@ -28,10 +29,12 @@
 #if HAS_GLES
 #include "guilib/GUIFontTTFGL.h"
 #endif
+#if HAS_LIRC
+#include "platform/linux/input/LIRC.h"
+#endif
 
 CWinSystemBase::CWinSystemBase()
 {
-  m_eWindowSystem = WINDOW_SYSTEM_WIN32; // this is the 0 value enum
   m_nWidth = 0;
   m_nHeight = 0;
   m_nTop = 0;
@@ -41,6 +44,9 @@ CWinSystemBase::CWinSystemBase()
   m_nScreen = 0;
   m_bBlankOtherDisplay = false;
   m_fRefreshRate = 0.0f;
+#if HAS_LIRC
+  CRemoteControl::Register();
+#endif
 }
 
 CWinSystemBase::~CWinSystemBase() = default;
@@ -272,4 +278,28 @@ KODI::WINDOWING::COSScreenSaverManager* CWinSystemBase::GetOSScreenSaver()
   }
 
   return m_screenSaverManager.get();
+}
+
+void CWinSystemBase::RegisterRenderLoop(IRenderLoop *client)
+{
+  CSingleLock lock(m_renderLoopSection);
+  m_renderLoopClients.push_back(client);
+}
+
+void CWinSystemBase::UnregisterRenderLoop(IRenderLoop *client)
+{
+  CSingleLock lock(m_renderLoopSection);
+  auto i = find(m_renderLoopClients.begin(), m_renderLoopClients.end(), client);
+  if (i != m_renderLoopClients.end())
+    m_renderLoopClients.erase(i);
+}
+
+void CWinSystemBase::DriveRenderLoop()
+{
+  m_winEvents->MessagePump();
+
+  { CSingleLock lock(m_renderLoopSection);
+    for (auto i = m_renderLoopClients.begin(); i != m_renderLoopClients.end(); ++i)
+      (*i)->FrameMove();
+  }
 }

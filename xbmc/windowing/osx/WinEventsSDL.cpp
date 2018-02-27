@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,18 +18,17 @@
  *
  */
 
-#include "system.h"
-
 #include "WinEventsSDL.h"
 #include "Application.h"
+#include "ServiceBroker.h"
 #include "messaging/ApplicationMessenger.h"
 #include "GUIUserMessages.h"
 #include "settings/DisplaySettings.h"
 #include "guilib/GUIWindowManager.h"
+#include "input/mouse/MouseStat.h"
 #include "input/Key.h"
 #include "input/InputManager.h"
-#include "input/MouseStat.h"
-#include "windowing/WindowingFactory.h"
+#include "windowing/WinSystem.h"
 #include "platform/darwin/osx/CocoaInterface.h"
 #include "ServiceBroker.h"
 
@@ -54,12 +53,12 @@ bool CWinEventsSDL::MessagePump()
         if( event.active.state & SDL_APPACTIVE )
         {
           g_application.SetRenderGUI(event.active.gain != 0);
-          g_Windowing.NotifyAppActiveChange(g_application.GetRenderGUI());
+          CServiceBroker::GetWinSystem().NotifyAppActiveChange(g_application.GetRenderGUI());
         }
         else if (event.active.state & SDL_APPINPUTFOCUS)
         {
           g_application.m_AppFocused = event.active.gain != 0;
-          g_Windowing.NotifyAppFocusChange(g_application.m_AppFocused);
+          CServiceBroker::GetWinSystem().NotifyAppFocusChange(g_application.m_AppFocused);
         }
         break;
 
@@ -151,7 +150,7 @@ bool CWinEventsSDL::MessagePump()
         // Under newer osx versions sdl is so fucked up that it even fires resize events
         // that exceed the screen size (maybe some HiDP incompatibility in old SDL?)
         // ensure to ignore those events because it will mess with windowed size
-        int RES_SCREEN = g_Windowing.DesktopResolution(g_Windowing.GetCurrentScreen());
+        int RES_SCREEN = CServiceBroker::GetWinSystem().DesktopResolution(CServiceBroker::GetWinSystem().GetCurrentScreen());
         if((event.resize.w > CDisplaySettings::GetInstance().GetResolutionInfo(RES_SCREEN).iWidth) ||
            (event.resize.h > CDisplaySettings::GetInstance().GetResolutionInfo(RES_SCREEN).iHeight))
         {
@@ -217,7 +216,7 @@ bool CWinEventsSDL::ProcessOSXShortcuts(SDL_Event& event)
       return true;
 
     case SDLK_h: // CMD-h to hide
-      g_Windowing.Hide();
+      CServiceBroker::GetWinSystem().Hide();
       return true;
 
     case SDLK_m: // CMD-m to minimize

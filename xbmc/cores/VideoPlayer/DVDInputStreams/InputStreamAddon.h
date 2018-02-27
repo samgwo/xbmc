@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ class CInputStreamAddon
   : public ADDON::IAddonInstanceHandler,
     public CDVDInputStream,
     public CDVDInputStream::IDisplayTime,
+    public CDVDInputStream::ITimes,
     public CDVDInputStream::IPosTime,
     public CDVDInputStream::IDemux
 {
@@ -71,6 +72,10 @@ public:
   CDVDInputStream::IDisplayTime* GetIDisplayTime() override;
   int GetTotalTime() override;
   int GetTime() override;
+
+  // ITime
+  CDVDInputStream::ITimes* GetITimes() override;
+  bool GetTimes(Times &times) override;
 
   // IPosTime
   CDVDInputStream::IPosTime* GetIPosTime() override;

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,8 +22,7 @@
 
 #include <string.h>
 #include <sys/wait.h>
-#include "system.h"
-#include "PlatformInclude.h"
+#include "PlatformDefs.h"
 #include "utils/XBMCTinyXML.h"
 #include "utils/StringUtils.h"
 #include "../xbmc/utils/log.h"
@@ -36,7 +35,7 @@
 #endif
 
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 CXRandR::CXRandR(bool query)

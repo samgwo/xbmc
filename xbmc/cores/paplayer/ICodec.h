@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ public:
   // Decodes audio into pBuffer up to size bytes.  The actual amount of returned data
   // is given in actualsize.  Returns READ_SUCCESS on success.  Returns READ_EOF when
   // the data has been exhausted, and READ_ERROR on error.
-  virtual int ReadPCM(BYTE *pBuffer, int size, int *actualsize)=0;
+  virtual int ReadPCM(unsigned char *pBuffer, int size, int *actualsize)=0;
 
   virtual int ReadRaw(uint8_t **pBuffer, int *bufferSize) { return READ_ERROR; }
 

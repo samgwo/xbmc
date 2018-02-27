@@ -20,7 +20,7 @@
 
 #include "AddonButtonMapping.h"
 #include "input/joysticks/generic/ButtonMapping.h"
-#include "input/joysticks/IButtonMapper.h"
+#include "input/joysticks/interfaces/IButtonMapper.h"
 #include "peripherals/addons/AddonButtonMap.h"
 #include "peripherals/Peripherals.h"
 #include "utils/log.h"
@@ -88,6 +88,42 @@ void CAddonButtonMapping::ProcessAxisMotions(void)
 {
   if (m_buttonMapping)
     m_buttonMapping->ProcessAxisMotions();
+}
+
+bool CAddonButtonMapping::OnKeyPress(const CKey& key)
+{
+  if (m_buttonMapping)
+    return m_buttonMapping->OnKeyPress(key);
+
+  return false;
+}
+
+void CAddonButtonMapping::OnKeyRelease(const CKey& key)
+{
+  if (m_buttonMapping)
+    m_buttonMapping->OnKeyRelease(key);
+}
+
+bool CAddonButtonMapping::OnPosition(int x, int y)
+{
+  if (m_buttonMapping)
+    return m_buttonMapping->OnPosition(x, y);
+
+  return false;
+}
+
+bool CAddonButtonMapping::OnButtonPress(MOUSE::BUTTON_ID button)
+{
+  if (m_buttonMapping)
+    return m_buttonMapping->OnButtonPress(button);
+
+  return false;
+}
+
+void CAddonButtonMapping::OnButtonRelease(MOUSE::BUTTON_ID button)
+{
+  if (m_buttonMapping)
+    m_buttonMapping->OnButtonRelease(button);
 }
 
 void CAddonButtonMapping::SaveButtonMap()

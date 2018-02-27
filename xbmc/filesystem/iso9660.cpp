@@ -1,7 +1,7 @@
 /*
  *      Copyright (C) 2003 by The Joker / Avalaunch team
  *      Copyright (C) 2003-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -44,13 +44,12 @@ ISO9660
 #include "utils/CharsetConverter.h"
 #include "threads/SingleLock.h"
 #include "IFile.h"
-#include "system.h"
 #include "utils/log.h"
 
 #ifndef TARGET_WINDOWS
 #include "storage/DetectDVDType.h"  // for MODE2_DATA_SIZE etc.
-#include "linux/XFileUtils.h"
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XFileUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #else
 #include "platform/win32/CharsetConverter.h"
 #endif
@@ -141,7 +140,7 @@ struct iso_dirtree *iso9660::ReadRecursiveDirFromSector( DWORD sector, const cha
   DWORD iso9660searchpointer;
   struct iso9660_Directory isodir;
   struct iso9660_Directory curr_dir;
-  WORD wSectorSize = from_723(m_info.iso.logical_block_size);
+  unsigned short wSectorSize = from_723(m_info.iso.logical_block_size);
 
 
   struct iso_directories *point = m_lastpath;
@@ -489,7 +488,7 @@ void iso9660::Scan()
     m_info.HeaderPos = 0x8000;
     int current = 0x8000;
 
-    WORD wSectorSize = from_723(m_info.iso.logical_block_size);
+    unsigned short wSectorSize = from_723(m_info.iso.logical_block_size);
 
     // first check if first file in the current VD has a rock-ridge NM. if it has, disable joliet
     iso9660_Directory *dirPointer = reinterpret_cast<iso9660_Directory*>(&m_info.iso.szRootDir);
@@ -631,7 +630,7 @@ struct iso_dirtree *iso9660::FindFolder( char *Folder )
 }
 
 //******************************************************************************************************************
-HANDLE iso9660::FindFirstFile( char *szLocalFolder, WIN32_FIND_DATA *wfdFile )
+HANDLE iso9660::FindFirstFile9660(char *szLocalFolder, WIN32_FIND_DATA *wfdFile)
 {
   if (m_info.ISO_HANDLE == nullptr) return static_cast<HANDLE>(nullptr);
   memset( wfdFile, 0, sizeof(WIN32_FIND_DATA));
@@ -708,7 +707,7 @@ bool iso9660::FindClose( HANDLE szLocalFolder )
 
 
 //******************************************************************************************************************
-std::string iso9660::GetThinText(BYTE* strTxt, int iLen )
+std::string iso9660::GetThinText(unsigned char* strTxt, int iLen )
 {
   // convert from "fat" text (UTF-16BE) to "thin" text (UTF-8)
   std::u16string strTxtUnicode((char16_t*)strTxt, iLen / 2);
@@ -749,7 +748,7 @@ HANDLE iso9660::OpenFile(const char *filename)
 
   *(pointer2 + 1) = 0;
 
-  intptr_t loop = (intptr_t)FindFirstFile( work, &fileinfo );
+  intptr_t loop = (intptr_t)FindFirstFile9660( work, &fileinfo );
 
 #ifdef TARGET_WINDOWS
   auto wpointer = KODI::PLATFORM::WINDOWS::ToW(pointer);
@@ -1059,8 +1058,7 @@ bool iso9660::IsScanned()
 //************************************************************************************
 void iso9660::IsoDateTimeToFileTime(iso9660_Datetime* isoDateTime, FILETIME* filetime)
 {
-  tm t;
-  ZeroMemory(&t, sizeof(tm));
+  tm t = { 0 };
   t.tm_year=isoDateTime->year;
   t.tm_mon=isoDateTime->month-1;
   t.tm_mday=isoDateTime->day;

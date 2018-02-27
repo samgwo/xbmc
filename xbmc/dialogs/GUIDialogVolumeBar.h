@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,11 @@
  */
 
 #include "guilib/GUIDialog.h"
+#include "threads/CriticalSection.h"
+
+#include <set>
+
+class IGUIVolumeBarCallback;
 
 class CGUIDialogVolumeBar : public CGUIDialog
 {
@@ -29,4 +34,13 @@ public:
   ~CGUIDialogVolumeBar(void) override;
   bool OnMessage(CGUIMessage& message) override;
   bool OnAction(const CAction &action) override;
+
+  // Volume bar interface
+  void RegisterCallback(IGUIVolumeBarCallback *callback);
+  void UnregisterCallback(IGUIVolumeBarCallback *callback);
+  bool IsVolumeBarEnabled() const;
+
+private:
+  std::set<IGUIVolumeBarCallback*> m_callbacks;
+  CCriticalSection m_callbackMutex;
 };

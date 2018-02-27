@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,8 +24,8 @@
 #include "DVDStreamInfo.h"
 #include "DVDCodecs/DVDCodecs.h"
 #include "DVDDemuxFFmpeg.h"
-#include "DVDDemuxPacket.h"
-#include "TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/DemuxPacket.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 #include "DVDSubtitles/DVDSubtitleStream.h"
 
 #include <string.h>
@@ -71,12 +71,12 @@ bool CDVDDemuxVobsub::Open(const std::string& filename, int source, const std::s
   CFileItem item(vobsub, false);
   item.SetMimeType("video/x-vobsub");
   item.SetContentLookup(false);
-  m_Input.reset(CDVDFactoryInputStream::CreateInputStream(NULL, item));
+  m_Input = CDVDFactoryInputStream::CreateInputStream(NULL, item);
   if(!m_Input.get() || !m_Input->Open())
     return false;
 
   m_Demuxer.reset(new CDVDDemuxFFmpeg());
-  if(!m_Demuxer->Open(m_Input.get()))
+  if(!m_Demuxer->Open(m_Input))
     return false;
 
   CDVDStreamInfo hints;
@@ -84,7 +84,6 @@ bool CDVDDemuxVobsub::Open(const std::string& filename, int source, const std::s
   hints.codec = AV_CODEC_ID_DVD_SUBTITLE;
 
   char line[2048];
-  DECLARE_UNUSED(bool,res)
 
   SState state;
   state.delay = 0;
@@ -95,13 +94,13 @@ bool CDVDDemuxVobsub::Open(const std::string& filename, int source, const std::s
     if (*line == 0 || *line == '\r' || *line == '\n' || *line == '#')
       continue;
     else if (strncmp("langidx:", line, 8) == 0)
-      res = ParseLangIdx(state, line + 8);
+      ParseLangIdx(state, line + 8);
     else if (strncmp("delay:", line, 6) == 0)
-      res = ParseDelay(state, line + 6);
+      ParseDelay(state, line + 6);
     else if (strncmp("id:", line, 3) == 0)
-      res = ParseId(state, line + 3);
+      ParseId(state, line + 3);
     else if (strncmp("timestamp:", line, 10) == 0)
-      res = ParseTimestamp(state, line + 10);
+      ParseTimestamp(state, line + 10);
     else if (strncmp("palette:", line, 8) == 0
          ||  strncmp("size:", line, 5) == 0
          ||  strncmp("org:", line, 4) == 0
@@ -110,7 +109,7 @@ bool CDVDDemuxVobsub::Open(const std::string& filename, int source, const std::s
          ||  strncmp("alpha:", line, 6) == 0
          ||  strncmp("fadein/out:", line, 11) == 0
          ||  strncmp("forced subs:", line, 12) == 0)
-      res = ParseExtra(state, line);
+      ParseExtra(state, line);
     else
       continue;
   }
@@ -129,9 +128,10 @@ bool CDVDDemuxVobsub::Open(const std::string& filename, int source, const std::s
   return true;
 }
 
-void CDVDDemuxVobsub::Reset()
+bool CDVDDemuxVobsub::Reset()
 {
   Flush();
+  return true;
 }
 
 void CDVDDemuxVobsub::Flush()

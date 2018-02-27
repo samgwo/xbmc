@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ namespace XFILE
       bool Post(const std::string& strURL, const std::string& strPostData, std::string& strHTML);
       bool Get(const std::string& strURL, std::string& strHTML);
       bool ReadData(std::string& strHTML);
-      bool Download(const std::string& strURL, const std::string& strFileName, LPDWORD pdwSize = NULL);
+      bool Download(const std::string& strURL, const std::string& strFileName, unsigned int* pdwSize = NULL);
       bool IsInternet();
       void Cancel();
       void Reset();

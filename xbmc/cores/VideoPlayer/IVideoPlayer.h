@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,10 +31,6 @@
 #define VideoPlayer_SUBTITLE 3
 #define VideoPlayer_TELETEXT 4
 #define VideoPlayer_RDS      5
-
-
-template <typename T> class CRectGen;
-typedef CRectGen<float>  CRect;
 
 class CDVDMsg;
 class CDVDStreamInfo;
@@ -110,7 +106,6 @@ public:
   virtual double GetOutputDelay() = 0;
   virtual std::string GetPlayerInfo() = 0;
   virtual int GetVideoBitrate() = 0;
-  virtual std::string GetStereoMode() = 0;
   virtual void SetSpeed(int iSpeed) = 0;
   virtual bool IsEOS() { return false; };
 };

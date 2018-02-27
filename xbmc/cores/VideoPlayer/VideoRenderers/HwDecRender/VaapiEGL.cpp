@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2007-2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,11 @@ using namespace VAAPI;
 void CVaapiTexture::Init(InteropInfo &interop)
 {
   m_interop = interop;
+}
+
+int CVaapiTexture::GetBits()
+{
+  return m_bits;
 }
 
 bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
@@ -65,6 +70,7 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
   {
     case VA_FOURCC('N','V','1','2'):
     {
+      m_bits = 8;
       attrib = attribs;
       *attrib++ = EGL_LINUX_DRM_FOURCC_EXT;
       *attrib++ = fourcc_code('R', '8', ' ', ' ');
@@ -113,10 +119,9 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
         return false;
       }
 
-      GLint format;
+      GLint format, type;
 
       glGenTextures(1, &m_textureY);
-      glEnable(m_interop.textureTarget);
       glBindTexture(m_interop.textureTarget, m_textureY);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -126,7 +131,6 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
       glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &format);
 
       glGenTextures(1, &m_textureVU);
-      glEnable(m_interop.textureTarget);
       glBindTexture(m_interop.textureTarget, m_textureVU);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -134,14 +138,24 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
       m_interop.glEGLImageTargetTexture2DOES(m_interop.textureTarget, m_glSurface.eglImageVU);
       glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &format);
+      glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE, &type);
+      if (type == GL_UNSIGNED_BYTE)
+        m_bits = 8;
+      else if (type == GL_UNSIGNED_SHORT)
+        m_bits = 16;
+      else
+      {
+        CLog::Log(LOGWARNING, "Did not expect texture type: %d", (int) type);
+        m_bits = 8;
+      }
 
       glBindTexture(m_interop.textureTarget, 0);
-      glDisable(m_interop.textureTarget);
 
       break;
     }
     case VA_FOURCC('P','0','1','0'):
     {
+      m_bits = 10;
       attrib = attribs;
       *attrib++ = EGL_LINUX_DRM_FOURCC_EXT;
       *attrib++ = fourcc_code('R', '1', '6', ' ');
@@ -190,10 +204,9 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
         return false;
       }
 
-      GLint format;
+      GLint format, type;
 
       glGenTextures(1, &m_textureY);
-      glEnable(m_interop.textureTarget);
       glBindTexture(m_interop.textureTarget, m_textureY);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -203,7 +216,6 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
       glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &format);
 
       glGenTextures(1, &m_textureVU);
-      glEnable(m_interop.textureTarget);
       glBindTexture(m_interop.textureTarget, m_textureVU);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -211,14 +223,24 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
       m_interop.glEGLImageTargetTexture2DOES(m_interop.textureTarget, m_glSurface.eglImageVU);
       glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &format);
+      glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE, &type);
+      if (type == GL_UNSIGNED_BYTE)
+        m_bits = 8;
+      else if (type == GL_UNSIGNED_SHORT)
+        m_bits = 16;
+      else
+      {
+        CLog::Log(LOGWARNING, "Did not expect texture type: %d", (int) type);
+        m_bits = 8;
+      }
 
       glBindTexture(m_interop.textureTarget, 0);
-      glDisable(m_interop.textureTarget);
 
       break;
     }
     case VA_FOURCC('B','G','R','A'):
     {
+      m_bits = 8;
       attrib = attribs;
       *attrib++ = EGL_DRM_BUFFER_FORMAT_MESA;
       *attrib++ = EGL_DRM_BUFFER_FORMAT_ARGB32_MESA;
@@ -241,7 +263,6 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
       }
 
       glGenTextures(1, &m_texture);
-      glEnable(m_interop.textureTarget);
       glBindTexture(m_interop.textureTarget, m_texture);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(m_interop.textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -251,7 +272,6 @@ bool CVaapiTexture::Map(CVaapiRenderPicture *pic)
       m_interop.glEGLImageTargetTexture2DOES(m_interop.textureTarget, m_glSurface.eglImage);
 
       glBindTexture(m_interop.textureTarget, 0);
-      glDisable(m_interop.textureTarget);
 
       break;
     }

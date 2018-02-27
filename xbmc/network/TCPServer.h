@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #include <vector>
 #include <sys/socket.h>
 
-#include "system.h"
+#include "PlatformDefs.h"
 #include "interfaces/json-rpc/IClient.h"
 #include "interfaces/json-rpc/IJSONRPCAnnouncer.h"
 #include "interfaces/json-rpc/ITransportLayer.h"

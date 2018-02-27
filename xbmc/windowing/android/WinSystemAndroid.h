@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -50,8 +50,11 @@ public:
 
   bool Hide() override;
   bool Show(bool raise = true) override;
-  virtual void Register(IDispResource *resource);
-  virtual void Unregister(IDispResource *resource);
+  void Register(IDispResource *resource) override;
+  void Unregister(IDispResource *resource) override;
+
+  void MessagePush(XBMC_Event *newEvent);
+
 protected:
   CAndroidUtils *m_android;
 

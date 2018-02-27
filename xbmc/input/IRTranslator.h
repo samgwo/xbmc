@@ -23,17 +23,18 @@
 #include <memory>
 #include <string>
 
+class CProfilesManager;
 class TiXmlNode;
 
 class CIRTranslator
 {
 public:
-  CIRTranslator() = default;
+  CIRTranslator(const CProfilesManager &profileManager);
 
   /*!
    * \brief Loads Lircmap.xml/IRSSmap.xml
    */
-  void Load();
+  void Load(const std::string &irMapName);
 
   /*!
    * \brief Clears the map
@@ -48,6 +49,9 @@ public:
 private:
   bool LoadIRMap(const std::string &irMapPath);
   void MapRemote(TiXmlNode *pRemote, const std::string &szDevice);
+
+  // Construction parameters
+  const CProfilesManager &m_profileManager;
 
   using IRButtonMap = std::map<std::string, std::string>;
 

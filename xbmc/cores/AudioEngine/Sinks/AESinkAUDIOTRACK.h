@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #include "cores/AudioEngine/Interfaces/AESink.h"
 #include "cores/AudioEngine/Utils/AEDeviceInfo.h"
+#include "cores/AudioEngine/Utils/AEUtil.h"
 #include "threads/CriticalSection.h"
 #include "threads/Thread.h"
 
@@ -48,10 +49,13 @@ public:
   virtual void         AddPause        (unsigned int millis);
   virtual void         Drain           ();
   static void          EnumerateDevicesEx(AEDeviceInfoList &list, bool force = false);
+  static void Register();
+  static IAESink* Create(std::string &device, AEAudioFormat &desiredFormat);
 
 protected:
   jni::CJNIAudioTrack *CreateAudioTrack(int stream, int sampleRate, int channelMask, int encoding, int bufferSize);
   static bool IsSupported(int sampleRateInHz, int channelConfig, int audioFormat);
+  static bool VerifySinkConfiguration(int sampleRate, int channelMask, int encoding);
   static bool HasAmlHD();
   static void UpdateAvailablePCMCapabilities();
   static void UpdateAvailablePassthroughCapabilities();

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include "system.h"
-#ifdef HAS_ALSA
 
 #include <stdint.h>
 #include <limits.h>
@@ -29,6 +27,7 @@
 #include <algorithm>
 
 #include "AESinkALSA.h"
+#include "cores/AudioEngine/AESinkFactory.h"
 #include "cores/AudioEngine/Utils/AEUtil.h"
 #include "cores/AudioEngine/Utils/AEELDParser.h"
 #include "utils/log.h"
@@ -41,7 +40,11 @@
 #endif
 
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
+#endif
+
+#if defined(TARGET_FREEBSD)
+#include "freebsd/FreeBSDGNUReplacements.h"
 #endif
 
 #define AE_MIN_PERIODSIZE 256
@@ -105,6 +108,25 @@ CAESinkALSA::CAESinkALSA() :
 CAESinkALSA::~CAESinkALSA()
 {
   Deinitialize();
+}
+
+void CAESinkALSA::Register()
+{
+  AE::AESinkRegEntry entry;
+  entry.sinkName = "ALSA";
+  entry.createFunc = CAESinkALSA::Create;
+  entry.enumerateFunc = CAESinkALSA::EnumerateDevicesEx;
+  AE::CAESinkFactory::RegisterSink(entry);
+}
+
+IAESink* CAESinkALSA::Create(std::string &device, AEAudioFormat& desiredFormat)
+{
+  IAESink* sink = new CAESinkALSA();
+  if (sink->Initialize(desiredFormat, device))
+    return sink;
+
+  delete sink;
+  return nullptr;
 }
 
 inline CAEChannelInfo CAESinkALSA::GetChannelLayoutRaw(const AEAudioFormat& format)
@@ -1650,4 +1672,3 @@ CALSADeviceMonitor CAESinkALSA::m_deviceMonitor; // ARGH
 #endif
 CALSAHControlMonitor CAESinkALSA::m_controlMonitor; // ARGH
 
-#endif

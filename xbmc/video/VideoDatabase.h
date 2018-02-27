@@ -585,10 +585,16 @@ public:
   bool GetVideoSettings(const std::string &filePath, CVideoSettings &settings);
 
   /*! \brief Set video settings for the specified file path
-   \param filePath filepath to set the settings for
+   \param fileItem to set the settings for
    \sa GetVideoSettings
    */
-  void SetVideoSettings(const std::string &filePath, const CVideoSettings &settings);
+  void SetVideoSettings(const CFileItem &item, const CVideoSettings &settings);
+
+  /*! \brief Set video settings for the specified file path
+   \param fileId to set the settings for
+   \sa GetVideoSettings
+   */
+  void SetVideoSettings(int idFile, const CVideoSettings &settings);
 
   /**
    * Erases settings for all files beginning with the specified path. Defaults 
@@ -597,8 +603,8 @@ public:
    */
   void EraseVideoSettings(const std::string &path = "");
 
-  bool GetStackTimes(const std::string &filePath, std::vector<int> &times);
-  void SetStackTimes(const std::string &filePath, const std::vector<int> &times);
+  bool GetStackTimes(const std::string &filePath, std::vector<uint64_t> &times);
+  void SetStackTimes(const std::string &filePath, const std::vector<uint64_t> &times);
 
   void GetBookMarksForFile(const std::string& strFilenameAndPath, VECBOOKMARKS& bookmarks, CBookmark::EType type = CBookmark::STANDARD, bool bAppend=false, long partNumber=0);
   void AddBookMarkToFile(const std::string& strFilenameAndPath, const CBookmark &bookmark, CBookmark::EType type = CBookmark::STANDARD);

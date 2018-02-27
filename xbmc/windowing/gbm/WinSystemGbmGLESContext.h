@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,8 +22,10 @@
 
 #include "GLContextEGL.h"
 #include "rendering/gles/RenderSystemGLES.h"
-#include "utils/GlobalsHandling.h"
 #include "WinSystemGbm.h"
+#include <memory>
+
+class CVaapiProxy;
 
 class CWinSystemGbmGLESContext : public CWinSystemGbm, public CRenderSystemGLES
 {
@@ -38,18 +40,20 @@ public:
                        RESOLUTION_INFO& res) override;
 
   bool SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays) override;
+  void PresentRender(bool rendered, bool videoLayer) override;
   EGLDisplay GetEGLDisplay() const;
   EGLSurface GetEGLSurface() const;
   EGLContext GetEGLContext() const;
   EGLConfig  GetEGLConfig() const;
 protected:
   void SetVSyncImpl(bool enable) override { return; };
-  void PresentRenderImpl(bool rendered) override;
+  void PresentRenderImpl(bool rendered) override {};
 
 private:
   CGLContextEGL m_pGLContext;
-
+  struct delete_CVaapiProxy
+  {
+    void operator()(CVaapiProxy *p) const;
+  };
+  std::unique_ptr<CVaapiProxy, delete_CVaapiProxy> m_vaapiProxy;
 };
-
-XBMC_GLOBAL_REF(CWinSystemGbmGLESContext, g_Windowing);
-#define g_Windowing XBMC_GLOBAL_USE(CWinSystemGbmGLESContext)

@@ -39,16 +39,15 @@
 #include "devices/PeripheralHID.h"
 #include "devices/PeripheralImon.h"
 #include "devices/PeripheralJoystick.h"
-#include "devices/PeripheralJoystickEmulation.h"
+#include "devices/PeripheralKeyboard.h"
+#include "devices/PeripheralMouse.h"
 #include "devices/PeripheralNIC.h"
 #include "devices/PeripheralNyxboard.h"
 #include "devices/PeripheralTuner.h"
 #include "dialogs/GUIDialogKaiToast.h"
-#include "dialogs/GUIDialogPeripheralSettings.h"
-#include "dialogs/GUIDialogSelect.h"
 #include "FileItem.h"
 #include "bus/virtual/PeripheralBusApplication.h"
-#include "input/joysticks/IButtonMapper.h"
+#include "input/joysticks/interfaces/IButtonMapper.h"
 #include "interfaces/AnnouncementManager.h"
 #include "filesystem/Directory.h"
 #include "guilib/GUIWindowManager.h"
@@ -57,8 +56,8 @@
 #include "GUIUserMessages.h"
 #include "input/Key.h"
 #include "messaging/ApplicationMessenger.h"
-#include "messaging/helpers/DialogOKHelper.h"
 #include "messaging/ThreadMessage.h"
+#include "peripherals/dialogs/GUIDialogPeripherals.h"
 #include "settings/lib/Setting.h"
 #include "settings/Settings.h"
 #include "threads/SingleLock.h"
@@ -79,8 +78,12 @@ using namespace PERIPHERALS;
 using namespace XFILE;
 using namespace KODI::MESSAGING;
 
-CPeripherals::CPeripherals(ANNOUNCEMENT::CAnnouncementManager &announcements) :
+CPeripherals::CPeripherals(ANNOUNCEMENT::CAnnouncementManager &announcements,
+                           CInputManager &inputManager,
+                           GAME::CControllerManager &controllerProfiles) :
   m_announcements(announcements),
+  m_inputManager(inputManager),
+  m_controllerProfiles(controllerProfiles),
   m_eventScanner(this)
 {
   // Register settings
@@ -352,8 +355,12 @@ void CPeripherals::CreatePeripheral(CPeripheralBus &bus, const PeripheralScanRes
     peripheral = PeripheralPtr(new CPeripheralJoystick(*this, mappedResult, &bus));
     break;
 
-  case PERIPHERAL_JOYSTICK_EMULATION:
-    peripheral = PeripheralPtr(new CPeripheralJoystickEmulation(*this, mappedResult, &bus));
+  case PERIPHERAL_KEYBOARD:
+    peripheral = PeripheralPtr(new CPeripheralKeyboard(*this, mappedResult, &bus));
+    break;
+
+  case PERIPHERAL_MOUSE:
+    peripheral = PeripheralPtr(new CPeripheralMouse(*this, mappedResult, &bus));
     break;
 
   default:
@@ -385,10 +392,6 @@ void CPeripherals::OnDeviceAdded(const CPeripheralBus &bus, const CPeripheral &p
   if (!bus.IsInitialised())
     bNotify = false;
 
-  // don't show a notification for emulated peripherals
-  if (peripheral.Type() == PERIPHERAL_JOYSTICK_EMULATION) //! @todo Change to peripheral.IsEmulated()
-    bNotify = false;
-
   if (bNotify)
     CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Info, g_localizeStrings.Get(35005), peripheral.DeviceName());
 #endif
@@ -401,10 +404,6 @@ void CPeripherals::OnDeviceDeleted(const CPeripheralBus &bus, const CPeripheral 
   //! @todo Improve device notifications in v18
 #if 0
   bool bNotify = true;
-
-  // don't show a notification for emulated peripherals
-  if (peripheral.Type() == PERIPHERAL_JOYSTICK_EMULATION) //! @todo Change to peripheral.IsEmulated()
-    bNotify = false;
 
   if (bNotify)
     CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Info, g_localizeStrings.Get(35006), peripheral.DeviceName());
@@ -875,27 +874,11 @@ void CPeripherals::RegisterJoystickButtonMapper(IButtonMapper* mapper)
 {
   PeripheralVector peripherals;
   GetPeripheralsWithFeature(peripherals, FEATURE_JOYSTICK);
+  GetPeripheralsWithFeature(peripherals, FEATURE_KEYBOARD);
+  GetPeripheralsWithFeature(peripherals, FEATURE_MOUSE);
 
   for (auto& peripheral : peripherals)
-  {
-    if (mapper->Emulation())
-    {
-      if (peripheral->Type() != PERIPHERAL_JOYSTICK_EMULATION)
-        continue;
-
-      unsigned int controllerNumber = std::static_pointer_cast<CPeripheralJoystickEmulation>(peripheral)->ControllerNumber();
-
-      if (mapper->ControllerNumber() != controllerNumber)
-        continue;
-    }
-    else
-    {
-      if (peripheral->Type() != PERIPHERAL_JOYSTICK)
-        continue;
-    }
-
     peripheral->RegisterJoystickButtonMapper(mapper);
-  }
 }
 
 void CPeripherals::UnregisterJoystickButtonMapper(IButtonMapper* mapper)
@@ -904,6 +887,8 @@ void CPeripherals::UnregisterJoystickButtonMapper(IButtonMapper* mapper)
 
   PeripheralVector peripherals;
   GetPeripheralsWithFeature(peripherals, FEATURE_JOYSTICK);
+  GetPeripheralsWithFeature(peripherals, FEATURE_KEYBOARD);
+  GetPeripheralsWithFeature(peripherals, FEATURE_MOUSE);
 
   for (auto& peripheral : peripherals)
     peripheral->UnregisterJoystickButtonMapper(mapper);
@@ -934,55 +919,7 @@ void CPeripherals::OnSettingAction(std::shared_ptr<const CSetting> setting)
 
   const std::string &settingId = setting->GetId();
   if (settingId == CSettings::SETTING_INPUT_PERIPHERALS)
-  {
-    CGUIDialogSelect* pDialog = g_windowManager.GetWindow<CGUIDialogSelect>(WINDOW_DIALOG_SELECT);
-
-    CFileItemList items;
-    GetDirectory("peripherals://all/", items);
-
-    int iPos = -1;
-    do
-    {
-      pDialog->Reset();
-      pDialog->SetHeading(CVariant{35000});
-      pDialog->SetUseDetails(true);
-      pDialog->SetItems(items);
-      pDialog->SetSelected(iPos);
-      pDialog->Open();
-
-      iPos = pDialog->IsConfirmed() ? pDialog->GetSelectedItem() : -1;
-
-      if (iPos >= 0)
-      {
-        CFileItemPtr pItem = items.Get(iPos);
-
-        // show an error if the peripheral doesn't have any settings
-        PeripheralPtr peripheral = GetByPath(pItem->GetPath());
-        if (!peripheral || peripheral->GetSettings().empty())
-        {
-          HELPERS::ShowOKDialogText(CVariant{35000}, CVariant{35004});
-          continue;
-        }
-
-        CGUIDialogPeripheralSettings *pSettingsDialog = g_windowManager.GetWindow<CGUIDialogPeripheralSettings>(WINDOW_DIALOG_PERIPHERAL_SETTINGS);
-        if (pItem && pSettingsDialog)
-        {
-          // pass peripheral item properties to settings dialog so skin authors
-          // can use it to show more detailed information about the device
-          pSettingsDialog->SetProperty("vendor", pItem->GetProperty("vendor"));
-          pSettingsDialog->SetProperty("product", pItem->GetProperty("product"));
-          pSettingsDialog->SetProperty("bus", pItem->GetProperty("bus"));
-          pSettingsDialog->SetProperty("location", pItem->GetProperty("location"));
-          pSettingsDialog->SetProperty("class", pItem->GetProperty("class"));
-          pSettingsDialog->SetProperty("version", pItem->GetProperty("version"));
-
-          // open settings dialog
-          pSettingsDialog->SetFileItem(pItem.get());
-          pSettingsDialog->Open();
-        }
-      }
-    } while (pDialog->IsConfirmed());
-  }
+    CGUIDialogPeripherals::Show(*this);
   else if (settingId == CSettings::SETTING_INPUT_CONTROLLERCONFIG)
     g_windowManager.ActivateWindow(WINDOW_DIALOG_GAME_CONTROLLERS);
   else if (settingId == CSettings::SETTING_INPUT_TESTRUMBLE)

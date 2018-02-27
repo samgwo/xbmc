@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2007-2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@
 #include "settings/AdvancedSettings.h"
 #include "utils/log.h"
 #include "utils/GLUtils.h"
-#include "windowing/WindowingFactory.h"
 
 using namespace VDPAU;
 
@@ -56,7 +55,7 @@ CRendererVDPAU::~CRendererVDPAU()
   m_interopState.Finish();
 }
 
-bool CRendererVDPAU::Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation)
+bool CRendererVDPAU::Configure(const VideoPicture &picture, float fps, unsigned int orientation)
 {
   CVdpauRenderPicture *pic = dynamic_cast<CVdpauRenderPicture*>(picture.videoBuffer);
   if (pic->procPic.isYuv)
@@ -76,7 +75,7 @@ bool CRendererVDPAU::Configure(const VideoPicture &picture, float fps, unsigned 
     fence = GL_NONE;
   }
 
-  return CLinuxRendererGL::Configure(picture, fps, flags, orientation);
+  return CLinuxRendererGL::Configure(picture, fps, orientation);
 }
 
 bool CRendererVDPAU::ConfigChanged(const VideoPicture &picture)
@@ -131,7 +130,7 @@ bool CRendererVDPAU::Supports(ERENDERFEATURE feature)
     if (!m_isYuv && !CServiceBroker::GetSettings().GetBool(CSettings::SETTING_VIDEOSCREEN_LIMITEDRANGE))
       return true;
 
-    return (m_renderMethod & RENDER_GLSL) || (m_renderMethod & RENDER_ARB);
+    return (m_renderMethod & RENDER_GLSL);
   }
   else if (feature == RENDERFEATURE_NOISE ||
            feature == RENDERFEATURE_SHARPNESS)
@@ -193,7 +192,7 @@ EShaderFormat CRendererVDPAU::GetShaderFormat()
   EShaderFormat ret = SHADER_NONE;
 
   if (m_isYuv)
-    ret = SHADER_NV12_RRG;
+    ret = SHADER_NV12;
 
   return ret;
 }
@@ -289,7 +288,7 @@ bool CRendererVDPAU::UploadTexture(int index)
 
 bool CRendererVDPAU::CreateVDPAUTexture(int index)
 {
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   YuvImage &im = buf.image;
   YUVPLANE &plane = buf.fields[FIELD_FULL][0];
 
@@ -312,7 +311,7 @@ bool CRendererVDPAU::CreateVDPAUTexture(int index)
 
 void CRendererVDPAU::DeleteVDPAUTexture(int index)
 {
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   YUVPLANE &plane = buf.fields[FIELD_FULL][0];
 
   plane.id = 0;
@@ -320,7 +319,7 @@ void CRendererVDPAU::DeleteVDPAUTexture(int index)
 
 bool CRendererVDPAU::UploadVDPAUTexture(int index)
 {
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   VDPAU::CVdpauRenderPicture *pic = dynamic_cast<VDPAU::CVdpauRenderPicture*>(buf.videoBuffer);
 
   YUVPLANE &plane = buf.fields[FIELD_FULL][0];
@@ -366,7 +365,7 @@ bool CRendererVDPAU::UploadVDPAUTexture(int index)
 
 bool CRendererVDPAU::CreateVDPAUTexture420(int index)
 {
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   YuvImage &im = buf.image;
   YUVPLANE (&planes)[YuvImage::MAX_PLANES] = buf.fields[0];
   GLuint *pbo = buf.pbo;
@@ -395,7 +394,7 @@ bool CRendererVDPAU::CreateVDPAUTexture420(int index)
 
 void CRendererVDPAU::DeleteVDPAUTexture420(int index)
 {
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
 
   buf.fields[0][0].id = 0;
   buf.fields[1][0].id = 0;
@@ -406,7 +405,7 @@ void CRendererVDPAU::DeleteVDPAUTexture420(int index)
 
 bool CRendererVDPAU::UploadVDPAUTexture420(int index)
 {
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   YuvImage &im = buf.image;
 
   VDPAU::CVdpauRenderPicture *pic = dynamic_cast<VDPAU::CVdpauRenderPicture*>(buf.videoBuffer);
@@ -455,7 +454,6 @@ bool CRendererVDPAU::UploadVDPAUTexture420(int index)
   buf.fields[2][1].id = m_vdpauTextures[index].m_textureBotUV;
   buf.fields[2][2].id = m_vdpauTextures[index].m_textureBotUV;
 
-  glEnable(m_textureTarget);
   for (int f = FIELD_TOP; f <= FIELD_BOT; f++)
   {
     for (int p=0; p<2; p++)
@@ -471,6 +469,5 @@ bool CRendererVDPAU::UploadVDPAUTexture420(int index)
     }
   }
   CalculateTextureSourceRects(index, 3);
-  glDisable(m_textureTarget);
   return true;
 }

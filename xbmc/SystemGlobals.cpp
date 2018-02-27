@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include "system.h"
 #include "SectionLoader.h"
 #include "GUILargeTextureManager.h"
 #include "guilib/TextureManager.h"
@@ -40,7 +39,7 @@ std::map<std::string, std::string> CSpecialProtocol::m_pathMap;
 #include "filesystem/ZipManager.h"
 
 #ifdef TARGET_RASPBERRY_PI
-#include "linux/RBP.h"
+#include "platform/linux/RBP.h"
 #endif
 
   CLangCodeExpander  g_LangCodeExpander;
@@ -59,6 +58,7 @@ std::map<std::string, std::string> CSpecialProtocol::m_pathMap;
   CPartyModeManager     g_partyModeManager;
 
   CAlarmClock        g_alarmClock;
+  CSectionLoader     g_sectionLoader;
 
 #ifdef TARGET_RASPBERRY_PI
   CRBP               g_RBP;

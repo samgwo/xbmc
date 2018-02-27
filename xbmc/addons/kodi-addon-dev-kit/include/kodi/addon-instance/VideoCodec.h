@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,9 +25,9 @@
 #include "../StreamCodec.h"
 
 #ifdef BUILD_KODI_ADDON
-#include "../DVDDemuxPacket.h"
+#include "../DemuxPacket.h"
 #else
-#include "cores/VideoPlayer/DVDDemuxers/DVDDemuxPacket.h"
+#include "cores/VideoPlayer/Interface/Addon/DemuxPacket.h"
 #endif
 
 namespace kodi { namespace addon { class CInstanceVideoCodec; } }

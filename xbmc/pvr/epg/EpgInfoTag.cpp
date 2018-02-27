@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 
 #include "ServiceBroker.h"
 #include "addons/kodi-addon-dev-kit/include/kodi/xbmc_pvr_types.h"
+#include "cores/DataCacheCore.h"
 #include "guilib/LocalizeStrings.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
@@ -116,11 +117,11 @@ CPVREpgInfoTag::CPVREpgInfoTag(const EPG_TAG &data, int iClientId) :
   if (data.strOriginalTitle)
     m_strOriginalTitle = data.strOriginalTitle;
   if (data.strCast)
-    m_strCast = data.strCast;
+    m_cast = Tokenize(data.strCast);
   if (data.strDirector)
-    m_strDirector = data.strDirector;
+    m_directors = Tokenize(data.strDirector);
   if (data.strWriter)
-    m_strWriter = data.strWriter;
+    m_writers = Tokenize(data.strWriter);
   if (data.strIMDBNumber)
     m_strIMDBNumber = data.strIMDBNumber;
   if (data.strEpisodeName)
@@ -160,9 +161,9 @@ bool CPVREpgInfoTag::operator ==(const CPVREpgInfoTag& right) const
           m_strPlotOutline     == right.m_strPlotOutline &&
           m_strPlot            == right.m_strPlot &&
           m_strOriginalTitle   == right.m_strOriginalTitle &&
-          m_strCast            == right.m_strCast &&
-          m_strDirector        == right.m_strDirector &&
-          m_strWriter          == right.m_strWriter &&
+          m_cast               == right.m_cast &&
+          m_directors          == right.m_directors &&
+          m_writers            == right.m_writers &&
           m_iYear              == right.m_iYear &&
           m_strIMDBNumber      == right.m_strIMDBNumber &&
           m_genre              == right.m_genre &&
@@ -193,9 +194,9 @@ void CPVREpgInfoTag::Serialize(CVariant &value) const
   value["plotoutline"] = m_strPlotOutline;
   value["plot"] = m_strPlot;
   value["originaltitle"] = m_strOriginalTitle;
-  value["cast"] = m_strCast;
-  value["director"] = m_strDirector;
-  value["writer"] = m_strWriter;
+  value["cast"] = DeTokenize(m_cast);
+  value["director"] = DeTokenize(m_directors);
+  value["writer"] = DeTokenize(m_writers);
   value["year"] = m_iYear;
   value["imdbnumber"] = m_strIMDBNumber;
   value["genre"] = m_genre;
@@ -221,17 +222,16 @@ void CPVREpgInfoTag::Serialize(CVariant &value) const
 
 CDateTime CPVREpgInfoTag::GetCurrentPlayingTime() const
 {
-  CDateTime now = CDateTime::GetUTCDateTime();
-
-  CPVRChannelPtr channel(CServiceBroker::GetPVRManager().Clients()->GetPlayingChannel());
-  if (channel == Channel())
+  if (CServiceBroker::GetPVRManager().GetPlayingChannel() == Channel() &&
+      CServiceBroker::GetPVRManager().Clients()->IsTimeshifting())
   {
-    // Timeshifting active?
-    time_t time = CServiceBroker::GetPVRManager().Clients()->GetPlayingTime();
-    if (time > 0) // returns 0 in case no client is currently playing
-      now = time;
+    // timeshifting
+    return CDateTime(CServiceBroker::GetDataCacheCore().GetStartTime() +
+                     CServiceBroker::GetDataCacheCore().GetPlayTime() / 1000);
   }
-  return now;
+
+  // not timeshifting
+  return CDateTime::GetUTCDateTime();
 }
 
 bool CPVREpgInfoTag::IsActive(void) const
@@ -402,19 +402,44 @@ std::string CPVREpgInfoTag::OriginalTitle(bool bOverrideParental /* = false */) 
   return retVal;
 }
 
-std::string CPVREpgInfoTag::Cast(void) const
+const std::vector<std::string> CPVREpgInfoTag::Cast(void) const
 {
-  return m_strCast;
+  return m_cast;
 }
 
-std::string CPVREpgInfoTag::Director(void) const
+const std::vector<std::string> CPVREpgInfoTag::Directors(void) const
 {
-  return m_strDirector;
+  return m_directors;
 }
 
-std::string CPVREpgInfoTag::Writer(void) const
+const std::vector<std::string> CPVREpgInfoTag::Writers(void) const
 {
-  return m_strWriter;
+  return m_writers;
+}
+
+const std::string CPVREpgInfoTag::GetCastLabel() const
+{
+  // Note: see CVideoInfoTag::GetCast for reference implementation.
+  std::string strLabel;
+  for (const auto& castEntry : m_cast)
+    strLabel += StringUtils::Format("%s\n", castEntry.c_str());
+
+  return StringUtils::TrimRight(strLabel, "\n");
+}
+
+const std::string CPVREpgInfoTag::GetDirectorsLabel() const
+{
+  return StringUtils::Join(m_directors, g_advancedSettings.m_videoItemSeparator);
+}
+
+const std::string CPVREpgInfoTag::GetWritersLabel() const
+{
+  return StringUtils::Join(m_writers, g_advancedSettings.m_videoItemSeparator);
+}
+
+const std::string CPVREpgInfoTag::GetGenresLabel() const
+{
+  return StringUtils::Join(m_genre, g_advancedSettings.m_videoItemSeparator);
 }
 
 int CPVREpgInfoTag::Year(void) const
@@ -437,7 +462,7 @@ void CPVREpgInfoTag::SetGenre(int iGenreType, int iGenreSubType, const char* str
     {
       /* Type and sub type are not given. No EPG color coding possible
        * Use the provided genre description as backup. */
-      m_genre = StringUtils::Split(strGenre, g_advancedSettings.m_videoItemSeparator);
+      m_genre = Tokenize(strGenre);
     }
     else
     {
@@ -509,9 +534,14 @@ int CPVREpgInfoTag::EpisodePart(void) const
   return m_iEpisodePart;
 }
 
-std::string CPVREpgInfoTag::EpisodeName(void) const
+std::string CPVREpgInfoTag::EpisodeName(bool bOverrideParental /* = false */) const
 {
-  return m_strEpisodeName;
+  std::string retVal;
+
+  if (bOverrideParental || !IsParentalLocked())
+    retVal = m_strEpisodeName;
+
+  return retVal;
 }
 
 std::string CPVREpgInfoTag::Icon(void) const
@@ -554,25 +584,6 @@ bool CPVREpgInfoTag::HasChannel(void) const
   return m_channel.get() != NULL;
 }
 
-int CPVREpgInfoTag::ChannelNumber(void) const
-{
-  CSingleLock lock(m_critSection);
-  return m_channel ? m_channel->ChannelNumber() : -1;
-}
-
-std::string CPVREpgInfoTag::ChannelName(void) const
-{
-  std::string strReturn;
-
-  {
-    CSingleLock lock(m_critSection);
-    if (m_channel)
-      strReturn = m_channel->ChannelName();
-  }
-
-  return strReturn;
-}
-
 const PVR::CPVRChannelPtr CPVREpgInfoTag::Channel() const
 {
   CSingleLock lock(m_critSection);
@@ -594,9 +605,9 @@ bool CPVREpgInfoTag::Update(const CPVREpgInfoTag &tag, bool bUpdateBroadcastId /
         m_strPlotOutline     != tag.m_strPlotOutline ||
         m_strPlot            != tag.m_strPlot ||
         m_strOriginalTitle   != tag.m_strOriginalTitle ||
-        m_strCast            != tag.m_strCast ||
-        m_strDirector        != tag.m_strDirector ||
-        m_strWriter          != tag.m_strWriter ||
+        m_cast               != tag.m_cast ||
+        m_directors          != tag.m_directors ||
+        m_writers            != tag.m_writers ||
         m_iYear              != tag.m_iYear ||
         m_strIMDBNumber      != tag.m_strIMDBNumber ||
         m_startTime          != tag.m_startTime ||
@@ -632,9 +643,9 @@ bool CPVREpgInfoTag::Update(const CPVREpgInfoTag &tag, bool bUpdateBroadcastId /
       m_strPlotOutline     = tag.m_strPlotOutline;
       m_strPlot            = tag.m_strPlot;
       m_strOriginalTitle   = tag.m_strOriginalTitle;
-      m_strCast            = tag.m_strCast;
-      m_strDirector        = tag.m_strDirector;
-      m_strWriter          = tag.m_strWriter;
+      m_cast               = tag.m_cast;
+      m_directors          = tag.m_directors;
+      m_writers            = tag.m_writers;
       m_iYear              = tag.m_iYear;
       m_strIMDBNumber      = tag.m_strIMDBNumber;
       m_startTime          = tag.m_startTime;
@@ -687,8 +698,8 @@ bool CPVREpgInfoTag::Persist(bool bSingleUpdate /* = true */)
   CLog::Log(LOGDEBUG, "Epg - %s - Infotag '%s' %s, persisting...", __FUNCTION__, m_strTitle.c_str(), m_iBroadcastId > 0 ? "has changes" : "is new");
 #endif
 
-  CPVREpgDatabase *database = CServiceBroker::GetPVRManager().EpgContainer().GetDatabase();
-  if (!database || (bSingleUpdate && !database->IsOpen()))
+  CPVREpgDatabasePtr database = CServiceBroker::GetPVRManager().EpgContainer().GetEpgDatabase();
+  if (!database)
   {
     CLog::Log(LOGERROR, "%s - could not open the database", __FUNCTION__);
     return bReturn;
@@ -796,4 +807,14 @@ bool CPVREpgInfoTag::IsSeries(void) const
     return true;
   else
     return false;
+}
+
+const std::vector<std::string> CPVREpgInfoTag::Tokenize(const std::string &str) const
+{
+  return StringUtils::Split(str.c_str(), EPG_STRING_TOKEN_SEPARATOR);
+}
+
+const std::string CPVREpgInfoTag::DeTokenize(const std::vector<std::string> &tokens) const
+{
+  return StringUtils::Join(tokens, EPG_STRING_TOKEN_SEPARATOR);
 }

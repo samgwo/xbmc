@@ -176,7 +176,7 @@ bool CAddonButtonMap::GetAnalogStick(const FeatureName& feature,
 
     if (addonFeature.Type() == JOYSTICK_FEATURE_TYPE_ANALOG_STICK)
     {
-      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(GetPrimitiveIndex(direction)));
+      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(GetAnalogStickIndex(direction)));
       retVal = primitive.IsValid();
     }
   }
@@ -190,7 +190,7 @@ void CAddonButtonMap::AddAnalogStick(const FeatureName& feature,
 {
   using namespace JOYSTICK;
 
-  JOYSTICK_FEATURE_PRIMITIVE primitiveIndex = GetPrimitiveIndex(direction);
+  JOYSTICK_FEATURE_PRIMITIVE primitiveIndex = GetAnalogStickIndex(direction);
   kodi::addon::DriverPrimitive addonPrimitive = CPeripheralAddonTranslator::TranslatePrimitive(primitive);
 
   kodi::addon::JoystickFeature analogStick(feature, JOYSTICK_FEATURE_TYPE_ANALOG_STICK);
@@ -216,7 +216,7 @@ void CAddonButtonMap::AddAnalogStick(const FeatureName& feature,
 }
 
 bool CAddonButtonMap::GetRelativePointer(const FeatureName& feature,
-                                         JOYSTICK::ANALOG_STICK_DIRECTION direction,
+                                         JOYSTICK::RELATIVE_POINTER_DIRECTION direction,
                                          JOYSTICK::CDriverPrimitive& primitive)
 {
   bool retVal(false);
@@ -230,7 +230,7 @@ bool CAddonButtonMap::GetRelativePointer(const FeatureName& feature,
 
     if (addonFeature.Type() == JOYSTICK_FEATURE_TYPE_RELPOINTER)
     {
-      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(GetPrimitiveIndex(direction)));
+      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(GetRelativePointerIndex(direction)));
       retVal = primitive.IsValid();
     }
   }
@@ -239,12 +239,12 @@ bool CAddonButtonMap::GetRelativePointer(const FeatureName& feature,
 }
 
 void CAddonButtonMap::AddRelativePointer(const FeatureName& feature,
-                                         JOYSTICK::ANALOG_STICK_DIRECTION direction,
+                                         JOYSTICK::RELATIVE_POINTER_DIRECTION direction,
                                          const JOYSTICK::CDriverPrimitive& primitive)
 {
   using namespace JOYSTICK;
 
-  JOYSTICK_FEATURE_PRIMITIVE primitiveIndex = GetPrimitiveIndex(direction);
+  JOYSTICK_FEATURE_PRIMITIVE primitiveIndex = GetRelativePointerIndex(direction);
   kodi::addon::DriverPrimitive addonPrimitive = CPeripheralAddonTranslator::TranslatePrimitive(primitive);
 
   kodi::addon::JoystickFeature relPointer(feature, JOYSTICK_FEATURE_TYPE_RELPOINTER);
@@ -312,6 +312,144 @@ void CAddonButtonMap::AddAccelerometer(const FeatureName& feature,
     addon->MapFeature(m_device, m_strControllerId, accelerometer);
 }
 
+bool CAddonButtonMap::GetWheel(const KODI::JOYSTICK::FeatureName& feature,
+                               KODI::JOYSTICK::WHEEL_DIRECTION direction,
+                               KODI::JOYSTICK::CDriverPrimitive& primitive)
+{
+  bool retVal(false);
+
+  CSingleLock lock(m_mutex);
+
+  FeatureMap::const_iterator it = m_features.find(feature);
+  if (it != m_features.end())
+  {
+    const kodi::addon::JoystickFeature& addonFeature = it->second;
+
+    if (addonFeature.Type() == JOYSTICK_FEATURE_TYPE_WHEEL)
+    {
+      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(GetPrimitiveIndex(direction)));
+      retVal = primitive.IsValid();
+    }
+  }
+
+  return retVal;
+}
+
+void CAddonButtonMap::AddWheel(const KODI::JOYSTICK::FeatureName& feature,
+                               KODI::JOYSTICK::WHEEL_DIRECTION direction,
+                               const KODI::JOYSTICK::CDriverPrimitive& primitive)
+{
+  using namespace JOYSTICK;
+
+  JOYSTICK_FEATURE_PRIMITIVE primitiveIndex = GetPrimitiveIndex(direction);
+  kodi::addon::DriverPrimitive addonPrimitive = CPeripheralAddonTranslator::TranslatePrimitive(primitive);
+
+  kodi::addon::JoystickFeature joystickFeature(feature, JOYSTICK_FEATURE_TYPE_WHEEL);
+
+  {
+    CSingleLock lock(m_mutex);
+    auto it = m_features.find(feature);
+    if (it != m_features.end())
+      joystickFeature = it->second;
+  }
+
+  const bool bModified = (primitive != CPeripheralAddonTranslator::TranslatePrimitive(joystickFeature.Primitive(primitiveIndex)));
+  if (bModified)
+    joystickFeature.SetPrimitive(primitiveIndex, addonPrimitive);
+
+  if (auto addon = m_addon.lock())
+    addon->MapFeature(m_device, m_strControllerId, joystickFeature);
+
+  // Because each direction is mapped individually, we need to refresh the
+  // feature each time a new direction is mapped.
+  if (bModified)
+    Load();
+}
+
+bool CAddonButtonMap::GetThrottle(const KODI::JOYSTICK::FeatureName& feature,
+                                  KODI::JOYSTICK::THROTTLE_DIRECTION direction,
+                                  KODI::JOYSTICK::CDriverPrimitive& primitive)
+{
+  bool retVal(false);
+
+  CSingleLock lock(m_mutex);
+
+  FeatureMap::const_iterator it = m_features.find(feature);
+  if (it != m_features.end())
+  {
+    const kodi::addon::JoystickFeature& addonFeature = it->second;
+
+    if (addonFeature.Type() == JOYSTICK_FEATURE_TYPE_THROTTLE)
+    {
+      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(GetPrimitiveIndex(direction)));
+      retVal = primitive.IsValid();
+    }
+  }
+
+  return retVal;
+}
+
+void CAddonButtonMap::AddThrottle(const KODI::JOYSTICK::FeatureName& feature,
+                                  KODI::JOYSTICK::THROTTLE_DIRECTION direction,
+                                  const KODI::JOYSTICK::CDriverPrimitive& primitive)
+{
+  using namespace JOYSTICK;
+
+  JOYSTICK_FEATURE_PRIMITIVE primitiveIndex = GetPrimitiveIndex(direction);
+  kodi::addon::DriverPrimitive addonPrimitive = CPeripheralAddonTranslator::TranslatePrimitive(primitive);
+
+  kodi::addon::JoystickFeature joystickFeature(feature, JOYSTICK_FEATURE_TYPE_THROTTLE);
+
+  {
+    CSingleLock lock(m_mutex);
+    auto it = m_features.find(feature);
+    if (it != m_features.end())
+      joystickFeature = it->second;
+  }
+
+  const bool bModified = (primitive != CPeripheralAddonTranslator::TranslatePrimitive(joystickFeature.Primitive(primitiveIndex)));
+  if (bModified)
+    joystickFeature.SetPrimitive(primitiveIndex, addonPrimitive);
+
+  if (auto addon = m_addon.lock())
+    addon->MapFeature(m_device, m_strControllerId, joystickFeature);
+
+  // Because each direction is mapped individually, we need to refresh the
+  // feature each time a new direction is mapped.
+  if (bModified)
+    Load();
+}
+
+bool CAddonButtonMap::GetKey(const FeatureName& feature, CDriverPrimitive& primitive)
+{
+  bool retVal(false);
+
+  CSingleLock lock(m_mutex);
+
+  FeatureMap::const_iterator it = m_features.find(feature);
+  if (it != m_features.end())
+  {
+    const kodi::addon::JoystickFeature& addonFeature = it->second;
+
+    if (addonFeature.Type() == JOYSTICK_FEATURE_TYPE_KEY)
+    {
+      primitive = CPeripheralAddonTranslator::TranslatePrimitive(addonFeature.Primitive(JOYSTICK_SCALAR_PRIMITIVE));
+      retVal = true;
+    }
+  }
+
+  return retVal;
+}
+
+void CAddonButtonMap::AddKey(const FeatureName& feature, const CDriverPrimitive& primitive)
+{
+  kodi::addon::JoystickFeature scalar(feature, JOYSTICK_FEATURE_TYPE_KEY);
+  scalar.SetPrimitive(JOYSTICK_SCALAR_PRIMITIVE, CPeripheralAddonTranslator::TranslatePrimitive(primitive));
+
+  if (auto addon = m_addon.lock())
+    addon->MapFeature(m_device, m_strControllerId, scalar);
+}
+
 void CAddonButtonMap::SetIgnoredPrimitives(const std::vector<JOYSTICK::CDriverPrimitive>& primitives)
 {
   if (auto addon = m_addon.lock())
@@ -370,13 +508,13 @@ CAddonButtonMap::DriverMap CAddonButtonMap::CreateLookupTable(const FeatureMap& 
     switch (feature.Type())
     {
       case JOYSTICK_FEATURE_TYPE_SCALAR:
+      case JOYSTICK_FEATURE_TYPE_KEY:
       {
         driverMap[CPeripheralAddonTranslator::TranslatePrimitive(feature.Primitive(JOYSTICK_SCALAR_PRIMITIVE))] = it->first;
         break;
       }
 
       case JOYSTICK_FEATURE_TYPE_ANALOG_STICK:
-      case JOYSTICK_FEATURE_TYPE_RELPOINTER:
       {
         std::vector<JOYSTICK_FEATURE_PRIMITIVE> primitives = {
           JOYSTICK_ANALOG_STICK_UP,
@@ -410,6 +548,44 @@ CAddonButtonMap::DriverMap CAddonButtonMap::CreateLookupTable(const FeatureMap& 
         break;
       }
 
+      case JOYSTICK_FEATURE_TYPE_WHEEL:
+      {
+        std::vector<JOYSTICK_FEATURE_PRIMITIVE> primitives = {
+          JOYSTICK_WHEEL_LEFT,
+          JOYSTICK_WHEEL_RIGHT,
+        };
+
+        for (auto primitive : primitives)
+          driverMap[CPeripheralAddonTranslator::TranslatePrimitive(feature.Primitive(primitive))] = it->first;
+        break;
+      }
+
+      case JOYSTICK_FEATURE_TYPE_THROTTLE:
+      {
+        std::vector<JOYSTICK_FEATURE_PRIMITIVE> primitives = {
+          JOYSTICK_THROTTLE_UP,
+          JOYSTICK_THROTTLE_DOWN,
+        };
+
+        for (auto primitive : primitives)
+          driverMap[CPeripheralAddonTranslator::TranslatePrimitive(feature.Primitive(primitive))] = it->first;
+        break;
+      }
+
+      case JOYSTICK_FEATURE_TYPE_RELPOINTER:
+      {
+        std::vector<JOYSTICK_FEATURE_PRIMITIVE> primitives = {
+          JOYSTICK_RELPOINTER_UP,
+          JOYSTICK_RELPOINTER_DOWN,
+          JOYSTICK_RELPOINTER_RIGHT,
+          JOYSTICK_RELPOINTER_LEFT,
+        };
+
+        for (auto primitive : primitives)
+          driverMap[CPeripheralAddonTranslator::TranslatePrimitive(feature.Primitive(primitive))] = it->first;
+        break;
+      }
+
       default:
         break;
     }
@@ -418,7 +594,7 @@ CAddonButtonMap::DriverMap CAddonButtonMap::CreateLookupTable(const FeatureMap& 
   return driverMap;
 }
 
-JOYSTICK_FEATURE_PRIMITIVE CAddonButtonMap::GetPrimitiveIndex(JOYSTICK::ANALOG_STICK_DIRECTION dir)
+JOYSTICK_FEATURE_PRIMITIVE CAddonButtonMap::GetAnalogStickIndex(JOYSTICK::ANALOG_STICK_DIRECTION dir)
 {
   using namespace JOYSTICK;
 
@@ -429,6 +605,50 @@ JOYSTICK_FEATURE_PRIMITIVE CAddonButtonMap::GetPrimitiveIndex(JOYSTICK::ANALOG_S
   case ANALOG_STICK_DIRECTION::RIGHT: return JOYSTICK_ANALOG_STICK_RIGHT;
   case ANALOG_STICK_DIRECTION::LEFT:  return JOYSTICK_ANALOG_STICK_LEFT;
   default: break;
+  }
+
+  return static_cast<JOYSTICK_FEATURE_PRIMITIVE>(0);
+}
+
+JOYSTICK_FEATURE_PRIMITIVE CAddonButtonMap::GetRelativePointerIndex(JOYSTICK::RELATIVE_POINTER_DIRECTION dir)
+{
+  using namespace JOYSTICK;
+
+  switch (dir)
+  {
+    case RELATIVE_POINTER_DIRECTION::UP:    return JOYSTICK_RELPOINTER_UP;
+    case RELATIVE_POINTER_DIRECTION::DOWN:  return JOYSTICK_RELPOINTER_DOWN;
+    case RELATIVE_POINTER_DIRECTION::RIGHT: return JOYSTICK_RELPOINTER_RIGHT;
+    case RELATIVE_POINTER_DIRECTION::LEFT:  return JOYSTICK_RELPOINTER_LEFT;
+    default: break;
+  }
+
+  return static_cast<JOYSTICK_FEATURE_PRIMITIVE>(0);
+}
+
+JOYSTICK_FEATURE_PRIMITIVE CAddonButtonMap::GetPrimitiveIndex(JOYSTICK::WHEEL_DIRECTION dir)
+{
+  using namespace JOYSTICK;
+
+  switch (dir)
+  {
+    case WHEEL_DIRECTION::RIGHT: return JOYSTICK_WHEEL_RIGHT;
+    case WHEEL_DIRECTION::LEFT:  return JOYSTICK_WHEEL_LEFT;
+    default: break;
+  }
+
+  return static_cast<JOYSTICK_FEATURE_PRIMITIVE>(0);
+}
+
+JOYSTICK_FEATURE_PRIMITIVE CAddonButtonMap::GetPrimitiveIndex(JOYSTICK::THROTTLE_DIRECTION dir)
+{
+  using namespace JOYSTICK;
+
+  switch (dir)
+  {
+    case THROTTLE_DIRECTION::UP:    return JOYSTICK_THROTTLE_UP;
+    case THROTTLE_DIRECTION::DOWN:  return JOYSTICK_THROTTLE_DOWN;
+    default: break;
   }
 
   return static_cast<JOYSTICK_FEATURE_PRIMITIVE>(0);

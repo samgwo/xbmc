@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,6 +39,15 @@ public:
   void SetPercentage(int iPercentage);
   int GetPercentage() const { return m_percentage; };
   void ShowProgressBar(bool bOnOff);
+  
+  /*! \brief Wait for the progress dialog to be closed or canceled, while regularly
+   rendering to allow for pointer movement or progress to be shown. Used when showing
+   the progress of a process that is taking place on a separate thread and may be 
+   reporting progress infrequently.
+   \param progresstime the time in ms to wait between rendering the dialog (defaults to 10ms)
+   \return true if the dialog is closed, false if the user cancels early.
+   */
+  bool Wait(int progresstime = 10);
 
   // Implements IProgressCallback
   void SetProgressMax(int iMax) override;

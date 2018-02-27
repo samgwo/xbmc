@@ -18,8 +18,6 @@
  *
  */
 
-#include "system.h"
-
 #include "DetectDVDType.h"
 #include "guilib/LocalizeStrings.h"
 #include "utils/StringUtils.h"
@@ -93,7 +91,7 @@ void CDetectDVDMedia::Process()
 
   while (( !m_bStop ))
   {
-    if (g_application.m_pPlayer->IsPlayingVideo())
+    if (g_application.GetAppPlayer().IsPlayingVideo())
     {
       Sleep(10000);
     }
@@ -117,7 +115,7 @@ void CDetectDVDMedia::OnExit()
 }
 
 // Gets state of the DVD drive
-VOID CDetectDVDMedia::UpdateDvdrom()
+void CDetectDVDMedia::UpdateDvdrom()
 {
   // Signal for WaitMediaReady()
   // that we are busy detecting the

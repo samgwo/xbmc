@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 
 #include "RenderInfo.h"
 #include "guilib/Resolution.h"
-#include "guilib/Geometry.h"
+#include "utils/Geometry.h"
 #include "VideoShaders/ShaderFormats.h"
 #include "cores/IPlayer.h"
 #include "cores/VideoPlayer/Process/VideoBuffer.h"
@@ -46,7 +46,6 @@ enum EFIELDSYNC
 enum RenderMethods
 {
   RENDER_METHOD_AUTO     = 0,
-  RENDER_METHOD_ARB,
   RENDER_METHOD_GLSL,
   RENDER_METHOD_SOFTWARE,
   RENDER_METHOD_D3D_PS,
@@ -64,12 +63,11 @@ public:
   virtual ~CBaseRenderer();
 
   // Player functions
-  virtual bool Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation) = 0;
+  virtual bool Configure(const VideoPicture &picture, float fps, unsigned int orientation) = 0;
   virtual bool IsConfigured() = 0;
   virtual void AddVideoPicture(const VideoPicture &picture, int index, double currentClock) = 0;
   virtual bool IsPictureHW(const VideoPicture &picture) { return false; };
   virtual void UnInit() = 0;
-  virtual void Reset() = 0;
   virtual void Flush() {};
   virtual void SetBufferSize(int numBuffers) { }
   virtual void ReleaseBuffer(int idx) { }
@@ -100,6 +98,8 @@ public:
   float GetAspectRatio() const;
 
   static void SettingOptionsRenderMethodsFiller(std::shared_ptr<const CSetting> setting, std::vector< std::pair<std::string, int> > &list, int &current, void *data);
+
+  void SetVideoSettings(const CVideoSettings &settings);
 
 protected:
   void CalcNormalRenderRect(float offsetX, float offsetY, float width, float height,
@@ -134,4 +134,6 @@ protected:
   // rendering flags
   unsigned m_iFlags;
   AVPixelFormat m_format = AV_PIX_FMT_NONE;
+
+  CVideoSettings m_videoSettings;
 };

@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ protected:
   void ResetControls();
   void EnableControl(int iControl);
   void UpdateFromControl(int iControl);
-  UINT m_iCurRes;
+  unsigned int m_iCurRes;
   std::vector<RESOLUTION> m_Res;
   int m_iControl;
   float m_fPixelRatioBoxHeight;

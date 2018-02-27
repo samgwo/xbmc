@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,10 +17,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-
-#include "system.h"
-
-#ifdef HAS_CDDA_RIPPER
 
 #include "CDDARipper.h"
 #include "CDDARipJob.h"
@@ -168,9 +164,7 @@ bool CCDDARipper::CreateAlbumDir(const MUSIC_INFO::CMusicInfoTag& infoTag, std::
   {
     // no rip path has been set, show error
     CLog::Log(LOGERROR, "Error: CDDARipPath has not been set");
-    g_graphicsContext.Lock();
     HELPERS::ShowOKDialogText(CVariant{257}, CVariant{608});
-    g_graphicsContext.Unlock();
     return false;
   }
 
@@ -318,5 +312,3 @@ void CCDDARipper::OnJobComplete(unsigned int jobID, bool success, CJob* job)
 
   CancelJobs();
 }
-
-#endif

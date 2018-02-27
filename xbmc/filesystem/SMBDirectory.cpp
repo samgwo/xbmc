@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,8 +29,6 @@
 * debugging is set to a max of 10 for release builds (see local.h)
 */
 
-#include "system.h"
-
 #include "SMBDirectory.h"
 #include "Util.h"
 #include "guilib/LocalizeStrings.h"
@@ -42,7 +40,7 @@
 #include "threads/SingleLock.h"
 #include "PasswordManager.h"
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 #include <libsmbclient.h>

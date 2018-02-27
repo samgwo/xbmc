@@ -6,7 +6,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -127,6 +127,22 @@ public:
 
   static std::string ReleaseTypeToString(ReleaseType releaseType);
   static ReleaseType ReleaseTypeFromString(const std::string& strReleaseType);
+
+  /*! \brief Set album artist credits using the arrays of tag values.
+   If strArtistSort (as from ALBUMARTISTSORT tag) is already set then individual
+   artist sort names are also processed.
+   \param names       String vector of albumartist names (as from ALBUMARTIST tag) 
+   \param hints       String vector of albumartist name hints (as from ALBUMARTISTS tag)
+   \param mbids       String vector of albumartist Musicbrainz IDs (as from MUSICBRAINZABUMARTISTID tag)
+   \param artistnames String vector of artist names (as from ARTIST tag)
+   \param artisthints String vector of artist name hints (as from ARTISTS tag)
+   \param artistmbids String vector of artist Musicbrainz IDs (as from MUSICBRAINZARTISTID tag)
+  */
+  void SetArtistCredits(const std::vector<std::string>& names, const std::vector<std::string>& hints, 
+                        const std::vector<std::string>& mbids,
+                        const std::vector<std::string>& artistnames = std::vector<std::string>(), 
+                        const std::vector<std::string>& artisthints = std::vector<std::string>(),
+                        const std::vector<std::string>& artistmbids = std::vector<std::string>());
 
   /*! \brief Load album information from an XML file.
    See CVideoInfoTag::Load for a description of the types of elements we load.

@@ -18,17 +18,17 @@
  *
  */
 
-#if defined(TARGET_ANDROID)
-
 #include "RendererMediaCodecSurface.h"
 
 #include "../RenderCapture.h"
+#include "../RenderFlags.h"
 #include "guilib/GraphicContext.h"
 #include "rendering/RenderSystem.h"
 #include "settings/MediaSettings.h"
 #include "platform/android/activity/XBMCApp.h"
 #include "DVDCodecs/Video/DVDVideoCodecAndroidMediaCodec.h"
 #include "utils/log.h"
+#include "utils/TimeUtils.h"
 #include "../RenderFactory.h"
 
 #include <thread>
@@ -57,7 +57,7 @@ bool CRendererMediaCodecSurface::Register()
   return true;
 }
 
-bool CRendererMediaCodecSurface::Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation)
+bool CRendererMediaCodecSurface::Configure(const VideoPicture &picture, float fps, unsigned int orientation)
 {
   CLog::Log(LOGNOTICE, "CRendererMediaCodecSurface::Configure");
 
@@ -65,14 +65,14 @@ bool CRendererMediaCodecSurface::Configure(const VideoPicture &picture, float fp
   m_sourceHeight = picture.iHeight;
   m_renderOrientation = orientation;
 
-  // Save the flags.
-  m_iFlags = flags;
+  m_iFlags = GetFlagsChromaPosition(picture.chroma_position) |
+             GetFlagsColorMatrix(picture.color_space, picture.iWidth, picture.iHeight) |
+             GetFlagsColorPrimaries(picture.color_primaries) |
+             GetFlagsStereoMode(picture.stereoMode);
 
   // Calculate the input frame aspect ratio.
   CalculateFrameAspectRatio(picture.iDisplayWidth, picture.iDisplayHeight);
-  SetViewMode(CMediaSettings::GetInstance().GetCurrentVideoSettings().m_ViewMode);
-
-  m_bConfigured = true;
+  SetViewMode(m_videoSettings.m_ViewMode);
 
   return true;
 }
@@ -93,11 +93,12 @@ bool CRendererMediaCodecSurface::RenderCapture(CRenderCapture* capture)
 
 void CRendererMediaCodecSurface::AddVideoPicture(const VideoPicture &picture, int index, double currentClock)
 {
-  int64_t nanodiff(static_cast<int64_t>((picture.pts - currentClock) * 1000));
-
-  if (dynamic_cast<CMediaCodecVideoBuffer*>(picture.videoBuffer))
+  if (m_bConfigured && dynamic_cast<CMediaCodecVideoBuffer*>(picture.videoBuffer))
+  {
+    int64_t nanodiff(static_cast<int64_t>((picture.pts - currentClock) * 1000));
     dynamic_cast<CMediaCodecVideoBuffer*>(picture.videoBuffer)->RenderUpdate(m_surfDestRect,
-      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + nanodiff);
+      CurrentHostCounter() + nanodiff);
+  }
 }
 
 void CRendererMediaCodecSurface::ReleaseBuffer(int idx)
@@ -115,43 +116,42 @@ bool CRendererMediaCodecSurface::Supports(ERENDERFEATURE feature)
   return false;
 }
 
-void CRendererMediaCodecSurface::Reset()
-{
-}
-
 void CRendererMediaCodecSurface::RenderUpdate(int index, int index2, bool clear, unsigned int flags, unsigned int alpha)
 {
   CXBMCApp::get()->WaitVSync(100);
-  ManageRenderArea();
-}
-
-void CRendererMediaCodecSurface::ReorderDrawPoints()
-{
-  CBaseRenderer::ReorderDrawPoints();
+  m_bConfigured = true;
 
   // this hack is needed to get the 2D mode of a 3D movie going
   RENDER_STEREO_MODE stereo_mode = g_graphicsContext.GetStereoMode();
   if (stereo_mode)
     g_graphicsContext.SetStereoView(RENDER_STEREO_VIEW_LEFT);
 
+  ManageRenderArea();
+
   if (stereo_mode)
     g_graphicsContext.SetStereoView(RENDER_STEREO_VIEW_OFF);
 
   m_surfDestRect = m_destRect;
-  CRect srcRect(m_sourceRect);
   switch (stereo_mode)
   {
     case RENDER_STEREO_MODE_SPLIT_HORIZONTAL:
       m_surfDestRect.y2 *= 2.0;
-      srcRect.y2 *= 2.0;
       break;
     case RENDER_STEREO_MODE_SPLIT_VERTICAL:
       m_surfDestRect.x2 *= 2.0;
-      srcRect.x2 *= 2.0;
+      break;
+    case RENDER_STEREO_MODE_MONO:
+      m_surfDestRect.y2 = m_surfDestRect.y2 * (m_surfDestRect.y2 / m_sourceRect.y2);
+      m_surfDestRect.x2 = m_surfDestRect.x2 * (m_surfDestRect.x2 / m_sourceRect.x2);
       break;
     default:
       break;
   }
+}
+
+void CRendererMediaCodecSurface::ReorderDrawPoints()
+{
+  CBaseRenderer::ReorderDrawPoints();
 
   // Handle orientation
   switch (m_renderOrientation)
@@ -167,5 +167,3 @@ void CRendererMediaCodecSurface::ReorderDrawPoints()
       break;
   }
 }
-
-#endif

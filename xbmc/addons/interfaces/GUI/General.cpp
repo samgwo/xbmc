@@ -144,7 +144,7 @@ void Interface_GUIGeneral::DeInit(AddonGlobalInterface* addonInterface)
 void Interface_GUIGeneral::lock()
 {
   if (m_iAddonGUILockRef == 0)
-    g_graphicsContext.Lock();
+    g_graphicsContext.lock();
   ++m_iAddonGUILockRef;
 }
 
@@ -154,7 +154,7 @@ void Interface_GUIGeneral::unlock()
   {
     --m_iAddonGUILockRef;
     if (m_iAddonGUILockRef == 0)
-      g_graphicsContext.Unlock();
+      g_graphicsContext.unlock();
   }
 }
 //@}
@@ -208,7 +208,7 @@ int Interface_GUIGeneral::get_current_window_dialog_id(void* kodiBase)
   }
 
   CSingleLock gl(g_graphicsContext);
-  return g_windowManager.GetTopMostModalDialogID();
+  return g_windowManager.GetTopmostModalDialog();
 }
 
 int Interface_GUIGeneral::get_current_window_id(void* kodiBase)

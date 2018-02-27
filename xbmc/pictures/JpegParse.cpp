@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2007 Team XboxMediaCenter
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -322,8 +322,6 @@ bool CJpegParse::Process (const char *picFileName)
 
   bool result = ExtractInfo(file);
   file.Close();
-  if (result == false)
-    printf("JpgParse: Not a JPEG file %s", picFileName);
   return result;
 }
 

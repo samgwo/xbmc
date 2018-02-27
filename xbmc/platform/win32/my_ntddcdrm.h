@@ -3,7 +3,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
+
+#include <winioctl.h>
 
 #define IOCTL_CDROM_BASE             FILE_DEVICE_CD_ROM
 #define IOCTL_CDROM_RAW_READ         CTL_CODE(IOCTL_CDROM_BASE, 0x000F, METHOD_OUT_DIRECT,  FILE_READ_ACCESS)

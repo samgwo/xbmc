@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -121,7 +121,7 @@ bool CGUIWindowMusicPlayList::OnMessage(CGUIMessage& message)
         SET_CONTROL_FOCUS(m_iLastControl, 0);
       }
 
-      if (g_application.m_pPlayer->IsPlayingAudio() && CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
+      if (g_application.GetAppPlayer().IsPlayingAudio() && CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
       {
         int iSong = CServiceBroker::GetPlaylistPlayer().GetCurrentSong();
         if (iSong >= 0 && iSong <= m_vecItems->Size())
@@ -254,7 +254,7 @@ bool CGUIWindowMusicPlayList::MoveCurrentPlayListItem(int iItem, int iAction, bo
 
   // is the currently playing item affected?
   bool bFixCurrentSong = false;
-  if ((CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC) && (g_application.m_pPlayer->IsPlayingAudio()) &&
+  if ((CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC) && (g_application.GetAppPlayer().IsPlayingAudio()) &&
     ((CServiceBroker::GetPlaylistPlayer().GetCurrentSong() == iSelected) || (CServiceBroker::GetPlaylistPlayer().GetCurrentSong() == iNew)))
     bFixCurrentSong = true;
 
@@ -344,7 +344,7 @@ void CGUIWindowMusicPlayList::RemovePlayListItem(int iItem)
   if (iItem < 0 || iItem > m_vecItems->Size()) return;
 
   // The current playing song can't be removed
-  if (CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC && g_application.m_pPlayer->IsPlayingAudio()
+  if (CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC && g_application.GetAppPlayer().IsPlayingAudio()
       && CServiceBroker::GetPlaylistPlayer().GetCurrentSong() == iItem)
     return ;
 
@@ -377,7 +377,7 @@ void CGUIWindowMusicPlayList::UpdateButtons()
     CONTROL_ENABLE(CONTROL_BTNREPEAT);
     CONTROL_ENABLE(CONTROL_BTNPLAY);
 
-    if (g_application.m_pPlayer->IsPlayingAudio() && CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
+    if (g_application.GetAppPlayer().IsPlayingAudio() && CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC)
     {
       CONTROL_ENABLE(CONTROL_BTNNEXT);
       CONTROL_ENABLE(CONTROL_BTNPREVIOUS);
@@ -512,10 +512,13 @@ void CGUIWindowMusicPlayList::GetContextButtons(int itemNumber, CContextButtons 
       buttons.Add(CONTEXT_BUTTON_CANCEL_MOVE, 13253);
     }
     else
-    { // aren't in a move
+    {
+      const CPlayerCoreFactory &playerCoreFactory = CServiceBroker::GetPlayerCoreFactory();
+
+      // aren't in a move
       // check what players we have, if we have multiple display play with option
       std::vector<std::string> players;
-      CPlayerCoreFactory::GetInstance().GetPlayers(*item, players);
+      playerCoreFactory.GetPlayers(*item, players);
       if (players.size() > 1)
         buttons.Add(CONTEXT_BUTTON_PLAY_WITH, 15213); // Play With...
 
@@ -553,9 +556,11 @@ bool CGUIWindowMusicPlayList::OnContextButton(int itemNumber, CONTEXT_BUTTON but
       if (!item)
         break;
 
+      const CPlayerCoreFactory &playerCoreFactory = CServiceBroker::GetPlayerCoreFactory();
+
       std::vector<std::string> players;
-      CPlayerCoreFactory::GetInstance().GetPlayers(*item, players);
-      std::string player = CPlayerCoreFactory::GetInstance().SelectPlayerDialog(players);
+      playerCoreFactory.GetPlayers(*item, players);
+      std::string player = playerCoreFactory.SelectPlayerDialog(players);
       if (!player.empty())
         OnClick(itemNumber, player);
       return true;
@@ -598,7 +603,9 @@ bool CGUIWindowMusicPlayList::OnContextButton(int itemNumber, CONTEXT_BUTTON but
 
   case CONTEXT_BUTTON_EDIT_PARTYMODE:
   {
-    std::string playlist = CProfilesManager::GetInstance().GetUserDataItem("PartyMode.xsp");
+    const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
+    std::string playlist = profileManager.GetUserDataItem("PartyMode.xsp");
     if (CGUIDialogSmartPlaylistEditor::EditPlaylist(playlist))
     {
       // apply new rules
@@ -673,7 +680,7 @@ void CGUIWindowMusicPlayList::MarkPlaying()
     m_vecItems->Get(i)->Select(false);
 
   // mark the currently playing item
-  if ((CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC) && (g_application.m_pPlayer->IsPlayingAudio()))
+  if ((CServiceBroker::GetPlaylistPlayer().GetCurrentPlaylist() == PLAYLIST_MUSIC) && (g_application.GetAppPlayer().IsPlayingAudio()))
   {
     int iSong = CServiceBroker::GetPlaylistPlayer().GetCurrentSong();
     if (iSong >= 0 && iSong <= m_vecItems->Size())

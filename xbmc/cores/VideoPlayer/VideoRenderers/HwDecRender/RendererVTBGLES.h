@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2007-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,8 +19,6 @@
  */
 
 #pragma once
-
-#include "system.h"
 
 #include "cores/VideoPlayer/VideoRenderers/LinuxRendererGLES.h"
 #include <CoreVideo/CVOpenGLESTextureCache.h>
@@ -58,5 +56,6 @@ protected:
     GLsync m_fence;
   };
   CRenderBuffer m_vtbBuffers[NUM_BUFFERS];
+  CVEAGLContext m_glContext;
 };
 

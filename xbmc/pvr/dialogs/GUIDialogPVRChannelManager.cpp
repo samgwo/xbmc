@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -337,7 +337,10 @@ bool CGUIDialogPVRChannelManager::OnClickButtonChannelLogo(CGUIMessage &message)
   CFileItemPtr pItem = m_channelItems->Get(m_iSelected);
   if (!pItem)
     return false;
-  if (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
+
+  const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
+  if (profileManager.GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
     return false;
 
   // setup our thumb list
@@ -660,8 +663,6 @@ void CGUIDialogPVRChannelManager::SetData(int iItem)
 
 void CGUIDialogPVRChannelManager::Update()
 {
-  // lock our display, as this window is rendered from the player thread
-  g_graphicsContext.Lock();
   m_viewControl.SetCurrentView(CONTROL_LIST_CHANNELS);
 
   // empty the lists ready for population
@@ -688,7 +689,7 @@ void CGUIDialogPVRChannelManager::Update()
     channelFile->SetProperty("Icon", channel->IconPath());
     channelFile->SetProperty("EPGSource", (int)0);
     channelFile->SetProperty("ParentalLocked", channel->IsLocked());
-    channelFile->SetProperty("Number", StringUtils::Format("%i", channel->ChannelNumber()));
+    channelFile->SetProperty("Number", StringUtils::Format("%i", channel->ChannelNumber().GetChannelNumber()));
 
     std::string clientName;
     CServiceBroker::GetPVRManager().Clients()->GetClientFriendlyName(channel->ClientID(), clientName);
@@ -717,8 +718,6 @@ void CGUIDialogPVRChannelManager::Update()
   Renumber();
   m_viewControl.SetItems(*m_channelItems);
   m_viewControl.SetSelectedItem(m_iSelected);
-
-  g_graphicsContext.Unlock();
 }
 
 void CGUIDialogPVRChannelManager::Clear(void)

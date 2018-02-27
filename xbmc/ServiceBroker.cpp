@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@
 
 #include "ServiceBroker.h"
 #include "Application.h"
+#include "rendering/RenderSystem.h"
+#include "windowing/WinSystem.h"
 
 using namespace KODI;
 
@@ -95,6 +97,11 @@ GAME::CGameServices& CServiceBroker::GetGameServices()
   return g_application.m_ServiceManager->GetGameServices();
 }
 
+KODI::RETRO::CGUIGameRenderManager& CServiceBroker::GetGameRenderManager()
+{
+  return g_application.m_ServiceManager->GetGameRenderManager();
+}
+
 PERIPHERALS::CPeripherals& CServiceBroker::GetPeripherals()
 {
   return g_application.m_ServiceManager->GetPeripherals();
@@ -120,7 +127,63 @@ CInputManager& CServiceBroker::GetInputManager()
   return g_application.m_ServiceManager->GetInputManager();
 }
 
+CFileExtensionProvider& CServiceBroker::GetFileExtensionProvider()
+{
+  return g_application.m_ServiceManager->GetFileExtensionProvider();
+}
+
+CNetwork& CServiceBroker::GetNetwork()
+{
+  return g_application.m_ServiceManager->GetNetwork();
+}
+
 bool CServiceBroker::IsBinaryAddonCacheUp()
 {
   return g_application.m_ServiceManager->init_level > 1;
+}
+
+bool CServiceBroker::IsServiceManagerUp()
+{
+  return g_application.m_ServiceManager->init_level == 3;
+}
+
+CWinSystemBase& CServiceBroker::GetWinSystem()
+{
+  return g_application.m_ServiceManager->GetWinSystem();
+}
+
+CRenderSystemBase& CServiceBroker::GetRenderSystem()
+{
+  CRenderSystemBase &renderSystem = dynamic_cast<CRenderSystemBase&>(g_application.m_ServiceManager->GetWinSystem());
+  return renderSystem;
+}
+
+CPowerManager& CServiceBroker::GetPowerManager()
+{
+  return g_application.m_ServiceManager->GetPowerManager();
+}
+
+CWeatherManager& CServiceBroker::GetWeatherManager()
+{
+  return g_application.m_ServiceManager->GetWeatherManager();
+}
+
+CPlayerCoreFactory& CServiceBroker::GetPlayerCoreFactory()
+{
+  return g_application.m_ServiceManager->GetPlayerCoreFactory();
+}
+
+CDatabaseManager& CServiceBroker::GetDatabaseManager()
+{
+  return g_application.m_ServiceManager->GetDatabaseManager();
+}
+
+CProfilesManager& CServiceBroker::GetProfileManager()
+{
+  return g_application.m_ServiceManager->GetProfileManager();
+}
+
+CEventLog& CServiceBroker::GetEventLog()
+{
+  return g_application.m_ServiceManager->GetEventLog();
 }

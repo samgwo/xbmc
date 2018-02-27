@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
  *
  */
 
-
-#include "system.h"
 #include "utils/URIUtils.h"
 #include "FileDirectoryFactory.h"
 #include "UDFDirectory.h"
@@ -61,13 +59,13 @@ IFileDirectory* CFileDirectoryFactory::Create(const CURL& url, CFileItem* pItem,
 
   std::string strExtension=URIUtils::GetExtension(url);
   StringUtils::ToLower(strExtension);
-  if (!strExtension.empty())
+  if (!strExtension.empty() && CServiceBroker::IsBinaryAddonCacheUp())
   {
     BinaryAddonBaseList addonInfos;
     CServiceBroker::GetBinaryAddonManager().GetAddonInfos(addonInfos, true, ADDON_AUDIODECODER);
     for (const auto& addonInfo : addonInfos)
     {
-      if (CAudioDecoder::HasTags(addonInfo) &&
+      if (CAudioDecoder::HasTracks(addonInfo) &&
           CAudioDecoder::GetExtensions(addonInfo).find(strExtension) != std::string::npos)
       {
         CAudioDecoder* result = new CAudioDecoder(addonInfo);

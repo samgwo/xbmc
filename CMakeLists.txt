@@ -1,5 +1,10 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.4)
 project(kodi LANGUAGES CXX C ASM)
+
+if(POLICY CMP0069)
+  set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
+  cmake_policy(SET CMP0069 NEW)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 if(DEPENDS_DIR)
@@ -97,9 +102,10 @@ find_package(Threads REQUIRED QUIET)
 list(APPEND DEPLIBS ${CMAKE_THREAD_LIBS_INIT})
 
 
-foreach(dep ${PLATFORM_REQUIRED_DEPS})
+foreach(depspec ${PLATFORM_REQUIRED_DEPS})
   # We need to specify ENABLE_${PLATFORM_REQUIRED_DEPS} in order for the
   # optional subdirectory for the specified platform to get built.
+  split_dependency_specification(${depspec} dep version)
   string(TOUPPER ${dep} depup)
   set(ENABLE_${depup} "ON" CACHE BOOL "Force enabling required ${depup} support" FORCE)
 endforeach()
@@ -108,10 +114,12 @@ endforeach()
 set(required_deps Cdio
                   Cpluff
                   CrossGUID
+                  Curl
                   FFMPEG
                   Fmt
                   FreeType
                   FriBidi
+                  Iconv
                   LibDvd
                   Lzo2
                   PCRE
@@ -128,6 +136,10 @@ endif()
 if(CORE_SYSTEM_NAME STREQUAL android)
   list(APPEND required_deps Zip)
 endif()
+if(CORE_SYSTEM_NAME STREQUAL windowsstore)
+  #uses header only version of Fmt
+  list(REMOVE_ITEM required_deps Fmt)
+endif()
 
 # Optional dependencies. Keep in alphabetical order please
 set(optional_deps Alsa
@@ -139,7 +151,6 @@ set(optional_deps Alsa
                   LCMS2
                   MDNS
                   MicroHttpd
-                  MySqlClient
                   PulseAudio
                   Python
                   SmbClient
@@ -150,8 +161,7 @@ set(optional_deps Alsa
                   ${PLATFORM_OPTIONAL_DEPS})
 
 # Required, dyloaded deps. Keep in alphabetical order please
-set(required_dyload ASS
-                    Curl)
+set(required_dyload ASS)
 
 # Optional, dyloaded deps. Keep in alphabetical order please
 set(dyload_optional Bluray
@@ -168,6 +178,17 @@ core_optional_dep(${optional_deps})
 core_require_dyload_dep(${required_dyload})
 core_optional_dyload_dep(${dyload_optional})
 
+if(ENABLE_MARIADBCLIENT AND NOT ENABLE_MARIADBCLIENT STREQUAL AUTO AND ENABLE_MYSQLCLIENT AND NOT ENABLE_MYSQLCLIENT STREQUAL AUTO)
+  MESSAGE(FATAL_ERROR "You can not use MySql and MariaDB at the same time. Disable one by adding -DENABLE_MYSQLCLIENT=OFF or -DENABLE_MARIADBCLIENT=OFF.")
+elseif(ENABLE_MYSQLCLIENT AND NOT ENABLE_MYSQLCLIENT STREQUAL AUTO)
+  set(ENABLE_MARIADBCLIENT OFF CACHE BOOL "")
+endif()
+
+core_optional_dep(MariaDBClient)
+if(NOT MARIADBCLIENT_FOUND)
+  core_optional_dep(MySqlClient)
+endif()
+
 if(NOT UDEV_FOUND)
   core_optional_dep(LibUSB)
 endif()
@@ -178,16 +199,16 @@ if(ENABLE_OPENSSL)
 endif()
 
 if(ENABLE_UPNP)
-  list(APPEND DEP_DEFINES "-DUSE_UPNP=1")
+  list(APPEND DEP_DEFINES "-DHAS_UPNP=1")
 endif()
 
 if(ENABLE_OPTICAL)
-  list(APPEND DEP_DEFINES -DHAS_DVD_DRIVE)
+  list(APPEND DEP_DEFINES -DHAS_DVD_DRIVE -DHAS_CDDA_RIPPER)
 endif()
 
 if(ENABLE_LIRC)
   set(LIRC_DEVICE /dev/lircd CACHE STRING "LIRC device to use")
-  list(APPEND DEP_DEFINES -DLIRC_DEVICE="${LIRC_DEVICE}" -DHAVE_LIRC=1)
+  list(APPEND DEP_DEFINES -DLIRC_DEVICE="${LIRC_DEVICE}" -DHAS_LIRC=1)
 endif()
 
 if(ENABLE_AIRTUNES)
@@ -270,7 +291,7 @@ set_target_properties(pack-skins PROPERTIES FOLDER "Build Utilities")
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/system/players/VideoPlayer)
 
 set(LIBCEC_SONAME "${CEC_SONAME}")
-if(NOT CORE_SYSTEM_NAME STREQUAL windows AND NOT CORE_SYSTEM_NAME STREQUAL android)
+if(NOT CORE_SYSTEM_NAME STREQUAL windows AND NOT CORE_SYSTEM_NAME STREQUAL android AND NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
   configure_file(${CMAKE_SOURCE_DIR}/xbmc/DllPaths_generated.h.in
                  ${CORE_BUILD_DIR}/DllPaths_generated.h @ONLY)
 elseif(CORE_SYSTEM_NAME STREQUAL android)
@@ -280,8 +301,8 @@ endif()
 
 # main library (used for main binary and tests)
 add_library(lib${APP_NAME_LC} STATIC $<TARGET_OBJECTS:compileinfo>)
-set_target_properties(lib${APP_NAME_LC} PROPERTIES PREFIX "")
 add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg dvdnav crossguid ${PLATFORM_GLOBAL_TARGET_DEPS})
+set_target_properties(lib${APP_NAME_LC} PROPERTIES PREFIX "")
 
 # Other files (IDE)
 set(OTHER_FILES cmake/README.md)
@@ -302,6 +323,9 @@ endif()
 
 # main binary
 if(NOT CORE_SYSTEM_NAME STREQUAL android)
+  if(CORE_SYSTEM_NAME STREQUAL windowsstore)
+    winstore_add_target_properties(${APP_NAME_LC})
+  endif()
   add_executable(${APP_NAME_LC} ${CORE_MAIN_SOURCE} "${RESOURCES}" ${OTHER_FILES})
   set_target_properties(${APP_NAME_LC} PROPERTIES ENABLE_EXPORTS ON)
 else()
@@ -316,19 +340,25 @@ unset(_MAIN_LIBRARIES)
 if(WIN32)
   set_target_properties(${APP_NAME_LC} PROPERTIES WIN32_EXECUTABLE ON)
   set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ${APP_NAME_LC})
-  target_sources(${APP_NAME_LC} PRIVATE ${CMAKE_SOURCE_DIR}/xbmc/platform/win32/app.manifest)
+  if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+    target_sources(${APP_NAME_LC} PRIVATE ${CMAKE_SOURCE_DIR}/xbmc/platform/win32/app.manifest)
+  else()
+    set_target_properties(${APP_NAME_LC} PROPERTIES VS_USER_PROPS ${VCPROJECT_PROPS_FILE}
+                          VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION ${VS_MINIMUM_SDK_VERSION})
+  endif()
 elseif(CORE_SYSTEM_NAME STREQUAL android)
   # Nothing
 elseif(CORE_SYSTEM_NAME STREQUAL ios)
   set_target_properties(${APP_NAME_LC} PROPERTIES OUTPUT_NAME ${APP_NAME}
                                                   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/xbmc/platform/darwin/ios/Info.plist.in)
 else()
-  set_target_properties(${APP_NAME_LC} PROPERTIES SUFFIX ".bin")
+  set_target_properties(${APP_NAME_LC} PROPERTIES SUFFIX ${APP_BINARY_SUFFIX})
 endif()
 
 # testing
 copy_files_from_filelist_to_buildtree(${CMAKE_SOURCE_DIR}/cmake/installdata/test-reference-data.txt NO_INSTALL)
 add_executable(${APP_NAME_LC}-test EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/xbmc/test/xbmc-test.cpp ${test_sources})
+set_target_properties(${APP_NAME_LC}-test PROPERTIES ENABLE_EXPORTS ON)
 whole_archive(_TEST_LIBRARIES ${core_DEPENDS} gtest)
 target_link_libraries(${APP_NAME_LC}-test PRIVATE ${SYSTEM_LDFLAGS} ${_TEST_LIBRARIES} lib${APP_NAME_LC} ${DEPLIBS} ${CMAKE_DL_LIBS})
 unset(_TEST_LIBRARIES)
@@ -396,7 +426,7 @@ include(cmake/scripts/${CORE_SYSTEM_NAME}/Install.cmake)
 
 # Add uninstall target
 if(CMAKE_GENERATOR MATCHES Makefile)
-  add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/scripts/common/Uninstall.cmake)
+  add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/scripts/common/Uninstall.cmake)
   set_target_properties(uninstall PROPERTIES FOLDER "Build Utilities")
 endif()
 
@@ -421,18 +451,10 @@ if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
 endif()
 
 # Prepare add-on build env
-core_file_read_filtered(bindings ${CMAKE_SOURCE_DIR}/xbmc/addons/addon-bindings.mk)
-foreach(header ${bindings})
-  get_filename_component(file ${header} NAME)
-  configure_file(${CMAKE_SOURCE_DIR}/${header} ${CORE_BUILD_DIR}/include/${APP_NAME_LC}/${file} COPYONLY)
-endforeach()
-file(GLOB_RECURSE ADDON_HEADERS
-     RELATIVE ${CORE_SOURCE_DIR}/xbmc/addons/kodi-addon-dev-kit/include/kodi
-    ${CORE_SOURCE_DIR}/xbmc/addons/kodi-addon-dev-kit/include/kodi/*.h)
-foreach(header ${ADDON_HEADERS})
-  configure_file(${CORE_SOURCE_DIR}/xbmc/addons/kodi-addon-dev-kit/include/kodi/${header}
-                 ${CORE_BUILD_DIR}/include/kodi/${header} COPYONLY)
-endforeach()
+include(${CORE_SOURCE_DIR}/xbmc/addons/AddonBindings.cmake)
+file(COPY ${CORE_ADDON_BINDINGS_FILES} ${CORE_ADDON_BINDINGS_DIRS}/
+     DESTINATION ${CORE_BUILD_DIR}/include/${APP_NAME_LC}
+     REGEX ".txt" EXCLUDE)
 
 set(APP_LIB_DIR ${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/lib/${APP_NAME_LC})
 set(APP_INCLUDE_DIR ${CMAKE_BINARY_DIR}/${CORE_BUILD_DIR}/include/${APP_NAME_LC})
@@ -460,11 +482,14 @@ if(VERBOSE)
   message(STATUS "CMAKE_C_FLAGS         : ${CMAKE_C_FLAGS}")
   message(STATUS "CMAKE_CXX_FLAGS       : ${CMAKE_CXX_FLAGS}")
   message(STATUS "CMAKE_EXE_LINKER_FLAGS: ${CMAKE_EXE_LINKER_FLAGS}")
+  message(STATUS "LTO_OPTIMIZATION:     : ${CMAKE_INTERPROCEDURAL_OPTIMIZATION}")
   message(STATUS "#---------------------------------------------#")
   message(STATUS "bindir     : ${bindir}")
   message(STATUS "includedir : ${includedir}")
   message(STATUS "libdir     : ${libdir}")
   message(STATUS "datarootdir: ${datarootdir}")
+  message(STATUS "#---------------------------------------------#")
+  message(STATUS "BINARY: ${APP_NAME_LC}${APP_BINARY_SUFFIX}")
   message(STATUS "#---------------------------------------------#")
   message(STATUS "GIT_REV: ${APP_SCMID}")
   message(STATUS "#---------------------------------------------#")

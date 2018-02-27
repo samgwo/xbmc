@@ -1,23 +1,22 @@
 include ../../Makefile.include
-DEPS= ../../Makefile.include Makefile
+DEPS= ../../Makefile.include Makefile 0001-HTTP-reset-expected-DL-UL-sizes-on-redirects.patch
 
 # lib name, version
 LIBNAME=curl
 ifeq (osx, $(findstring osx, $(OS)))
 VERSION=7.21.6
 else
-VERSION=7.51.0
+VERSION=7.56.1
 endif
 SOURCE=$(LIBNAME)-$(VERSION)
 ARCHIVE=$(SOURCE).tar.bz2
 # configuration settings
 CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
-          ./configure --prefix=$(PREFIX) \
-          --without-libssh2 --disable-ntlm-wb --enable-ipv6 --without-librtmp
+          ./configure --prefix=$(PREFIX) --disable-shared --disable-ldap \
+          --without-libssh2 --disable-ntlm-wb --enable-ipv6 --without-librtmp \
+          --with-ssl=$(PREFIX)
 
 LIBDYLIB=$(PLATFORM)/lib/.libs/lib$(LIBNAME).a
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: .installed-$(PLATFORM)
 

@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -69,7 +69,6 @@ protected:
   void UpdateName();
   bool SetPictureParams(VideoPicture* pVideoPicture);
 
-  IHardwareDecoder* CreateVideoDecoderHW(AVPixelFormat pixfmt, CProcessInfo &processInfo);
   bool HasHardware() { return m_pHardware != nullptr; };
   void SetHardware(IHardwareDecoder *hardware);
 
@@ -101,7 +100,7 @@ protected:
   IHardwareDecoder *m_pHardware;
   int m_iLastKeyframe;
   double m_dts;
-  bool   m_started;
+  bool m_started = false;
   std::vector<AVPixelFormat> m_formats;
   double m_decoderPts;
   int    m_skippedDeint;

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -48,9 +48,9 @@ void CVideoInfoTag::Reset()
   m_strOriginalTitle.clear();
   m_strSortTitle.clear();
   m_cast.clear();
-  m_strSet.clear();
-  m_iSetId = -1;
-  m_strSetOverview.clear();
+  m_set.title.clear();
+  m_set.id = -1;
+  m_set.overview.clear();
   m_tags.clear();
   m_strFile.clear();
   m_strPath.clear();
@@ -100,6 +100,7 @@ void CVideoInfoTag::Reset()
   m_type.clear();
   m_relevance = -1;
   m_parsedDetails = 0;
+  m_coverArt.clear();
 }
 
 bool CVideoInfoTag::Save(TiXmlNode *node, const std::string &tag, bool savePathInfo, const TiXmlElement *additionalNode)
@@ -220,12 +221,12 @@ bool CVideoInfoTag::Save(TiXmlNode *node, const std::string &tag, bool savePathI
   }
   XMLUtils::SetStringArray(movie, "genre", m_genre);
   XMLUtils::SetStringArray(movie, "country", m_country);
-  if (!m_strSet.empty())
+  if (!m_set.title.empty())
   {
     TiXmlElement set("set");
-    XMLUtils::SetString(&set, "name", m_strSet);
-    if (!m_strSetOverview.empty())
-      XMLUtils::SetString(&set, "overview", m_strSetOverview);
+    XMLUtils::SetString(&set, "name", m_set.title);
+    if (m_set.overview.empty())
+      XMLUtils::SetString(&set, "overview", m_set.overview);
     movie->InsertEndChild(set);
   }
   XMLUtils::SetStringArray(movie, "tag", m_tags);
@@ -356,9 +357,9 @@ void CVideoInfoTag::Archive(CArchive& ar)
       ar << m_cast[i].thumbUrl.m_xml;
     }
 
-    ar << m_strSet;
-    ar << m_iSetId;
-    ar << m_strSetOverview;
+    ar << m_set.title;
+    ar << m_set.id;
+    ar << m_set.overview;
     ar << m_tags;
     ar << m_duration;
     ar << m_strFile;
@@ -421,6 +422,9 @@ void CVideoInfoTag::Archive(CArchive& ar)
     ar << m_dateAdded.GetAsDBDateTime();
     ar << m_type;
     ar << m_iIdSeason;
+    ar << m_coverArt.size();
+    for (auto& it : m_coverArt)
+      ar << it;
   }
   else
   {
@@ -454,9 +458,9 @@ void CVideoInfoTag::Archive(CArchive& ar)
       m_cast.push_back(info);
     }
 
-    ar >> m_strSet;
-    ar >> m_iSetId;
-    ar >> m_strSetOverview;
+    ar >> m_set.title;
+    ar >> m_set.id;
+    ar >> m_set.overview;
     ar >> m_tags;
     ar >> m_duration;
     ar >> m_strFile;
@@ -541,6 +545,11 @@ void CVideoInfoTag::Archive(CArchive& ar)
     m_dateAdded.SetFromDBDateTime(dateAdded);
     ar >> m_type;
     ar >> m_iIdSeason;
+    size_t size;
+    ar >> size;
+    m_coverArt.resize(size);
+    for (size_t i = 0; i < size; ++i)
+      ar >> m_coverArt[i];
   }
 }
 
@@ -568,9 +577,9 @@ void CVideoInfoTag::Serialize(CVariant& value) const
       actor["thumbnail"] = CTextureUtils::GetWrappedImageURL(m_cast[i].thumb);
     value["cast"].push_back(actor);
   }
-  value["set"] = m_strSet;
-  value["setid"] = m_iSetId;
-  value["setoverview"] = m_strSetOverview;
+  value["set"] = m_set.title;
+  value["setid"] = m_set.id;
+  value["setoverview"] = m_set.overview;
   value["tag"] = m_tags;
   value["runtime"] = GetDuration();
   value["file"] = m_strFile;
@@ -649,7 +658,7 @@ void CVideoInfoTag::ToSortable(SortItem& sortable, Field field) const
   case FieldVotes:                    sortable[FieldVotes] = GetRating().votes; break;
   case FieldStudio:                   sortable[FieldStudio] = m_studio; break;
   case FieldTrailer:                  sortable[FieldTrailer] = m_strTrailer; break;
-  case FieldSet:                      sortable[FieldSet] = m_strSet; break;
+  case FieldSet:                      sortable[FieldSet] = m_set.title; break;
   case FieldTime:                     sortable[FieldTime] = GetDuration(); break;
   case FieldFilename:                 sortable[FieldFilename] = m_strFile; break;
   case FieldMPAA:                     sortable[FieldMPAA] = m_strMPAARating; break;
@@ -1416,12 +1425,12 @@ void CVideoInfoTag::SetUniqueIDs(std::map<std::string, std::string> uniqueIDs)
 
 void CVideoInfoTag::SetSet(std::string set)
 {
-  m_strSet = Trim(std::move(set));
+  m_set.title = Trim(std::move(set));
 }
 
 void CVideoInfoTag::SetSetOverview(std::string setOverview)
 {
-  m_strSetOverview = Trim(std::move(setOverview));
+  m_set.overview = Trim(std::move(setOverview));
 }
 
 void CVideoInfoTag::SetTags(std::vector<std::string> tags)

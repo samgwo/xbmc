@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
  */
 
 #include "TextureDX.h"
-#include "windowing/WindowingFactory.h"
 #include "utils/log.h"
 
 /************************************************************************/
@@ -175,14 +174,18 @@ void CDXTexture::LoadToGPU()
     }
     else
     {
-      CLog::Log(LOGERROR, __FUNCTION__" - failed to lock texture.");
+      CLog::LogF(LOGERROR, "failed to lock texture.");
     }
     m_texture.UnlockRect(0);
     if (usage != D3D11_USAGE_STAGING && IsMipmapped())
       m_texture.GenerateMipmaps();
   }
-  _aligned_free(m_pixels);
-  m_pixels = nullptr;
+
+  if (!m_bCacheMemory)
+  {
+    _aligned_free(m_pixels);
+    m_pixels = nullptr;
+  }
 
   m_loadedToGPU = true;
 }

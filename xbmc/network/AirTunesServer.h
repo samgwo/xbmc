@@ -4,7 +4,7 @@
  * the Boxee project. http://www.boxee.tv
  *
  *      Copyright (C) 2011-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,9 +21,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include "system.h"
-
-#ifdef HAS_AIRTUNES
 
 #include "DllLibShairplay.h"
 #include <sys/types.h>
@@ -106,5 +103,3 @@ private:
       static void  audio_set_progress(void *cls, void *session, unsigned int start, unsigned int curr, unsigned int end);
     };
 };
-
-#endif

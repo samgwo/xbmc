@@ -414,7 +414,7 @@
         </setting>
         <setting id="musicplayer.visualisation" type="addon" label="250" help="36273">
           <level>0</level>
-          <default>visualization.spectrum</default>
+          <default></default>
           <constraints>
             <addontype>xbmc.player.musicviz</addontype>
             <allowempty>true</allowempty>
@@ -893,6 +893,38 @@
           <level>2</level>
           <control type="button" format="action" />
         </setting>
+        <!-- Hidden settings edited using CGUIDialogMusicExportSettings -->
+        <setting id="musiclibrary.exportfiletype" type="integer" label="38304" help="">
+          <level>4</level>
+          <default>0</default>		  
+        </setting>
+        <setting id="musiclibrary.exportfolder" type="string" label="38305" help="">
+          <level>4</level>		
+          <default></default>
+		  <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+        </setting>
+        <setting id="musiclibrary.exportitems" type="integer" label="" help="">
+          <level>4</level>		
+          <default>48</default> <!-- Albums + Album Artists -->
+        </setting>
+        <setting id="musiclibrary.exportunscraped" type="boolean" label="" help="">
+          <level>4</level>		
+          <default>false</default>
+        </setting>
+        <setting id="musiclibrary.exportoverwrite" type="boolean" label="" help="">
+          <level>4</level>		
+          <default>false</default>
+        </setting>
+        <setting id="musiclibrary.exportartwork" type="boolean" label="" help="">
+          <level>4</level>          
+		  <default>false</default>
+        </setting>		
+        <setting id="musiclibrary.exportskipnfo" type="boolean" label="" help="">
+          <level>4</level>          
+		  <default>false</default>
+        </setting>
         <setting id="musiclibrary.import" type="action" label="14249" help="36263">
           <level>2</level>
           <control type="button" format="action" />
@@ -965,6 +997,11 @@
             </options>
           </constraints>
           <control type="list" format="string" />
+        </setting>
+        <setting id="myvideos.usetags" type="boolean" label="21343" help="21344">
+          <level>2</level>
+          <default>false</default>
+          <control type="toggle" />
         </setting>
         <setting id="myvideos.extractflags" type="boolean" label="20433" help="36178">
           <level>2</level>
@@ -1135,6 +1172,16 @@
           <default>false</default>
           <control type="toggle" />
         </setting>
+        <setting id="musiclibrary.artistsfolder" type="path" label="20223" help="36293">
+          <level>1</level>
+          <default></default>
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="button" format="path">
+            <heading>657</heading>
+          </control>
+        </setting>			
         <setting id="musiclibrary.albumsscraper" type="addon" label="20193" help="36257">
           <level>1</level>
           <default>metadata.album.universal</default>
@@ -1233,6 +1280,11 @@
   <section id="pvr" label="14204" help="36201">
     <category id="pvrmanager" label="128" help="36202">
       <group id="1" label="14301">
+        <setting id="pvrmanager.preselectplayingchannel" type="boolean" label="19269" help="36214">
+          <level>1</level>
+          <default>false</default>
+          <control type="toggle" />
+        </setting>
         <setting id="pvrmanager.syncchannelgroups" type="boolean" label="19221" help="36204">
           <level>1</level>
           <default>true</default>
@@ -1245,8 +1297,18 @@
         </setting>
         <setting id="pvrmanager.usebackendchannelnumbers" type="boolean" label="19234" help="36206">
           <level>2</level>
+          <dependencies>
+            <dependency type="visible" on="property" name="pvrsettingvisible" setting="pvrmanager.usebackendchannelnumbers" operator="is">true</dependency>
+          </dependencies>
           <default>false</default>
           <control type="toggle" />
+        </setting>
+        <setting id="pvrmanager.clientpriorities" type="action" label="19240" help="36210">
+          <level>2</level>
+          <dependencies>
+            <dependency type="visible" on="property" name="pvrsettingvisible" setting="pvrmanager.clientpriorities" operator="is">true</dependency>
+          </dependencies>
+          <control type="button" format="action" />
         </setting>
         <setting id="pvrmanager.channelmanager" type="action" label="19199" help="36207">
           <level>1</level>
@@ -1696,6 +1758,15 @@
             <hidden>true</hidden>
           </control>
         </setting>
+        <setting id="services.webserverssl" type="boolean" parent="services.webserver" label="729" help="36899">
+          <requirement>WEBSERVER_HAS_SSL</requirement>
+          <level>1</level>
+          <default>false</default>
+          <dependencies>
+            <dependency type="enable" setting="services.webserver">true</dependency>
+          </dependencies>
+          <control type="toggle" />
+        </setting>
         <setting id="services.webskin" type="addon" label="199" help="36332">
           <level>1</level>
           <default>webinterface.default</default>
@@ -1708,19 +1779,12 @@
         </setting>
       </group>
       <group id="2" label="14275">
-      <requirement>
-        <or>
-          <condition>HAS_EVENT_SERVER</condition>
-          <condition>HAS_JSONRPC</condition>
-        </or>
-      </requirement>
         <setting id="services.esenabled" type="boolean" label="14276" help="36334">
           <level>1</level>
           <default>true</default>
           <control type="toggle" />
         </setting>
         <setting id="services.esport" type="integer" label="792" help="36335">
-          <requirement>HAS_EVENT_SERVER</requirement>
           <level>4</level>
           <default>9777</default>
           <constraints>
@@ -1734,7 +1798,6 @@
           <control type="edit" format="integer" />
         </setting>
         <setting id="services.esportrange" type="integer" label="793" help="36336">
-          <requirement>HAS_EVENT_SERVER</requirement>
           <level>4</level>
           <default>10</default>
           <constraints>
@@ -1748,7 +1811,6 @@
           <control type="spinner" format="integer" />
         </setting>
         <setting id="services.esmaxclients" type="integer" label="797" help="36337">
-          <requirement>HAS_EVENT_SERVER</requirement>
           <level>4</level>
           <default>20</default>
           <constraints>
@@ -1772,7 +1834,6 @@
           <control type="toggle" />
         </setting>
         <setting id="services.esinitialdelay" type="integer" label="795" help="36339">
-          <requirement>HAS_EVENT_SERVER</requirement>
           <level>4</level>
           <default>750</default>
           <constraints>
@@ -1786,7 +1847,6 @@
           <control type="spinner" format="integer" />
         </setting>
         <setting id="services.escontinuousdelay" type="integer" label="796" help="36340">
-          <requirement>HAS_EVENT_SERVER</requirement>
           <level>4</level>
           <default>25</default>
           <constraints>
@@ -1905,7 +1965,7 @@
         </setting>
         <setting id="services.airplayvideosupport" type="boolean" parent="services.airplay" label="1268" help="36549">
           <level>3</level>
-          <default>true</default>
+          <default>false</default>
           <dependencies>
             <dependency type="enable" setting="services.airplay">true</dependency>
           </dependencies>
@@ -1928,6 +1988,19 @@
           <default>0.0.0.0</default>
           <control type="edit" format="ip" />
         </setting>
+        <setting id="smb.minprotocol" type="integer" label="36628" help="36629">
+          <level>2</level>
+          <default>0</default>
+          <constraints>
+            <options>
+              <option label="36623">0</option>
+              <option label="36624">1</option>
+              <option label="36625">2</option>
+              <option label="36626">3</option>
+            </options>
+          </constraints>
+          <control type="list" format="integer" />
+        </setting>
         <setting id="smb.maxprotocol" type="integer" label="36621" help="36622">
           <level>2</level>
           <default>3</default>
@@ -1940,6 +2013,16 @@
             </options>
           </constraints>
           <control type="list" format="integer" />
+        </setting>
+        <setting id="smb.legacysecurity" type="boolean" label="36630" help="36631">
+          <level>2</level>
+          <default>false</default>
+          <control type="toggle" />
+          <dependencies>
+            <dependency type="enable">
+                <condition setting="smb.maxprotocol" operator="is">1</condition>
+            </dependency>
+          </dependencies>
         </setting>
       </group>
     </category>
@@ -2000,113 +2083,6 @@
             <popup>true</popup>
             <formatlabel>14045</formatlabel>
           </control>
-        </setting>
-      </group>
-    </category>
-    <category id="gameskeyboard" label="35150">
-      <group id="1" label="128">
-        <setting id="gameskeyboard.enablekeyboard" type="boolean" label="35152" help="35153">
-          <level>0</level>
-          <control type="toggle" />
-          <default>true</default>
-        </setting>
-      </group>
-      <group id="2" label="35151">
-        <setting id="gameskeyboard.keyboardplayers" type="integer" label="35154" help="35155">
-          <level>0</level>
-          <default>1</default>
-          <constraints>
-            <minimum>1</minimum>
-            <step>1</step>
-            <maximum>8</maximum>
-          </constraints>
-          <dependencies>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-          <control type="slider" format="integer">
-            <popup>true</popup>
-            <formatlabel>35156</formatlabel> <!-- TODO: Add a <formattype>integer</formattype> tag -->
-          </control>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig1" type="action" label="35157" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">1</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig2" type="action" label="35158" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">2</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig3" type="action" label="35159" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">3</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig4" type="action" label="35160" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">4</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig5" type="action" label="35161" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">5</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig6" type="action" label="35162" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">6</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig7" type="action" label="35163" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">7</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
-        </setting>
-        <setting id="gameskeyboard.keyboardplayerconfig8" type="action" label="35164" help="35155">
-          <level>0</level>
-          <control type="button" format="action" />
-          <dependencies>
-            <dependency type="visible">
-              <condition on="property" name="gte" setting="gameskeyboard.keyboardplayers">8</condition>
-            </dependency>
-            <dependency type="enable" setting="gameskeyboard.enablekeyboard">true</dependency>
-          </dependencies>
         </setting>
       </group>
     </category>
@@ -2530,6 +2506,11 @@
             <dependency type="visible" on="property" name="aesettingvisible" setting="audiooutput.channels">audiooutput.stereoupmix</dependency>
           </dependencies>
           <control type="toggle" />
+        </setting>
+        <setting id="audiooutput.dspaddonsenabled" type="boolean">
+          <visible>false</visible>
+          <default>false</default>
+          <control type="toggle"/>
         </setting>
         <setting id="audiooutput.processquality" type="integer" label="13505" help="36169">
           <requirement>HAS_AE_QUALITY_LEVELS</requirement>

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -126,14 +126,14 @@ void CAddonMgr::FillCpluffMetadata(const cp_plugin_info_t* plugin, CAddonBuilder
     builder.SetPath(plugin->plugin_path);
 
   {
-    ADDONDEPS dependencies;
+    std::vector<DependencyInfo> dependencies;
     for (unsigned int i = 0; i < plugin->num_imports; ++i)
     {
       if (plugin->imports[i].plugin_id)
       {
         std::string id(plugin->imports[i].plugin_id);
         AddonVersion version(plugin->imports[i].version ? plugin->imports[i].version : "0.0.0");
-        dependencies.emplace(std::move(id), std::make_pair(version, plugin->imports[i].optional != 0));
+        dependencies.emplace_back(id, version, plugin->imports[i].optional != 0);
       }
     }
     builder.SetDependencies(std::move(dependencies));
@@ -654,6 +654,12 @@ bool CAddonMgr::GetAddon(const std::string &str, AddonPtr &addon, const TYPE &ty
   return false;
 }
 
+bool CAddonMgr::HasType(const std::string &id, const TYPE &type)
+{
+  AddonPtr addon;
+  return GetAddon(id, addon, type, false);
+}
+
 bool CAddonMgr::FindAddons()
 {
   bool result = false;
@@ -686,8 +692,6 @@ bool CAddonMgr::FindAddons()
     tmp.clear();
     m_database.GetBlacklisted(tmp);
     m_updateBlacklist = std::move(tmp);
-
-    m_events.Publish(AddonEvents::InstalledChanged());
   }
 
   return result;
@@ -752,7 +756,6 @@ bool CAddonMgr::LoadAddon(const std::string& addonId)
   }
 
   m_events.Publish(AddonEvents::ReInstalled(addon->ID()));
-  m_events.Publish(AddonEvents::InstalledChanged());
   CLog::Log(LOGDEBUG, "CAddonMgr: %s successfully loaded", addon->ID().c_str());
   return true;
 }
@@ -762,7 +765,6 @@ void CAddonMgr::OnPostUnInstall(const std::string& id)
   CSingleLock lock(m_critSection);
   m_disabled.erase(id);
   m_updateBlacklist.erase(id);
-  m_events.Publish(AddonEvents::InstalledChanged());
   m_events.Publish(AddonEvents::UnInstalled(id));
 }
 
@@ -811,9 +813,9 @@ static void ResolveDependencies(const std::string& addonId, std::vector<std::str
   else
   {
     needed.push_back(addonId);
-    for (const auto& dep : addon->GetDeps())
-      if (!dep.second.second) // ignore 'optional'
-        ResolveDependencies(dep.first, needed, missing);
+    for (const auto& dep : addon->GetDependencies())
+      if (!dep.optional)
+        ResolveDependencies(dep.id, needed, missing);
   }
 }
 
@@ -834,8 +836,7 @@ bool CAddonMgr::DisableAddon(const std::string& id)
   AddonPtr addon;
   if (GetAddon(id, addon, ADDON_UNKNOWN, false) && addon != NULL)
   {
-    ADDON::OnDisabled(addon);
-    CEventLog::GetInstance().Add(EventPtr(new CAddonManagementEvent(addon, 24141)));
+    CServiceBroker::GetEventLog().Add(EventPtr(new CAddonManagementEvent(addon, 24141)));
   }
 
   m_events.Publish(AddonEvents::Disabled(id));
@@ -856,16 +857,15 @@ bool CAddonMgr::EnableSingle(const std::string& id)
   if (!IsCompatible(*addon))
   {
     CLog::Log(LOGERROR, "Add-on '%s' is not compatible with Kodi", addon->ID().c_str());
-    CEventLog::GetInstance().AddWithNotification(EventPtr(new CNotificationEvent(addon->Name(), 24152, EventLevel::Error)));
+    CServiceBroker::GetEventLog().AddWithNotification(EventPtr(new CNotificationEvent(addon->Name(), 24152, EventLevel::Error)));
     return false;
   }
 
   if (!m_database.DisableAddon(id, false))
     return false;
   m_disabled.erase(id);
-  ADDON::OnEnabled(addon);
 
-  CEventLog::GetInstance().Add(EventPtr(new CAddonManagementEvent(addon, 24064)));
+  CServiceBroker::GetEventLog().Add(EventPtr(new CAddonManagementEvent(addon, 24064)));
 
   CLog::Log(LOGDEBUG, "CAddonMgr: enabled %s", addon->ID().c_str());
   m_events.Publish(AddonEvents::Enabled(id));
@@ -1012,9 +1012,11 @@ bool CAddonMgr::PlatformSupportsAddon(const cp_plugin_info_t *plugin)
     "linux",
 #elif defined(TARGET_LINUX)
     "linux",
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS_DESKTOP)
     "windx",
     "windows",
+#elif defined(TARGET_WINDOWS_STORE)
+    "windowsstore",
 #elif defined(TARGET_DARWIN_IOS)
     "ios",
 #elif defined(TARGET_DARWIN_OSX)
@@ -1098,10 +1100,12 @@ std::string CAddonMgr::GetPlatformLibraryName(cp_cfg_element_t *base) const
   if (libraryName.empty())
 #endif
   libraryName = GetExtValue(base, "@library_linux");
-#elif defined(TARGET_WINDOWS)
+#elif defined(TARGET_WINDOWS_DESKTOP)
   libraryName = GetExtValue(base, "@library_windx");
   if (libraryName.empty())
     libraryName = GetExtValue(base, "@library_windows");
+#elif defined(TARGET_WINDOWS_STORE)
+  libraryName = GetExtValue(base, "@library_windowsstore");
 #elif defined(TARGET_DARWIN)
 #if defined(TARGET_DARWIN_IOS)
   libraryName = GetExtValue(base, "@library_ios");
@@ -1210,22 +1214,18 @@ bool CAddonMgr::AddonsFromRepoXML(const CRepository::DirInfo& repo, const std::s
 
 bool CAddonMgr::IsCompatible(const IAddon& addon)
 {
-  for (const auto& dependencyInfo : addon.GetDeps())
+  for (const auto& dependency : addon.GetDependencies())
   {
-    const auto& optional = dependencyInfo.second.second;
-    if (!optional)
+    if (!dependency.optional)
     {
-      const auto& dependencyId = dependencyInfo.first;
-      const auto& version = dependencyInfo.second.first;
-
       // Intentionally only check the xbmc.* and kodi.* magic dependencies. Everything else will
       // not be missing anyway, unless addon was installed in an unsupported way.
-      if (StringUtils::StartsWith(dependencyId, "xbmc.") ||
-          StringUtils::StartsWith(dependencyId, "kodi."))
+      if (StringUtils::StartsWith(dependency.id, "xbmc.") ||
+          StringUtils::StartsWith(dependency.id, "kodi."))
       {
-        AddonPtr dependency;
-        bool haveAddon = GetAddon(dependencyId, dependency);
-        if (!haveAddon || !dependency->MeetsVersion(version))
+        AddonPtr addon;
+        bool haveAddon = GetAddon(dependency.id, addon);
+        if (!haveAddon || !addon->MeetsVersion(dependency.requiredVersion))
           return false;
       }
     }
@@ -1233,42 +1233,45 @@ bool CAddonMgr::IsCompatible(const IAddon& addon)
   return true;
 }
 
-ADDONDEPS CAddonMgr::GetDepsRecursive(const std::string& id)
+std::vector<DependencyInfo> CAddonMgr::GetDepsRecursive(const std::string& id)
 {
-  ADDONDEPS added;
+  std::vector<DependencyInfo> added;
   AddonPtr root_addon;
   if (!FindInstallableById(id, root_addon) && !GetAddon(id, root_addon))
     return added;
 
-  ADDONDEPS toProcess = root_addon->GetDeps();
+  std::vector<DependencyInfo> toProcess;
+  for (const auto& dep : root_addon->GetDependencies())
+    toProcess.push_back(dep);
+
   while (!toProcess.empty())
   {
     auto current_dep = *toProcess.begin();
     toProcess.erase(toProcess.begin());
-    if (StringUtils::StartsWith(current_dep.first, "xbmc.") ||
-        StringUtils::StartsWith(current_dep.first, "kodi."))
+    if (StringUtils::StartsWith(current_dep.id, "xbmc.") ||
+        StringUtils::StartsWith(current_dep.id, "kodi."))
       continue;
 
-    auto added_it = added.find(current_dep.first);
+    auto added_it = std::find_if(added.begin(), added.end(), [&](const DependencyInfo& d){ return d.id == current_dep.id;});
     if (added_it != added.end())
     {
-      if (current_dep.second.first < added_it->second.first)
+      if (current_dep.requiredVersion < added_it->requiredVersion)
         continue;
 
-      bool aopt = added_it->second.second;
+      bool aopt = added_it->optional;
       added.erase(added_it);
-      added.insert(current_dep);
-      if (!current_dep.second.second && aopt)
+      added.push_back(current_dep);
+      if (!current_dep.optional && aopt)
         continue;
     }
     else
-      added.insert(current_dep);
+      added.push_back(current_dep);
 
     AddonPtr current_addon;
-    if (FindInstallableById(current_dep.first, current_addon))
+    if (FindInstallableById(current_dep.id, current_addon))
     {
-      toProcess.insert(current_addon->GetDeps().begin(),
-                       current_addon->GetDeps().end());
+      for (const auto& item : current_addon->GetDependencies())
+        toProcess.push_back(item);
     }
   }
 

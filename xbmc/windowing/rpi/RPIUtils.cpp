@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2011-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,14 +20,12 @@
 
 #include "RPIUtils.h"
 
-#include "system.h"
-
 #include <math.h>
 #include "ServiceBroker.h"
 #include "utils/log.h"
 #include "guilib/gui3d.h"
-#include "linux/DllBCM.h"
-#include "linux/RBP.h"
+#include "platform/linux/DllBCM.h"
+#include "platform/linux/RBP.h"
 #include "utils/StringUtils.h"
 #include "settings/Settings.h"
 #include "guilib/GraphicContext.h"
@@ -560,8 +558,8 @@ void CRPIUtils::GetSupportedModes(HDMI_RES_GROUP_T group, std::vector<RESOLUTION
         m_desktopRes = res;
 
       AddUniqueResolution(res, resolutions);
-      CLog::Log(LOGDEBUG, "EGL mode %d: %s (%.2f) %s%s:%x\n", i, res.strMode.c_str(), res.fPixelRatio,
-          tv->native ? "N" : "", tv->scan_mode ? "I" : "", tv->code);
+      CLog::Log(LOGDEBUG, "EGL mode %d: %s (%.2f) %s%s:%x\n", i, res.strMode, res.fPixelRatio,
+          tv->native ? "N" : "", tv->scan_mode ? "I" : "", int(tv->code));
 
       if (tv->frame_rate == 24 || tv->frame_rate == 30 || tv->frame_rate == 48 || tv->frame_rate == 60 || tv->frame_rate == 72)
       {

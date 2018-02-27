@@ -1,22 +1,24 @@
-set(SOURCES GUIDialogAudioSubtitleSettings.cpp
+set(SOURCES GUIDialogAudioSettings.cpp
             GUIDialogFullScreenInfo.cpp
             GUIDialogSubtitles.cpp
+            GUIDialogSubtitleSettings.cpp
             GUIDialogTeletext.cpp
             GUIDialogVideoBookmarks.cpp
             GUIDialogVideoInfo.cpp
             GUIDialogVideoOSD.cpp
             GUIDialogVideoSettings.cpp)
 
-set(HEADERS GUIDialogAudioSubtitleSettings.h
+set(HEADERS GUIDialogAudioSettings.h
             GUIDialogFullScreenInfo.h
             GUIDialogSubtitles.h
+            GUIDialogSubtitleSettings.h
             GUIDialogTeletext.h
             GUIDialogVideoBookmarks.h
             GUIDialogVideoInfo.h
             GUIDialogVideoOSD.h
             GUIDialogVideoSettings.h)
 
-if(OPENGL_FOUND OR CORE_SYSTEM_NAME STREQUAL windows)
+if(OPENGL_FOUND OR CORE_SYSTEM_NAME STREQUAL windows OR CORE_SYSTEM_NAME STREQUAL windowsstore)
   list(APPEND SOURCES GUIDialogCMSSettings.cpp)
   list(APPEND HEADERS GUIDialogCMSSettings.h)
 endif()

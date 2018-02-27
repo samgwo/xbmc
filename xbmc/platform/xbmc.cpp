@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,12 +22,13 @@
 #include "settings/AdvancedSettings.h"
 
 #ifdef TARGET_RASPBERRY_PI
-#include "linux/RBP.h"
+#include "platform/linux/RBP.h"
 #endif
 
-#ifdef TARGET_WINDOWS
-#include <mmdeviceapi.h>
+#ifdef TARGET_WINDOWS_DESKTOP
 #include "platform/win32/IMMNotificationClient.h"
+#include <mmdeviceapi.h>
+#include <wrl/client.h>
 #endif
 
 #if defined(TARGET_ANDROID)
@@ -36,6 +37,7 @@
 
 #include "platform/MessagePrinter.h"
 #include "utils/log.h"
+#include "commons/Exception.h"
 
 extern "C" int XBMC_Run(bool renderGUI, const CAppParamParser &params)
 {
@@ -71,15 +73,15 @@ extern "C" int XBMC_Run(bool renderGUI, const CAppParamParser &params)
     return status;
   }
 
-#ifdef TARGET_WINDOWS
-  IMMDeviceEnumerator *pEnumerator = nullptr;
+#ifdef TARGET_WINDOWS_DESKTOP
+  Microsoft::WRL::ComPtr<IMMDeviceEnumerator> pEnumerator = nullptr;
   CMMNotificationClient cMMNC;
   HRESULT hr = CoCreateInstance(CLSID_MMDeviceEnumerator, nullptr, CLSCTX_ALL, IID_IMMDeviceEnumerator,
-                                reinterpret_cast<void**>(&pEnumerator));
+                                reinterpret_cast<void**>(pEnumerator.GetAddressOf()));
   if (SUCCEEDED(hr))
   {
     pEnumerator->RegisterEndpointNotificationCallback(&cMMNC);
-    SAFE_RELEASE(pEnumerator);
+    pEnumerator = nullptr;
   }
 #endif
 
@@ -101,14 +103,14 @@ extern "C" int XBMC_Run(bool renderGUI, const CAppParamParser &params)
     status = -1;
   }
 
-#ifdef TARGET_WINDOWS
+#ifdef TARGET_WINDOWS_DESKTOP
   // the end
   hr = CoCreateInstance(CLSID_MMDeviceEnumerator, nullptr, CLSCTX_ALL, IID_IMMDeviceEnumerator,
-                        reinterpret_cast<void**>(&pEnumerator));
+                        reinterpret_cast<void**>(pEnumerator.GetAddressOf()));
   if (SUCCEEDED(hr))
   {
     pEnumerator->UnregisterEndpointNotificationCallback(&cMMNC);
-    SAFE_RELEASE(pEnumerator);
+    pEnumerator = nullptr;
   }
 #endif
 

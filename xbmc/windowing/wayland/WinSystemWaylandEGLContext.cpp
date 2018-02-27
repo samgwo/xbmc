@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -50,8 +50,12 @@ bool CWinSystemWaylandEGLContext::CreateNewWindow(const std::string& name,
                                                   bool fullScreen,
                                                   RESOLUTION_INFO& res)
 {
-
   if (!CWinSystemWayland::CreateNewWindow(name, fullScreen, res))
+  {
+    return false;
+  }
+
+  if (!CreateContext())
   {
     return false;
   }
@@ -64,7 +68,7 @@ bool CWinSystemWaylandEGLContext::CreateNewWindow(const std::string& name,
     return false;
   }
 
-  return true;
+  return m_eglContext.MakeCurrent();
 }
 
 bool CWinSystemWaylandEGLContext::DestroyWindow()

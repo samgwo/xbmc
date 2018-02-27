@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,19 +17,19 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include "system.h"
 
 // always define GL_GLEXT_PROTOTYPES before include gl headers
 #if !defined(GL_GLEXT_PROTOTYPES)
   #define GL_GLEXT_PROTOTYPES
 #endif
 
+#include <clocale>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glext.h>
-
 #include "GLContextEGL.h"
 #include "utils/log.h"
+#include <EGL/eglext.h>
 
 #define EGL_NO_CONFIG (EGLConfig)0
 
@@ -87,53 +87,29 @@ bool CGLContextEGL::Refresh(bool force, int screen, Window glWindow, bool &newCo
   }
 
   XVisualInfo vMask;
-  XVisualInfo *visuals;
-  XVisualInfo *vInfo      = NULL;
+  XVisualInfo *vInfo = nullptr;
   int availableVisuals    = 0;
   vMask.screen = screen;
   XWindowAttributes winAttr;
-
-  /* Assume a depth of 24 in case the below calls to XGetWindowAttributes()
-     or XGetVisualInfo() fail. That shouldn't happen unless something is
-     fatally wrong, but lets prepare for everything. */
-  vMask.depth = 24;
 
   if (XGetWindowAttributes(m_dpy, glWindow, &winAttr))
   {
     vMask.visualid = XVisualIDFromVisual(winAttr.visual);
     vInfo = XGetVisualInfo(m_dpy, VisualScreenMask | VisualIDMask, &vMask, &availableVisuals);
     if (!vInfo)
+    {
       CLog::Log(LOGWARNING, "Failed to get VisualInfo of visual 0x%x", (unsigned) vMask.visualid);
+    }
     else if(!IsSuitableVisual(vInfo))
     {
       CLog::Log(LOGWARNING, "Visual 0x%x of the window is not suitable, looking for another one...",
                 (unsigned) vInfo->visualid);
-      vMask.depth = vInfo->depth;
       XFree(vInfo);
-      vInfo = NULL;
+      vInfo = nullptr;
     }
   }
   else
     CLog::Log(LOGWARNING, "Failed to get window attributes");
-
-  /* As per glXMakeCurrent documentation, we have to use the same visual as
-     m_glWindow. Since that was not suitable for use, we try to use another
-     one with the same depth and hope that the used implementation is less
-     strict than the documentation. */
-  if (!vInfo)
-  {
-    visuals = XGetVisualInfo(m_dpy, VisualScreenMask | VisualDepthMask, &vMask, &availableVisuals);
-    for (int i = 0; i < availableVisuals; i++)
-    {
-      if (IsSuitableVisual(&visuals[i]))
-      {
-        vMask.visualid = visuals[i].visualid;
-        vInfo = XGetVisualInfo(m_dpy, VisualScreenMask | VisualIDMask, &vMask, &availableVisuals);
-        break;
-      }
-    }
-    XFree(visuals);
-  }
 
   if (vInfo)
   {
@@ -152,7 +128,7 @@ bool CGLContextEGL::Refresh(bool force, int screen, Window glWindow, bool &newCo
       }
       eglTerminate(m_eglDisplay);
       m_eglDisplay = EGL_NO_DISPLAY;
-      XSync(m_dpy, FALSE);
+      XSync(m_dpy, False);
       newContext = true;
     }
 
@@ -175,9 +151,9 @@ bool CGLContextEGL::Refresh(bool force, int screen, Window glWindow, bool &newCo
       return false;
     }
 
-    if(m_eglConfig == EGL_NO_CONFIG)
+    if (m_eglConfig == EGL_NO_CONFIG)
     {
-      m_eglConfig = getEGLConfig(m_eglDisplay, vInfo);
+      m_eglConfig = GetEGLConfig(m_eglDisplay, vInfo);
     }
 
     if (m_eglConfig == EGL_NO_CONFIG)
@@ -200,14 +176,29 @@ bool CGLContextEGL::Refresh(bool force, int screen, Window glWindow, bool &newCo
 
     EGLint contextAttributes[] =
     {
-      EGL_CONTEXT_CLIENT_VERSION, 2,
+      EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+      EGL_CONTEXT_MINOR_VERSION_KHR, 2,
+      EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
       EGL_NONE
     };
     m_eglContext = eglCreateContext(m_eglDisplay, m_eglConfig, EGL_NO_CONTEXT, contextAttributes);
     if (m_eglContext == EGL_NO_CONTEXT)
     {
-      CLog::Log(LOGERROR, "failed to create EGL context\n");
-      return false;
+      EGLint contextAttributes[] =
+      {
+        EGL_CONTEXT_MAJOR_VERSION_KHR, 2,
+        EGL_NONE
+      };
+      m_eglContext = eglCreateContext(m_eglDisplay, m_eglConfig, EGL_NO_CONTEXT, contextAttributes);
+
+      if (m_eglContext == EGL_NO_CONTEXT)
+      {
+        CLog::Log(LOGERROR, "failed to create EGL context\n");
+        return false;
+      }
+
+      CLog::Log(LOGWARNING, "Failed to get an OpenGL context supporting core profile 3.2,  \
+                             using legacy mode with reduced feature set");
     }
 
     if (!eglMakeCurrent(m_eglDisplay, m_eglSurface, m_eglSurface, m_eglContext))
@@ -265,7 +256,7 @@ void CGLContextEGL::Detach()
 
 bool CGLContextEGL::IsSuitableVisual(XVisualInfo *vInfo)
 {
-  EGLConfig config = getEGLConfig(m_eglDisplay, vInfo);
+  EGLConfig config = GetEGLConfig(m_eglDisplay, vInfo);
   if (config == EGL_NO_CONFIG)
   {
     CLog::Log(LOGERROR, "Failed to determine egl config for visual info");
@@ -279,28 +270,15 @@ bool CGLContextEGL::IsSuitableVisual(XVisualInfo *vInfo)
     return false;
   if (!eglGetConfigAttrib(m_eglDisplay, config, EGL_BLUE_SIZE, &value) || value < 8)
     return false;
-  if (!eglGetConfigAttrib(m_eglDisplay, config, EGL_ALPHA_SIZE, &value) || value < 8)
-    return false;
-  if (!eglGetConfigAttrib(m_eglDisplay, config, EGL_DEPTH_SIZE, &value) || value < 24)
-    return false;
 
   return true;
 }
 
-EGLConfig CGLContextEGL::getEGLConfig(EGLDisplay eglDisplay, XVisualInfo *vInfo)
+EGLConfig CGLContextEGL::GetEGLConfig(EGLDisplay eglDisplay, XVisualInfo *vInfo)
 {
-  EGLint attributes[] =
-  {
-    EGL_DEPTH_SIZE, 24,
-    EGL_ALPHA_SIZE, 8,
-    EGL_RED_SIZE, 8,
-    EGL_BLUE_SIZE, 8,
-    EGL_GREEN_SIZE, 8,
-    EGL_NONE
-  };
   EGLint numConfigs;
 
-  if (!eglChooseConfig(eglDisplay, attributes, NULL, 0, &numConfigs))
+  if (!eglGetConfigs(eglDisplay, nullptr, 0, &numConfigs))
   {
     CLog::Log(LOGERROR, "Failed to query number of egl configs");
     return EGL_NO_CONFIG;
@@ -319,7 +297,7 @@ EGLConfig CGLContextEGL::getEGLConfig(EGLDisplay eglDisplay, XVisualInfo *vInfo)
     return EGL_NO_CONFIG;
   }
   EGLConfig eglConfig = EGL_NO_CONFIG;
-  if (!eglChooseConfig(eglDisplay, attributes, eglConfigs, numConfigs, &numConfigs))
+  if (!eglGetConfigs(eglDisplay, eglConfigs, numConfigs, &numConfigs))
   {
     CLog::Log(LOGERROR, "Failed to query egl configs");
     goto Exit;

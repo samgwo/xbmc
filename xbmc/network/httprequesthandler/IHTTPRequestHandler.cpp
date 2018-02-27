@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2011-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -112,11 +112,7 @@ void IHTTPRequestHandler::AddPostField(const std::string &key, const std::string
     m_postFields[key].append(value);
 }
 
-#if (MHD_VERSION >= 0x00040001)
 bool IHTTPRequestHandler::AddPostData(const char *data, size_t size)
-#else
-bool IHTTPRequestHandler::AddPostData(const char *data, unsigned int size)
-#endif
 {
   if (size > 0)
     return appendPostData(data, size);

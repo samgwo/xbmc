@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,10 +18,9 @@
  *
  */
 
-#include "system.h"
 #if defined(HAVE_LIBCEC)
 #include "PeripheralCecAdapter.h"
-#include "input/XBIRRemote.h"
+#include "input/remote/IRRemote.h"
 #include "Application.h"
 #include "messaging/ApplicationMessenger.h"
 #include "DynamicDll.h"
@@ -185,7 +184,7 @@ void CPeripheralCecAdapter::Announce(AnnouncementFlag flag, const char *sender, 
   else if (flag == GUI && !strcmp(sender, "xbmc") && !strcmp(message, "OnScreensaverActivated") && m_bIsReady)
   {
     // Don't put devices to standby if application is currently playing
-    if (!g_application.m_pPlayer->IsPlaying() && m_bPowerOffScreensaver)
+    if (!g_application.GetAppPlayer().IsPlaying() && m_bPowerOffScreensaver)
     {
       // only power off when we're the active source
       if (m_cecAdapter->IsLibCECActiveSource())
@@ -808,7 +807,10 @@ void CPeripheralCecAdapter::PushCecKeypress(const CecButtonPress &key)
   CLog::Log(LOGDEBUG, "%s - received key %2x duration %d", __FUNCTION__, key.iButton, key.iDuration);
 
   CSingleLock lock(m_critSection);
-  if (key.iDuration > 0)
+  // avoid the queue getting too long
+  if (m_configuration.iButtonRepeatRateMs && m_buttonQueue.size() > 5)
+    return;
+  if (m_configuration.iButtonRepeatRateMs == 0 && key.iDuration > 0)
   {
     if (m_currentButton.iButton == key.iButton && m_currentButton.iDuration == 0)
     {
@@ -1197,9 +1199,9 @@ void CPeripheralCecAdapter::CecSourceActivated(void *cbParam, const CEC::cec_log
     bool bShowingSlideshow = (g_windowManager.GetActiveWindow() == WINDOW_SLIDESHOW);
     CGUIWindowSlideShow *pSlideShow = bShowingSlideshow ? g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW) : NULL;
     bool bPlayingAndDeactivated = activated == 0 && (
-        (pSlideShow && pSlideShow->IsPlaying()) || !g_application.m_pPlayer->IsPausedPlayback());
+        (pSlideShow && pSlideShow->IsPlaying()) || !g_application.GetAppPlayer().IsPausedPlayback());
     bool bPausedAndActivated = activated == 1 && adapter->m_bPlaybackPaused && (
-        (pSlideShow && pSlideShow->IsPaused()) || g_application.m_pPlayer->IsPausedPlayback());
+        (pSlideShow && pSlideShow->IsPaused()) || g_application.GetAppPlayer().IsPausedPlayback());
     if (bPlayingAndDeactivated)
       adapter->m_bPlaybackPaused = true;
     else if (bPausedAndActivated)
@@ -1301,6 +1303,15 @@ void CPeripheralCecAdapter::SetConfigurationFromLibCEC(const CEC::libcec_configu
   m_configuration.bActivateSource = config.bActivateSource;
   bChanged |= SetSetting("activate_source", m_configuration.bActivateSource == 1);
 
+  m_configuration.iDoubleTapTimeoutMs = config.iDoubleTapTimeoutMs;
+  bChanged |= SetSetting("double_tap_timeout_ms", (int)m_configuration.iDoubleTapTimeoutMs);
+
+  m_configuration.iButtonRepeatRateMs = config.iButtonRepeatRateMs;
+  bChanged |= SetSetting("button_repeat_rate_ms", (int)m_configuration.iButtonRepeatRateMs);
+
+  m_configuration.iButtonReleaseDelayMs = config.iButtonReleaseDelayMs;
+  bChanged |= SetSetting("button_release_delay_ms", (int)m_configuration.iButtonReleaseDelayMs);
+
   m_configuration.bPowerOffOnStandby = config.bPowerOffOnStandby;
 
   m_configuration.iFirmwareVersion = config.iFirmwareVersion;
@@ -1396,13 +1407,10 @@ void CPeripheralCecAdapter::SetConfigurationFromSettings(void)
   m_configuration.bPowerOffOnStandby = (iStandbyAction == LOCALISED_ID_SUSPEND || iStandbyAction == LOCALISED_ID_HIBERNATE) ? 1 : 0;
   m_bShutdownOnStandby = iStandbyAction == LOCALISED_ID_POWEROFF;
 
-#if defined(CEC_DOUBLE_TAP_TIMEOUT_MS_OLD)
-  // double tap prevention timeout in ms. libCEC uses 50ms units for this in 2.2.0, so divide by 50
-  m_configuration.iDoubleTapTimeout50Ms = GetSettingInt("double_tap_timeout_ms") / 50;
-#else
-  // backwards compatibility. will be removed once the next major release of libCEC is out
+  // double tap prevention timeout in ms
   m_configuration.iDoubleTapTimeoutMs = GetSettingInt("double_tap_timeout_ms");
-#endif
+  m_configuration.iButtonRepeatRateMs = GetSettingInt("button_repeat_rate_ms");
+  m_configuration.iButtonReleaseDelayMs = GetSettingInt("button_release_delay_ms");
 
   if (GetSettingBool("pause_playback_on_deactivate"))
   {

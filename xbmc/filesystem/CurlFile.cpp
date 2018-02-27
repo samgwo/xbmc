@@ -156,6 +156,9 @@ static inline void* realloc_simple(void *ptr, size_t size)
     return ptr2;
 }
 
+static constexpr int CURL_OFF = 0L;
+static constexpr int CURL_ON = 1L;
+
 size_t CCurlFile::CReadState::HeaderCallback(void *ptr, size_t size, size_t nmemb)
 {
   std::string inString;
@@ -409,7 +412,6 @@ CCurlFile::~CCurlFile()
   Close();
   delete m_state;
   delete m_oldState;
-  g_curlInterface.Unload();
 }
 
 CCurlFile::CCurlFile()
@@ -419,7 +421,6 @@ CCurlFile::CCurlFile()
  , m_overflowBuffer(NULL)
  , m_overflowSize(0)
 {
-  g_curlInterface.Load(); // loads the curl dll and resolves exports etc.
   m_opened = false;
   m_forWrite = false;
   m_inError = false;
@@ -480,9 +481,9 @@ void CCurlFile::SetCommonOptions(CReadState* state)
   g_curlInterface.easy_setopt(h, CURLOPT_DEBUGFUNCTION, debug_callback);
 
   if( g_advancedSettings.m_logLevel >= LOG_LEVEL_DEBUG )
-    g_curlInterface.easy_setopt(h, CURLOPT_VERBOSE, TRUE);
+    g_curlInterface.easy_setopt(h, CURLOPT_VERBOSE, CURL_ON);
   else
-    g_curlInterface.easy_setopt(h, CURLOPT_VERBOSE, FALSE);
+    g_curlInterface.easy_setopt(h, CURLOPT_VERBOSE, CURL_OFF);
 
   g_curlInterface.easy_setopt(h, CURLOPT_WRITEDATA, state);
   g_curlInterface.easy_setopt(h, CURLOPT_WRITEFUNCTION, write_callback);
@@ -500,7 +501,7 @@ void CCurlFile::SetCommonOptions(CReadState* state)
   // make sure headers are separated from the data stream
   g_curlInterface.easy_setopt(h, CURLOPT_WRITEHEADER, state);
   g_curlInterface.easy_setopt(h, CURLOPT_HEADERFUNCTION, header_callback);
-  g_curlInterface.easy_setopt(h, CURLOPT_HEADER, FALSE);
+  g_curlInterface.easy_setopt(h, CURLOPT_HEADER, CURL_OFF);
 
   g_curlInterface.easy_setopt(h, CURLOPT_FTP_USE_EPSV, 0); // turn off epsv
 
@@ -522,7 +523,7 @@ void CCurlFile::SetCommonOptions(CReadState* state)
   // honored during the DNS lookup - which you can work around by building libcurl
   // with c-ares support. c-ares is a library that provides asynchronous name
   // resolves. Unfortunately, c-ares does not yet support IPv6.
-  g_curlInterface.easy_setopt(h, CURLOPT_NOSIGNAL, TRUE);
+  g_curlInterface.easy_setopt(h, CURLOPT_NOSIGNAL, CURL_ON);
 
   // not interested in failed requests
   g_curlInterface.easy_setopt(h, CURLOPT_FAILONERROR, 1);
@@ -539,7 +540,7 @@ void CCurlFile::SetCommonOptions(CReadState* state)
   g_curlInterface.easy_setopt(h, CURLOPT_SSL_VERIFYHOST, 0);
 
   g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_URL, m_url.c_str());
-  g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_TRANSFERTEXT, FALSE);
+  g_curlInterface.easy_setopt(m_state->m_easyHandle, CURLOPT_TRANSFERTEXT, CURL_OFF);
 
   // setup POST data if it is set (and it may be empty)
   if (m_postdataset)
@@ -555,7 +556,7 @@ void CCurlFile::SetCommonOptions(CReadState* state)
   else
   {
     g_curlInterface.easy_setopt(h, CURLOPT_REFERER, NULL);
-    g_curlInterface.easy_setopt(h, CURLOPT_AUTOREFERER, TRUE);
+    g_curlInterface.easy_setopt(h, CURLOPT_AUTOREFERER, CURL_ON);
   }
 
   // setup any requested authentication
@@ -912,7 +913,7 @@ bool CCurlFile::ReadData(std::string& strHTML)
   return true;
 }
 
-bool CCurlFile::Download(const std::string& strURL, const std::string& strFileName, LPDWORD pdwSize)
+bool CCurlFile::Download(const std::string& strURL, const std::string& strFileName, unsigned int* pdwSize)
 {
   CLog::Log(LOGINFO, "CCurlFile::Download - %s->%s", strURL.c_str(), strFileName.c_str());
 
@@ -990,12 +991,6 @@ void CCurlFile::SetProxy(const std::string &type, const std::string &host,
 
 bool CCurlFile::Open(const CURL& url)
 {
-  if (!g_curlInterface.IsLoaded())
-  {
-    CLog::Log(LOGERROR, "CurlFile::Open: curl interface not loaded");
-    return false;
-  }
-
   m_opened = true;
   m_seekable = true;
 
@@ -1931,6 +1926,12 @@ const std::string CCurlFile::GetProperty(XFILE::FileProperty type, const std::st
     return m_state->m_httpheader.GetCharset();
   case FILE_PROPERTY_MIME_TYPE:
     return m_state->m_httpheader.GetMimeType();
+  case FILE_PROPERTY_EFFECTIVE_URL:
+  {
+    char *url = nullptr;
+    g_curlInterface.easy_getinfo(m_state->m_easyHandle, CURLINFO_EFFECTIVE_URL, &url);
+    return url ? url : "";
+  }
   default:
     return "";
   }

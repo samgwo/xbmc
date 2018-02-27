@@ -1,3 +1,12 @@
+# Minimum SDK version we support
+set(VS_MINIMUM_SDK_VERSION 10.0.14393.0)
+
+if(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION VERSION_LESS VS_MINIMUM_SDK_VERSION)
+  message(FATAL_ERROR "Detected Windows SDK version is ${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}.\n"
+    "Windows SDK ${VS_MINIMUM_SDK_VERSION} or higher is required.\n"
+    "INFO: Windows SDKs can be installed from the Visual Studio installer.")
+endif()
+
 # -------- Architecture settings ---------
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -12,25 +21,27 @@ endif()
 # -------- Paths (mainly for find_package) ---------
 
 set(PLATFORM_DIR platform/win32)
+set(APP_RENDER_SYSTEM dx11)
 
 set(CORE_MAIN_SOURCE ${CMAKE_SOURCE_DIR}/xbmc/platform/win32/WinMain.cpp)
 
 # Precompiled headers fail with per target output directory. (needs CMake 3.1)
 set(PRECOMPILEDHEADER_DIR ${PROJECT_BINARY_DIR}/${CORE_BUILD_CONFIG}/objs)
-
 set(CMAKE_SYSTEM_NAME Windows)
-list(APPEND CMAKE_SYSTEM_PREFIX_PATH ${CMAKE_SOURCE_DIR}/project/BuildDependencies/mingwlibs/${ARCH})
-list(APPEND CMAKE_SYSTEM_LIBRARY_PATH ${CMAKE_SOURCE_DIR}/project/BuildDependencies/mingwlibs/${ARCH}/bin)
-list(APPEND CMAKE_SYSTEM_PREFIX_PATH ${CMAKE_SOURCE_DIR}/project/BuildDependencies/${ARCH})
-list(APPEND CMAKE_SYSTEM_PREFIX_PATH ${CMAKE_SOURCE_DIR}/project/BuildDependencies)
-set(PYTHON_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/project/BuildDependencies/${ARCH}/include/python)
+set(DEPS_FOLDER_RELATIVE project/BuildDependencies)
+set(DEPENDENCIES_DIR ${CMAKE_SOURCE_DIR}/${DEPS_FOLDER_RELATIVE}/${ARCH})
+set(MINGW_LIBS_DIR ${CMAKE_SOURCE_DIR}/${DEPS_FOLDER_RELATIVE}/mingwlibs/${ARCH})
 
+list(APPEND CMAKE_SYSTEM_PREFIX_PATH ${MINGW_LIBS_DIR})
+list(APPEND CMAKE_SYSTEM_LIBRARY_PATH ${MINGW_LIBS_DIR}/bin)
+list(APPEND CMAKE_SYSTEM_PREFIX_PATH ${DEPENDENCIES_DIR})
+set(PYTHON_INCLUDE_DIR ${DEPENDENCIES_DIR}/include/python)
 
 # -------- Compiler options ---------
 
 add_options(CXX ALL_BUILDS "/wd\"4996\"")
 set(ARCH_DEFINES -D_WINDOWS -DTARGET_WINDOWS -DTARGET_WINDOWS_DESKTOP -D__SSE__ -D__SSE2__)
-set(SYSTEM_DEFINES -DNOMINMAX -DHAS_DX -D__STDC_CONSTANT_MACROS
+set(SYSTEM_DEFINES -DWIN32_LEAN_AND_MEAN -DNOMINMAX -DHAS_DX -D__STDC_CONSTANT_MACROS
                    -DTAGLIB_STATIC -DNPT_CONFIG_ENABLE_LOGGING
                    -DPLT_HTTP_DEFAULT_USER_AGENT="UPnP/1.0 DLNADOC/1.50 Kodi"
                    -DPLT_HTTP_DEFAULT_SERVER="UPnP/1.0 DLNADOC/1.50 Kodi"
@@ -40,6 +51,9 @@ set(SYSTEM_DEFINES -DNOMINMAX -DHAS_DX -D__STDC_CONSTANT_MACROS
 if(${ARCH} STREQUAL win32)
   list(APPEND SYSTEM_DEFINES $<$<CONFIG:Debug>:-D_ITERATOR_DEBUG_LEVEL=0>)
 endif()
+
+# Additional SYSTEM_DEFINES
+list(APPEND SYSTEM_DEFINES -DHAS_WIN32_NETWORK -DHAS_FILESYSTEM_SMB)
 
 # Make sure /FS is set for Visual Studio in order to prevent simultaneous access to pdb files.
 if(CMAKE_GENERATOR MATCHES "Visual Studio")
@@ -56,14 +70,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO")
 
 # For #pragma comment(lib X)
 # TODO: It would certainly be better to handle these libraries via CMake modules.
-if(${ARCH} STREQUAL win32)
-  link_directories(${CMAKE_SOURCE_DIR}/lib/win32/ffmpeg/bin
-                   ${CMAKE_SOURCE_DIR}/project/BuildDependencies/${ARCH}/lib
-                   ${CMAKE_SOURCE_DIR}/project/BuildDependencies/lib)
-else()
-  link_directories(${CMAKE_SOURCE_DIR}/lib/win32/ffmpeg/bin
-                   ${CMAKE_SOURCE_DIR}/project/BuildDependencies/${ARCH}/lib)
-endif()
+link_directories(${DEPENDENCIES_DIR}/lib)
 
 # Additional libraries
 list(APPEND DEPLIBS d3d11.lib DInput8.lib DSound.lib winmm.lib Mpr.lib Iphlpapi.lib WS2_32.lib

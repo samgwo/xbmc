@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,11 +23,23 @@
 #include "WinSystemRpiGLESContext.h"
 #include "guilib/GUIWindowManager.h"
 #include "utils/log.h"
+#include "cores/RetroPlayer/process/rbpi/RPProcessInfoPi.h"
+#include "cores/RetroPlayer/rendering/VideoRenderers/RPRendererMMAL.h"
+#include "cores/RetroPlayer/rendering/VideoRenderers/RPRendererOpenGLES.h"
 #include "cores/VideoPlayer/DVDCodecs/DVDFactoryCodec.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/MMALFFmpeg.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/MMALCodec.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFactory.h"
 #include "cores/VideoPlayer/Process/rbpi/ProcessInfoPi.h"
+
+using namespace KODI;
+
+
+std::unique_ptr<CWinSystemBase> CWinSystemBase::CreateWinSystem()
+{
+  std::unique_ptr<CWinSystemBase> winSystem(new CWinSystemRpiGLESContext());
+  return winSystem;
+}
 
 bool CWinSystemRpiGLESContext::InitWindowSystem()
 {
@@ -43,6 +55,9 @@ bool CWinSystemRpiGLESContext::InitWindowSystem()
     return false;
   }
   CProcessInfoPi::Register();
+  RETRO::CRPProcessInfoPi::Register();
+  //RETRO::CRPProcessInfoPi::RegisterRendererFactory(new RETRO::CRendererFactoryMMAL); //! @todo
+  RETRO::CRPProcessInfoPi::RegisterRendererFactory(new RETRO::CRendererFactoryOpenGLES);
   CDVDFactoryCodec::ClearHWAccels();
   MMAL::CDecoder::Register();
   CDVDFactoryCodec::ClearHWVideoCodecs();
@@ -125,7 +140,7 @@ void CWinSystemRpiGLESContext::SetVSyncImpl(bool enable)
 
 void CWinSystemRpiGLESContext::PresentRenderImpl(bool rendered)
 {
-  CWinSystemRpi::SetVisible(g_windowManager.HasVisibleControls() || g_application.m_pPlayer->IsRenderingGuiLayer());
+  CWinSystemRpi::SetVisible(g_windowManager.HasVisibleControls() || g_application.GetAppPlayer().IsRenderingGuiLayer());
 
   if (m_delayDispReset && m_dispResetTimer.IsTimePast())
   {

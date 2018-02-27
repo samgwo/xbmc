@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -47,9 +47,6 @@ public:
   void SeekPercentage(float iPercent) override;
   void SetVolume(float volume) override {}
   void SetDynamicRangeCompression(long drc) override {}
-  bool CanRecord() override { return false; }
-  bool IsRecording() override { return false; }
-  bool Record(bool bOnOff) override { return false; }
   void SetAVDelay(float fValue = 0.0f) override;
   float GetAVDelay() override;
 
@@ -63,7 +60,7 @@ public:
   std::string GetPlayerState() override;
   bool SetPlayerState(const std::string& state) override;
 
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   bool ExecuteAppW32(const char* strPath, const char* strSwitches);
   //static void CALLBACK AppFinished(void* closure, BOOLEAN TimerOrWaitFired);
 #elif defined(TARGET_ANDROID)
@@ -75,24 +72,22 @@ public:
 private:
   void GetCustomRegexpReplacers(TiXmlElement *pRootElement, std::vector<std::string>& settings);
   void Process() override;
-  float GetPercentage();
 
   bool m_bAbortRequest;
   bool m_bIsPlaying;
-  bool m_paused;
   int64_t m_playbackStartTime;
   float m_speed;
-  int m_totalTime;
   int m_time;
   std::string m_launchFilename;
-  HWND m_hwndXbmc;
-#if defined(TARGET_WINDOWS)
+#if defined(TARGET_WINDOWS_DESKTOP)
   POINT m_ptCursorpos;
   PROCESS_INFORMATION m_processInfo;
 #endif
   CGUIDialogOK* m_dialog;
+#if defined(TARGET_WINDOWS_DESKTOP)
   int m_xPos;
   int m_yPos;
+#endif
   std::string m_filename;
   std::string m_args;
   bool m_hideconsole;

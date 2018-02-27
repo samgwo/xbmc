@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2011-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -130,11 +130,7 @@ HttpResponseRanges CHTTPJsonRpcHandler::GetResponseData() const
   return ranges;
 }
 
-#if (MHD_VERSION >= 0x00040001)
 bool CHTTPJsonRpcHandler::appendPostData(const char *data, size_t size)
-#else
-bool CHTTPJsonRpcHandler::appendPostData(const char *data, unsigned int size)
-#endif
 {
   if (m_requestData.size() + size > MAX_HTTP_POST_SIZE)
   {

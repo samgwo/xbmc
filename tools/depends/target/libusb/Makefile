@@ -1,5 +1,5 @@
 include ../../Makefile.include
-DEPS= ../../Makefile.include Makefile
+DEPS= ../../Makefile.include Makefile no-Werror.patch
 
 # lib name, version
 LIBNAME=libusb
@@ -12,8 +12,6 @@ CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
           ./configure --prefix=$(PREFIX) --disable-shared --disable-build-docs
 
 LIBDYLIB=$(PLATFORM)/.libs/$(LIBNAME).a
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: $(LIBDYLIB) .installed-$(PLATFORM)
 

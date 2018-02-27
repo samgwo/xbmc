@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -569,7 +569,6 @@ void CGUIDialogPVRTimerSettings::Save()
     m_timerInfoTag->m_iClientChannelUid = channel->UniqueID();
     m_timerInfoTag->m_iClientId         = channel->ClientID();
     m_timerInfoTag->m_bIsRadio          = channel->IsRadio();
-    m_timerInfoTag->m_iChannelNumber    = channel->ChannelNumber();
 
     m_timerInfoTag->UpdateChannel();
   }
@@ -805,7 +804,7 @@ void CGUIDialogPVRTimerSettings::InitializeChannelsList()
   {
     const CPVRChannelPtr channel(channelsList[i]->GetPVRChannelInfoTag());
     std::string channelDescription(
-      StringUtils::Format("%i %s", channel->ChannelNumber(), channel->ChannelName().c_str()));
+      StringUtils::Format("%s %s", channel->ChannelNumber().FormattedChannelNumber().c_str(), channel->ChannelName().c_str()));
     m_channelEntries.insert(
       std::make_pair(i, ChannelDescriptor(channel->UniqueID(), channel->ClientID(), channelDescription)));
   }

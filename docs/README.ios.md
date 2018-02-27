@@ -31,12 +31,11 @@ There are 3 ways to build Kodi for iOS:
 Kodi for iOS is composed of a main binary with numerous dynamic libraries and
 codecs that support a multitude of music and video formats.
 
-The minimum version of iOS you need to run(!) Kodi is 6.0 atm.
+The minimum version of iOS you need to run(!) Kodi is 9.0 atm.
 
-- On Mavericks (OSX 10.9.x) we recommend using Xcode 6.1.
-- On Yosemite (OSX 10.10.x) we recommend using Xcode 6.4.
-- On El Capitan (OSX 10.11.x) we recommend using Xcode 7.x or Xcode 8.x.
+- On El Capitan (OSX 10.11.x) we recommend using Xcode 8.x.
 - On Sierra (macOS 10.12.x) we recommend using Xcode 8.x.
+- On High Sierra (macOS 10.13.x) we recommend using Xcode 9.x.
 
 ## 2 Getting the source code
 
@@ -53,15 +52,10 @@ it either from the macOS AppStore (Xcode) or from the Apple Developer Homepage.
 As far as we know the compilation for iOS should work with the following
 constellations of Xcode and macOS versions (to be updated once we know more):
 
-1. XCode 6.0.1 against iOS SDK 8.0 on 10.9 (Mavericks)
-2. XCode 6.1.0 against iOS SDK 8.1 on 10.10 (Yosemite)
-3. XCode 6.3.0 against iOS SDK 8.3 on 10.10 (Yosemite)
-4. Xcode 6.4.0 against iOS SDK 8.4 on 10.10 (Yosemite)
-5. Xcode 7.x against iOS SDK 9.x on 10.10 (Yosemite)
-6. Xcode 7.x against iOS SDK 9.x on 10.11 (El Capitan)
-7. Xcode 7.x against iOS SDK 9.x on 10.12 (Sierra)
-8. Xcode 8.x against iOS SDK 10.x (El Capitan)
-9. Xcode 8.x against iOS SDK 10.x (Sierra)
+8. Xcode 8.x against iOS SDK 10.x on 10.11 (El Capitan)
+9. Xcode 8.x against iOS SDK 10.x on 10.12 (Sierra)
+10. Xcode 9.x against iOS SDK 11.x on 10.12 (Sierra)
+11. Xcode 9.x against iOS SDK 11.x on 10.13 (High Sierra)
 
 The preferred iOS SDK Version is 8.1.
 
@@ -78,7 +72,7 @@ cores. The build machine can also be configured to do this automatically by
 adding `export MAKEFLAGS="-j(getconf _NPROCESSORS_ONLN)"` to your shell config
 (e.g. `~/.bashrc`).
 
-#### 3.2.a Compiling as 32 bit armv7 libraries (recommended for most users)
+#### 3.2.a Compiling as 32 bit armv7 libraries - note 32 bit compiling is not supported anymore as of iOS SDK 11
 
     cd $HOME/Kodi
     cd tools/depends
@@ -86,7 +80,7 @@ adding `export MAKEFLAGS="-j(getconf _NPROCESSORS_ONLN)"` to your shell config
     ./configure --host=arm-apple-darwin
     make
 
-#### 3.2.b Compiling as 64 bit arm64 libraries
+#### 3.2.b Compiling as 64 bit arm64 libraries (recommended for most users)
 
     cd $HOME/Kodi
     cd tools/depends
@@ -101,9 +95,9 @@ The dependencies are built into `tools/depends` and installed into
 
 **ADVANCED developers only**: If you want to specify an iOS SDK version (if
 multiple versions are installed) - then append it to the configure line
-above. The example below would use the iOS SDK 8.0:
+above. The example below would use the iOS SDK 9.0:
 
-    ./configure --host=arm-apple-darwin --with-sdk=8.0
+    ./configure --host=arm-apple-darwin --with-sdk=9.0
 
 ### 3.3 Compile Kodi binary addons
 
@@ -216,8 +210,7 @@ Xcode doesn't know anything about). This should allow you to deploy Kodi to all
 non-jailbroken devices which you can deploy normal apps to. In that case (Kodi
 will be sandboxed like any other app) - all Kodi files are then located in the
 sandboxed *Documents* folder and can be easily accessed via iTunes file
-sharing. Keep in mind that no hardware acceleration will be possible without
-jailbreaking when using iOS < Version 8.
+sharing.
 
 From Xcode7 on this approach is also available for non paying app developers
 (apple allows self signing from now on).

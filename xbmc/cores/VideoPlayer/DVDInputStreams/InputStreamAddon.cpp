@@ -19,14 +19,14 @@
  */
 
 #include "InputStreamAddon.h"
-#include "TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 #include "addons/binary-addons/AddonDll.h"
 #include "addons/binary-addons/BinaryAddonBase.h"
 #include "addons/kodi-addon-dev-kit/include/kodi/addon-instance/VideoCodec.h"
 #include "cores/VideoPlayer/DVDClock.h"
 #include "cores/VideoPlayer/DVDDemuxers/DVDDemux.h"
 #include "cores/VideoPlayer/DVDDemuxers/DVDDemuxUtils.h"
-#include "cores/VideoPlayer/DVDDemuxers/DemuxCrypto.h"
+#include "cores/VideoPlayer/Interface/Addon/DemuxCrypto.h"
 #include "filesystem/SpecialProtocol.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
@@ -255,6 +255,33 @@ int CInputStreamAddon::GetTime()
   return m_struct.toAddon.get_time(&m_struct);
 }
 
+// ITime
+CDVDInputStream::ITimes* CInputStreamAddon::GetITimes()
+{
+  if ((m_caps.m_mask & INPUTSTREAM_CAPABILITIES::SUPPORTS_ITIME) == 0)
+    return nullptr;
+
+  return this;
+}
+
+bool CInputStreamAddon::GetTimes(Times &times)
+{
+  if (!m_struct.toAddon.get_times)
+    return false;
+
+  INPUTSTREAM_TIMES i_times;
+
+  if (m_struct.toAddon.get_times(&m_struct, &i_times))
+  {
+    times.ptsBegin = i_times.ptsBegin;
+    times.ptsEnd = i_times.ptsEnd;
+    times.ptsStart = i_times.ptsStart;
+    times.startTime = i_times.startTime;
+    return true;
+  }
+  return false;
+}
+
 // IPosTime
 CDVDInputStream::IPosTime* CInputStreamAddon::GetIPosTime()
 {
@@ -346,7 +373,6 @@ CDemuxStream* CInputStreamAddon::GetStream(int streamId) const
     videoStream->iWidth = stream.m_Width;
     videoStream->iHeight = stream.m_Height;
     videoStream->fAspect = stream.m_Aspect;
-    videoStream->stereo_mode = "mono";
     videoStream->iBitRate = stream.m_BitRate;
     videoStream->profile = ConvertVideoCodecProfile(stream.m_codecProfile);
     demuxStream = videoStream;
@@ -359,6 +385,7 @@ CDemuxStream* CInputStreamAddon::GetStream(int streamId) const
   else
     return nullptr;
 
+  demuxStream->name = stream.m_name;
   demuxStream->codec = codec->id;
   demuxStream->codecName = stream.m_codecInternalName;
   demuxStream->uniqueId = streamId;
@@ -371,7 +398,7 @@ CDemuxStream* CInputStreamAddon::GetStream(int streamId) const
   {
     demuxStream->ExtraData = new uint8_t[stream.m_ExtraSize];
     demuxStream->ExtraSize = stream.m_ExtraSize;
-    demuxStream->flags = static_cast<CDemuxStream::EFlags>(stream.m_flags);
+    demuxStream->flags = static_cast<StreamFlags>(stream.m_flags);
     for (unsigned int j = 0; j < stream.m_ExtraSize; ++j)
       demuxStream->ExtraData[j] = stream.m_ExtraData[j];
   }

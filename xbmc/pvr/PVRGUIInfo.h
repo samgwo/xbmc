@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@ namespace PVR
 
     bool TranslateBoolInfo(DWORD dwInfo) const;
     bool TranslateCharInfo(DWORD dwInfo, std::string &strValue) const;
-    int TranslateIntInfo(DWORD dwInfo) const;
+    int TranslateIntInfo(const CFileItem &item, DWORD dwInfo) const;
 
     /*!
      * @brief Get a GUIInfoManager video label.
@@ -68,7 +68,7 @@ namespace PVR
      * @brief Get the current position in milliseconds since the start of a LiveTV item.
      * @return The position in milliseconds or NULL if no channel is playing.
      */
-    int GetStartTime(void) const;
+    int GetPlayingTime(void) const;
 
     /*!
      * @brief Clear the playing EPG tag.
@@ -194,8 +194,10 @@ namespace PVR
 
     void UpdateTimersToggle(void);
 
-    void CharInfoPlayingDuration(std::string &strValue) const;
-    void CharInfoPlayingTime(std::string &strValue) const;
+    void CharInfoEpgEventDuration(std::string &strValue) const;
+    void CharInfoEpgEventElapsedTime(std::string &strValue) const;
+    void CharInfoEpgEventRemainingTime(std::string &strValue) const;
+    void CharInfoEpgEventFinishTime(std::string &strValue) const;
     void CharInfoBackendNumber(std::string &strValue) const;
     void CharInfoTotalDiskSpace(std::string &strValue) const;
     void CharInfoSignal(std::string &strValue) const;
@@ -248,7 +250,10 @@ namespace PVR
     bool                            m_bIsPlayingEncryptedStream;
     bool                            m_bHasTVChannels;
     bool                            m_bHasRadioChannels;
+    bool                            m_bCanRecordPlayingChannel;
+    bool                            m_bIsRecordingPlayingChannel;
     std::string                     m_strPlayingTVGroup;
+
     //@}
 
     PVR_SIGNAL_STATUS               m_qualityInfo;       /*!< stream quality information */
@@ -256,7 +261,9 @@ namespace PVR
     CPVREpgInfoTagPtr               m_playingEpgTag;
     std::vector<SBackend>           m_backendProperties;
 
+    bool                            m_bHasTimeshiftData;
     bool                            m_bIsTimeshifting;
+    time_t                          m_iStartTime;
     time_t                          m_iTimeshiftStartTime;
     time_t                          m_iTimeshiftEndTime;
     time_t                          m_iTimeshiftPlayTime;

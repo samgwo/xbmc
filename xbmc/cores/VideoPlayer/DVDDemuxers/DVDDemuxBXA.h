@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -54,9 +54,9 @@ public:
   CDVDDemuxBXA();
   ~CDVDDemuxBXA() override;
 
-  bool Open(CDVDInputStream* pInput);
+  bool Open(std::shared_ptr<CDVDInputStream> pInput);
   void Dispose();
-  void Reset() override;
+  bool Reset() override;
   void Abort() override;
   void Flush() override;
   DemuxPacket* Read() override;
@@ -70,7 +70,7 @@ public:
 
 protected:
   friend class CDemuxStreamAudioBXA;
-  CDVDInputStream* m_pInput;
+  std::shared_ptr<CDVDInputStream> m_pInput;
   int64_t m_bytes;
 
   CDemuxStreamAudioBXA *m_stream;

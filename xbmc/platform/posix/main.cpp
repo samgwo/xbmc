@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,16 +23,12 @@
 
 #include <cstring>
 
-// For HAS_SDL
-#include "system.h"
-
-#if defined(TARGET_DARWIN_OSX)
+#if defined(TARGET_DARWIN_OSX) || defined(TARGET_FREEBSD)
   #include "Util.h"
   // SDL redefines main as SDL_main 
   #ifdef HAS_SDL
     #include <SDL/SDL.h>
   #endif
-#include <locale.h>
 #endif
 
 #include "AppParamParser.h"
@@ -41,14 +37,14 @@
 #include "PlayListPlayer.h"
 #include "platform/MessagePrinter.h"
 #include "platform/xbmc.h"
-#include "platform/XbmcContext.h"
 #include "settings/AdvancedSettings.h"
 #include "utils/log.h"
 
 #ifdef HAS_LIRC
-#include "input/linux/LIRC.h"
+#include "platform/linux/input/LIRC.h"
 #endif
 
+#include <locale.h>
 
 namespace
 {
@@ -87,9 +83,6 @@ void XBMC_POSIX_HandleSignal(int sig)
 
 int main(int argc, char* argv[])
 {
-  // set up some xbmc specific relationships
-  XBMC::Context context;
-
 #if defined(_DEBUG)
   struct rlimit rlim;
   rlim.rlim_cur = rlim.rlim_max = RLIM_INFINITY;

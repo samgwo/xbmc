@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@
 #include "filesystem/Directory.h"
 #include "settings/Settings.h"
 #include "settings/AdvancedSettings.h"
+#include "TextureDatabase.h"
 
 using namespace MUSIC_INFO;
 using namespace JSONRPC;
@@ -237,7 +238,7 @@ JSONRPC_STATUS CAudioLibrary::GetAlbums(const std::string &method, ITransportLay
     items.Add(pItem);
   }
 
-  //Get Genre IDs
+  //Get song genres (genreIDs and/or genre strings)
   JSONRPC_STATUS ret = GetAdditionalAlbumDetails(parameterObject, items, musicdatabase);
   if (ret != OK)
     return ret;
@@ -553,7 +554,42 @@ JSONRPC_STATUS CAudioLibrary::SetArtistDetails(const std::string &method, ITrans
     artist.strDisbanded = parameterObject["disbanded"].asString();
   if (ParameterNotNull(parameterObject, "yearsactive"))
     CopyStringArray(parameterObject["yearsactive"], artist.yearsActive);
+  if (ParameterNotNull(parameterObject, "musicbrainzartistid"))
+    artist.strMusicBrainzArtistID = parameterObject["musicbrainzartistid"].asString();
+  if (ParameterNotNull(parameterObject, "sortname"))
+    artist.strSortName = parameterObject["sortname"].asString();
+  if (ParameterNotNull(parameterObject, "type"))
+    artist.strType = parameterObject["type"].asString();
+  if (ParameterNotNull(parameterObject, "gender"))
+    artist.strGender = parameterObject["gender"].asString();
+  if (ParameterNotNull(parameterObject, "disambiguation"))
+    artist.strDisambiguation = parameterObject["disambiguation"].asString();
 
+  // Update existing art. Any existing artwork that isn't specified in this request stays as is. 
+  // If the value is null then the existing art with that type is removed.
+  if (ParameterNotNull(parameterObject, "art"))
+  {
+    // Get current artwork    
+    musicdatabase.GetArtForItem(artist.idArtist, MediaTypeArtist, artist.art);
+
+    std::set<std::string> removedArtwork;
+    CVariant art = parameterObject["art"];
+    for (CVariant::const_iterator_map artIt = art.begin_map(); artIt != art.end_map(); artIt++)
+    {
+      if (artIt->second.isString() && !artIt->second.asString().empty())
+        artist.art[artIt->first] = CTextureUtils::UnwrapImageURL(artIt->second.asString());
+      else if (artIt->second.isNull())
+      {
+        artist.art.erase(artIt->first);
+        removedArtwork.insert(artIt->first);
+      }
+    }
+    // Remove null art now, as not done by update
+    if (!musicdatabase.RemoveArtForItem(artist.idArtist, MediaTypeArtist, removedArtwork))
+      return InternalError;   
+  }
+
+  // Update artist including adding or replacing (but not removing) art
   if (!musicdatabase.UpdateArtist(artist))
     return InternalError;
 
@@ -570,19 +606,36 @@ JSONRPC_STATUS CAudioLibrary::SetAlbumDetails(const std::string &method, ITransp
     return InternalError;
 
   CAlbum album;
-  if (!musicdatabase.GetAlbum(id, album) || album.idAlbum <= 0)
+  // Get current album details, but not songs as we do not want to update them here
+  if (!musicdatabase.GetAlbum(id, album, false) || album.idAlbum <= 0)
     return InvalidParams;
 
   if (ParameterNotNull(parameterObject, "title"))
     album.strAlbum = parameterObject["title"].asString();
-  // Artist names, along with MusicbrainzAlbumArtistID needs to update artist credits
-  // As temp fix just set the album artist description string
+  if (ParameterNotNull(parameterObject, "displayartist")) 
+    album.strArtistDesc = parameterObject["displayartist"].asString();
+  // Set album sort string before processing artist credits
+  if (ParameterNotNull(parameterObject, "sortartist"))
+    album.strArtistSort = parameterObject["sortartist"].asString();
+
+  // Match up artist names and mbids to make new artist credits
+  // Mbid values only apply if there are names
   if (ParameterNotNull(parameterObject, "artist"))
   {
-    std::vector<std::string> artist;
-    CopyStringArray(parameterObject["artist"], artist);
-    album.strArtistDesc = StringUtils::Join(artist, g_advancedSettings.m_musicItemSeparator);
+    std::vector<std::string> artists;
+    std::vector<std::string> mbids;
+    CopyStringArray(parameterObject["artist"], artists);
+    // Check for Musicbrainz ids
+    if (ParameterNotNull(parameterObject, "musicbrainzalbumartistid"))
+      CopyStringArray(parameterObject["musicbrainzalbumartistid"], mbids);
+    // When display artist is not provided and yet artists is changing make by concatenation
+    if (!ParameterNotNull(parameterObject, "displayartist"))
+      album.strArtistDesc = StringUtils::Join(artists, g_advancedSettings.m_musicItemSeparator);
+    album.SetArtistCredits(artists, std::vector<std::string>(), mbids);
+    // On updatealbum artists will be changed
+    album.bArtistSongMerge = true;
   }
+
   if (ParameterNotNull(parameterObject, "description"))
     album.strReview = parameterObject["description"].asString();
   if (ParameterNotNull(parameterObject, "genre"))
@@ -601,9 +654,40 @@ JSONRPC_STATUS CAudioLibrary::SetAlbumDetails(const std::string &method, ITransp
     album.fRating = parameterObject["rating"].asFloat();
   if (ParameterNotNull(parameterObject, "userrating"))
     album.iUserrating = parameterObject["userrating"].asInteger();
+  if (ParameterNotNull(parameterObject, "votes"))
+    album.iVotes = parameterObject["votes"].asInteger();
   if (ParameterNotNull(parameterObject, "year"))
     album.iYear = (int)parameterObject["year"].asInteger();
+  if (ParameterNotNull(parameterObject, "musicbrainzalbumid"))
+    album.strMusicBrainzAlbumID = parameterObject["musicbrainzalbumid"].asString();
+  if (ParameterNotNull(parameterObject, "musicbrainzreleasegroupid"))
+    album.strReleaseGroupMBID = parameterObject["musicbrainzreleasegroupid"].asString();
+  
+  // Update existing art. Any existing artwork that isn't specified in this request stays as is. 
+  // If the value is null then the existing art with that type is removed.
+  if (ParameterNotNull(parameterObject, "art"))
+  {
+    // Get current artwork    
+    musicdatabase.GetArtForItem(album.idAlbum, MediaTypeAlbum, album.art);
 
+    std::set<std::string> removedArtwork;
+    CVariant art = parameterObject["art"];
+    for (CVariant::const_iterator_map artIt = art.begin_map(); artIt != art.end_map(); artIt++)
+    {
+      if (artIt->second.isString() && !artIt->second.asString().empty())
+        album.art[artIt->first] = CTextureUtils::UnwrapImageURL(artIt->second.asString());
+      else if (artIt->second.isNull())
+      {
+        album.art.erase(artIt->first);
+        removedArtwork.insert(artIt->first);
+      }
+    }
+    // Remove null art now, as not done by update
+    if (!musicdatabase.RemoveArtForItem(album.idAlbum, MediaTypeAlbum, removedArtwork))
+      return InternalError;
+  }
+
+  // Update artist including adding or replacing (but not removing) art
   if (!musicdatabase.UpdateAlbum(album))
     return InternalError;
 
@@ -625,18 +709,30 @@ JSONRPC_STATUS CAudioLibrary::SetSongDetails(const std::string &method, ITranspo
 
   if (ParameterNotNull(parameterObject, "title"))
     song.strTitle = parameterObject["title"].asString();
-  // Artist names, along with MusicbrainzArtistID needs to update artist credits
-  // As temp fix just set the artist description string
+
+  if (ParameterNotNull(parameterObject, "displayartist"))
+    song.strArtistDesc = parameterObject["displayartist"].asString();
+  // Set album sort string before processing artist credits
+  if (ParameterNotNull(parameterObject, "sortartist"))
+    song.strArtistSort = parameterObject["sortartist"].asString();
+
+  // Match up artist names and mbids to make new artist credits
+  // Mbid values only apply if there are names
+  bool updateartists = false;
   if (ParameterNotNull(parameterObject, "artist"))
   {
-    std::vector<std::string> artist;
-    CopyStringArray(parameterObject["artist"], artist);
-    song.strArtistDesc = StringUtils::Join(artist, g_advancedSettings.m_musicItemSeparator);
+    std::vector<std::string> artists, mbids;
+    updateartists = true;
+    CopyStringArray(parameterObject["artist"], artists);
+    // Check for Musicbrainz ids
+    if (ParameterNotNull(parameterObject, "musicbrainzartistid"))
+      CopyStringArray(parameterObject["musicbrainzartistid"], mbids);
+    // When display artist is not provided and yet artists is changing make by concatenation
+    if (!ParameterNotNull(parameterObject, "displayartist"))
+      song.strArtistDesc = StringUtils::Join(artists, g_advancedSettings.m_musicItemSeparator);
+    song.SetArtistCredits(artists, std::vector<std::string>(), mbids);
   }
-  //Albumartist not part of song, belongs to album so not changed as a song detail??
-  //if (ParameterNotNull(parameterObject, "albumartist"))
-  //  CopyStringArray(parameterObject["albumartist"], song.albumArtist);
-  // song_genre table needs updating too when genre string changes. This needs fixing too.
+
   if (ParameterNotNull(parameterObject, "genre"))
     CopyStringArray(parameterObject["genre"], song.genre);
   if (ParameterNotNull(parameterObject, "year"))
@@ -645,9 +741,6 @@ JSONRPC_STATUS CAudioLibrary::SetSongDetails(const std::string &method, ITranspo
     song.rating = parameterObject["rating"].asFloat();
   if (ParameterNotNull(parameterObject, "userrating"))
     song.userrating = parameterObject["userrating"].asInteger();
-  //Album title is not part of song, it belongs to album so not changed as a song detail??
-  if (ParameterNotNull(parameterObject, "album"))
-    song.strAlbum = parameterObject["album"].asString();
   if (ParameterNotNull(parameterObject, "track"))
     song.iTrack = (song.iTrack & 0xffff0000) | ((int)parameterObject["track"].asInteger() & 0xffff);
   if (ParameterNotNull(parameterObject, "disc"))
@@ -662,11 +755,37 @@ JSONRPC_STATUS CAudioLibrary::SetSongDetails(const std::string &method, ITranspo
     song.iTimesPlayed = static_cast<int>(parameterObject["playcount"].asInteger());
   if (ParameterNotNull(parameterObject, "lastplayed"))
     song.lastPlayed.SetFromDBDateTime(parameterObject["lastplayed"].asString());
+  if (ParameterNotNull(parameterObject, "mood"))
+    song.strAlbum = parameterObject["mood"].asString();
+  
+  // Update existing art. Any existing artwork that isn't specified in this request stays as is. 
+  // If the value is null then the existing art with that type is removed.
+  if (ParameterNotNull(parameterObject, "art"))
+  {
+    // Get current artwork    
+    std::map<std::string, std::string> artwork;
+    musicdatabase.GetArtForItem(song.idSong, MediaTypeSong, artwork);
 
-  // This overlay of UpdateSong needs to be deprecated.
-  // Also need to update artist credits and propagate changes
-  // to song_artist and song_genre tables.
-  if (musicdatabase.UpdateSong(id, song) <= 0)
+    std::set<std::string> removedArtwork;
+    CVariant art = parameterObject["art"];
+    for (CVariant::const_iterator_map artIt = art.begin_map(); artIt != art.end_map(); artIt++)
+    {
+      if (artIt->second.isString() && !artIt->second.asString().empty())
+        artwork[artIt->first] = CTextureUtils::UnwrapImageURL(artIt->second.asString());
+      else if (artIt->second.isNull())
+      {
+        artwork.erase(artIt->first);
+        removedArtwork.insert(artIt->first);
+      }
+    }
+    //Update artwork, not done in update song
+    musicdatabase.SetArtForItem(song.idSong, MediaTypeSong, artwork);
+    if (!musicdatabase.RemoveArtForItem(song.idSong, MediaTypeSong, removedArtwork))
+      return InternalError;
+  }
+
+  // Update song (not including artwork)
+  if (!musicdatabase.UpdateSong(song, updateartists))
     return InternalError;
 
   CJSONRPCUtils::NotifyItemUpdated();
@@ -686,12 +805,16 @@ JSONRPC_STATUS CAudioLibrary::Export(const std::string &method, ITransportLayer 
 {
   std::string cmd;
   if (parameterObject["options"].isMember("path"))
-    cmd = StringUtils::Format("exportlibrary(music, false, %s)", StringUtils::Paramify(parameterObject["options"]["path"].asString()).c_str());
+    cmd = StringUtils::Format("exportlibrary2(music, singlefile, %s, albums, albumartists)", StringUtils::Paramify(parameterObject["options"]["path"].asString()).c_str());
   else
-    cmd = StringUtils::Format("exportlibrary(music, true, %s, %s)",
-                              parameterObject["options"]["images"].asBoolean() ? "true" : "false",
-                              parameterObject["options"]["overwrite"].asBoolean() ? "true" : "false");
-
+  {
+    cmd = "exportlibrary2(music, library, dummy, albums, albumartists";
+    if (parameterObject["options"].isMember("images"))
+      cmd += ", artwork";
+    if (parameterObject["options"].isMember("overwrite"))
+      cmd += ", overwrite";
+    cmd += ")";
+  }
   CApplicationMessenger::GetInstance().SendMsg(TMSG_EXECUTE_BUILT_IN, -1, -1, nullptr, cmd);
   return ACK;
 }
@@ -886,29 +1009,19 @@ JSONRPC_STATUS CAudioLibrary::GetAdditionalAlbumDetails(const CVariant &paramete
     return InternalError;
 
   std::set<std::string> checkProperties;
-  checkProperties.insert("genreid");
+  checkProperties.insert("songgenres");
   std::set<std::string> additionalProperties;
   if (!CheckForAdditionalProperties(parameterObject["properties"], checkProperties, additionalProperties))
     return OK;
 
-  for (int i = 0; i < items.Size(); i++)
+  if (additionalProperties.find("songgenres") != additionalProperties.end())
   {
-    CFileItemPtr item = items[i];
-    if (additionalProperties.find("genreid") != additionalProperties.end())
+    for (int i = 0; i < items.Size(); i++)
     {
-      std::vector<int> genreids;
-      if (musicdatabase.GetGenresByAlbum(item->GetMusicInfoTag()->GetDatabaseId(), genreids))
-      {
-        CVariant genreidObj(CVariant::VariantTypeArray);
-        for (std::vector<int>::const_iterator genreid = genreids.begin(); genreid != genreids.end(); ++genreid)
-          genreidObj.push_back(*genreid);
-
-        item->SetProperty("genreid", genreidObj);
-      }
+      CFileItemPtr item = items[i];
+      musicdatabase.GetGenresByAlbum(item->GetMusicInfoTag()->GetDatabaseId(), item.get());
     }
- 
   }
-
   return OK;
 }
 

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -48,6 +48,7 @@
 #include "Util.h"
 #include "cores/AudioEngine/Interfaces/AE.h"
 #include "storage/MediaManager.h"
+#include "utils/FileExtensionProvider.h"
 #include "utils/LangCodeExpander.h"
 #include "utils/StringUtils.h"
 #include "utils/SystemInfo.h"
@@ -62,7 +63,7 @@
 using namespace KODI::MESSAGING;
 
 #ifdef TARGET_POSIX
-#include "linux/XMemUtils.h"
+#include "platform/linux/XMemUtils.h"
 #endif
 
 namespace XBMCAddon
@@ -117,7 +118,6 @@ namespace XBMCAddon
     {
       XBMC_TRACE;
       DelayedCallGuard dg;
-#ifdef HAS_JSONRPC
       String ret;
 
       if (! jsonrpccommand)
@@ -129,9 +129,6 @@ namespace XBMCAddon
       CAddOnTransport::CAddOnClient client;
 
       return JSONRPC::CJSONRPC::MethodCall(/*method*/ jsonrpccommand, &transport, &client);
-#else
-      THROW_UNIMP("executeJSONRPC");
-#endif
     }
 
     void sleep(long timemillis)
@@ -230,7 +227,7 @@ namespace XBMCAddon
       XBMC_TRACE;
       char cTitleIP[32];
       sprintf(cTitleIP, "127.0.0.1");
-      CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+      CNetworkInterface* iface = CServiceBroker::GetNetwork().GetFirstConnectedInterface();
       if (iface)
         return iface->GetCurrentIPAddress();
 
@@ -351,7 +348,7 @@ namespace XBMCAddon
       {
         XBMCAddonUtils::GuiLock lock(nullptr, false);
 
-        int id = g_windowManager.GetTopMostModalDialogID();
+        int id = g_windowManager.GetTopmostModalDialog();
         if (id == WINDOW_INVALID) id = g_windowManager.GetActiveWindow();
         ret = g_infoManager.EvaluateBool(condition,id);
       }
@@ -457,11 +454,11 @@ namespace XBMCAddon
       XBMC_TRACE;
       String result;
       if (strcmpi(mediaType, "video") == 0)
-        result = g_advancedSettings.m_videoExtensions;
+        result = CServiceBroker::GetFileExtensionProvider().GetVideoExtensions();
       else if (strcmpi(mediaType, "music") == 0)
-        result = g_advancedSettings.GetMusicExtensions();
+        result = CServiceBroker::GetFileExtensionProvider().GetMusicExtensions();
       else if (strcmpi(mediaType, "picture") == 0)
-        result = g_advancedSettings.GetPictureExtensions();
+        result = CServiceBroker::GetFileExtensionProvider().GetPictureExtensions();
 
       //! @todo implement
       //    else

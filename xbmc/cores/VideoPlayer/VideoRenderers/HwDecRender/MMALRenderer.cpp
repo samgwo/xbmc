@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,13 +34,12 @@
 #include "threads/SingleLock.h"
 #include "utils/log.h"
 #include "utils/MathUtils.h"
-#include "windowing/WindowingFactory.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/MMALCodec.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/MMALFFmpeg.h"
 #include "xbmc/Application.h"
-#include "linux/RBP.h"
+#include "platform/linux/RBP.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFactory.h"
-#include "TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 
 extern "C" {
 #include "libavutil/imgutils.h"
@@ -55,13 +54,13 @@ using namespace MMAL;
 CMMALBuffer::CMMALBuffer(int id) : CVideoBuffer(id)
 {
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s %p", CLASSNAME, __func__, this);
+    CLog::Log(LOGDEBUG, "%s::%s %p", CLASSNAME, __func__, static_cast<void*>(this));
 }
 
 CMMALBuffer::~CMMALBuffer()
 {
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s %p", CLASSNAME, __func__, this);
+    CLog::Log(LOGDEBUG, "%s::%s %p", CLASSNAME, __func__, static_cast<void*>(this));
 }
 
 void CMMALBuffer::Unref()
@@ -157,7 +156,10 @@ CMMALPool::CMMALPool(const char *component_name, bool input, uint32_t num_buffer
   if (!m_mmal_pool)
     CLog::Log(LOGERROR, "%s::%s Failed to create pool for port %s", CLASSNAME, __func__, port->name);
   else
-    CLog::Log(LOGDEBUG, "%s::%s Created pool %p of size %d x %d for port %s", CLASSNAME, __func__, m_mmal_pool, num_buffers, buffer_size, port->name);
+    {
+      CLog::Log(LOGDEBUG, "%s::%s Created pool %p of size %d x %d for port %s", CLASSNAME, __func__,
+                static_cast<void*>(m_mmal_pool), num_buffers, buffer_size, port->name);
+    }
 }
 
 CMMALPool::~CMMALPool()
@@ -166,7 +168,8 @@ CMMALPool::~CMMALPool()
   MMAL_STATUS_T status;
 
   MMAL_PORT_T *port = m_input ? m_component->input[0] : m_component->output[0];
-  CLog::Log(LOGDEBUG, "%s::%s Destroying pool %p for port %s", CLASSNAME, __func__, m_mmal_pool, port->name);
+  CLog::Log(LOGDEBUG, "%s::%s Destroying pool %p for port %s", CLASSNAME, __func__,
+            static_cast<void*>(m_mmal_pool), port->name);
 
   if (port && port->is_enabled)
   {
@@ -255,7 +258,9 @@ void CMMALPool::Configure(AVPixelFormat format, int width, int height, int align
     const unsigned int size_c = m_geo.stride_c * m_geo.height_c;
     m_size = (size_y + size_c * m_geo.planes_c) * m_geo.stripes;
   }
-  CLog::Log(LOGDEBUG, "%s::%s pool:%p %dx%d (%dx%d) pix:%d size:%d fmt:%.4s", CLASSNAME, __func__, m_mmal_pool, width, height, alignedWidth, alignedHeight, format, size, (char *)&m_mmal_format);
+  CLog::Log(LOGDEBUG, "%s::%s pool:%p %dx%d (%dx%d) pix:%d size:%d fmt:%.4s", CLASSNAME, __func__,
+            static_cast<void*>(m_mmal_pool), width, height, alignedWidth, alignedHeight, format, size,
+            (char*)&m_mmal_format);
 }
 
 void CMMALPool::Configure(AVPixelFormat format, int size)
@@ -358,10 +363,22 @@ CMMALBuffer *CMMALPool::GetBuffer(uint32_t timeout)
     }
   }
   if (timeout > 0 && !omvb)
-    CLog::Log(LOGERROR, "%s::%s - failed pool:%p omvb:%p mmal:%p timeout:%d", CLASSNAME, __FUNCTION__, m_mmal_pool, omvb, buffer, timeout);
+    {
+      CLog::Log(LOGERROR, "%s::%s - failed pool:%p omvb:%p mmal:%p timeout:%d", CLASSNAME,
+                __FUNCTION__, static_cast<void*>(m_mmal_pool), static_cast<void*>(omvb),
+                static_cast<void*>(buffer), timeout);
+    }
   else if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s pool:%p omvb:%p mmal:%p gmem:%p new:%d id:%d to:%d %dx%d (%dx%d) size:%d pool:%p:%p enc:%.4s", CLASSNAME, __FUNCTION__, m_mmal_pool, omvb, buffer, gmem, newbuf, id, timeout,
-        m_width, m_height, AlignedWidth(), AlignedHeight(), buffer ? buffer->alloc_size : 0, omvb ? &*omvb->Pool() : nullptr, &*GetPtr(), (char *)&m_mmal_format);
+  {
+    CLog::Log(LOGDEBUG,
+              "%s::%s pool:%p omvb:%p mmal:%p gmem:%p new:%d id:%d to:%d %dx%d (%dx%d) size:%d "
+              "pool:%p:%p enc:%.4s",
+              CLASSNAME, __FUNCTION__, static_cast<void*>(m_mmal_pool), static_cast<void*>(omvb),
+              static_cast<void*>(buffer), static_cast<void*>(gmem), newbuf, id, timeout, m_width,
+              m_height, AlignedWidth(), AlignedHeight(), buffer ? buffer->alloc_size : 0,
+              omvb ? static_cast<void*>(omvb->Pool().get()) : nullptr, static_cast<void*>(GetPtr().get()),
+              (char*)&m_mmal_format);
+  }
   return omvb;
 }
 
@@ -377,10 +394,21 @@ void CMMALPool::Prime()
   while (omvb = GetBuffer(0), omvb)
   {
     if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-      CLog::Log(LOGDEBUG, "%s::%s Send omvb:%p mmal:%p from pool %p to %s len:%d cmd:%x flags:%x pool:%p", CLASSNAME, __func__, omvb, omvb->mmal_buffer, m_mmal_pool, port->name, omvb->mmal_buffer->length, omvb->mmal_buffer->cmd, omvb->mmal_buffer->flags, &*omvb->Pool());
+    {
+      CLog::Log(
+          LOGDEBUG, "%s::%s Send omvb:%p mmal:%p from pool %p to %s len:%d cmd:%x flags:%x pool:%p",
+          CLASSNAME, __func__, static_cast<void*>(omvb), static_cast<void*>(omvb->mmal_buffer),
+          static_cast<void*>(m_mmal_pool), port->name, omvb->mmal_buffer->length,
+          omvb->mmal_buffer->cmd, omvb->mmal_buffer->flags, static_cast<void*>(omvb->Pool().get()));
+    }
     MMAL_STATUS_T status = mmal_port_send_buffer(port, omvb->mmal_buffer);
     if (status != MMAL_SUCCESS)
-      CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p from pool %p to %s (status=0%x %s)", CLASSNAME, __func__, omvb, omvb->mmal_buffer, m_mmal_pool, port->name, status, mmal_status_to_string(status));
+    {
+      CLog::Log(
+          LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p from pool %p to %s (status=0%x %s)",
+          CLASSNAME, __func__, static_cast<void*>(omvb), static_cast<void*>(omvb->mmal_buffer),
+          static_cast<void*>(m_mmal_pool), port->name, status, mmal_status_to_string(status));
+    }
   }
 }
 
@@ -406,7 +434,7 @@ CRenderInfo CMMALRenderer::GetRenderInfo()
   CSingleLock lock(m_sharedSection);
   CRenderInfo info;
 
-  CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s opaque:%p", CLASSNAME, __func__, this);
+  CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s opaque:%p", CLASSNAME, __func__, static_cast<void*>(this));
 
   info.max_buffer_size = NUM_BUFFERS;
   info.optimal_buffer_size = NUM_BUFFERS;
@@ -418,8 +446,12 @@ CRenderInfo CMMALRenderer::GetRenderInfo()
 void CMMALRenderer::vout_input_port_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x", CLASSNAME, __func__,
-        buffer->user_data, buffer, buffer->dts*1e-6, buffer->pts*1e-6, buffer->length, buffer->cmd, buffer->flags);
+  {
+    CLog::Log(LOGDEBUG, "%s::%s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x",
+              CLASSNAME, __func__, static_cast<void*>(buffer->user_data),
+              static_cast<void*>(buffer), buffer->dts * 1e-6, buffer->pts * 1e-6, buffer->length,
+              buffer->cmd, buffer->flags);
+  }
   buffer->length = 0;
   mmal_queue_put(m_queue_process, buffer);
 }
@@ -632,7 +664,9 @@ void CMMALRenderer::Process()
         CMMALBuffer *omvb = (CMMALBuffer *)buffer->user_data;
         assert(buffer == omvb->mmal_buffer);
         omvb->Release();
-        CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s - discard omvb:%p mmal:%p vsync:%d queue:%d diff:%f", CLASSNAME, __func__, omvb, buffer, g_RBP.LastVsync(), mmal_queue_length(m_queue_render), m_error);
+        CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s - discard omvb:%p mmal:%p vsync:%d queue:%d diff:%f",
+                  CLASSNAME, __func__, static_cast<void*>(omvb), static_cast<void*>(buffer),
+                  g_RBP.LastVsync(), mmal_queue_length(m_queue_render), m_error);
       }
     }
     // this is case where we would like to display a new frame
@@ -649,9 +683,16 @@ void CMMALRenderer::Process()
         CheckConfigurationVout(omvb->Width(), omvb->Height(), omvb->AlignedWidth(), omvb->AlignedHeight(), omvb->Encoding());
         MMAL_STATUS_T status = mmal_port_send_buffer(m_vout_input, buffer);
         if (status != MMAL_SUCCESS)
-          CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p to %s (status=0%x %s)", CLASSNAME, __func__, omvb, buffer, m_vout_input->name, status, mmal_status_to_string(status));
+        {
+          CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p to %s (status=0%x %s)",
+                    CLASSNAME, __func__, static_cast<void*>(omvb), static_cast<void*>(buffer),
+                    m_vout_input->name, status, mmal_status_to_string(status));
+        }
       }
-      CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s - omvb:%p mmal:%p vsync:%d queue:%d diff:%f", CLASSNAME, __func__, buffer ? buffer->user_data : nullptr, buffer, g_RBP.LastVsync(), mmal_queue_length(m_queue_render), m_error);
+      CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s - omvb:%p mmal:%p vsync:%d queue:%d diff:%f", CLASSNAME,
+                __func__, buffer ? static_cast<void*>(buffer->user_data) : nullptr,
+                static_cast<void*>(buffer), g_RBP.LastVsync(), mmal_queue_length(m_queue_render),
+                m_error);
     }
   }
   CLog::Log(LOGDEBUG, "%s::%s - stopping", CLASSNAME, __func__);
@@ -671,8 +712,13 @@ void CMMALRenderer::Run()
 
     CMMALBuffer *omvb = (CMMALBuffer *)buffer->user_data;
     if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-      CLog::Log(LOGDEBUG, "%s::%s %s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x enc:%.4s", CLASSNAME, __func__,
-         omvb ? omvb->GetStateName():"", omvb, buffer, buffer->dts*1e-6, buffer->pts*1e-6, buffer->length, buffer->cmd, buffer->flags, omvb ? (char *)&omvb->Encoding():"");
+    {
+      CLog::Log(LOGDEBUG,
+                "%s::%s %s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x enc:%.4s",
+                CLASSNAME, __func__, omvb ? omvb->GetStateName() : "", static_cast<void*>(omvb),
+                static_cast<void*>(buffer), buffer->dts * 1e-6, buffer->pts * 1e-6, buffer->length,
+                buffer->cmd, buffer->flags, omvb ? (char*)&omvb->Encoding() : "");
+    }
 
     assert(omvb && buffer == omvb->mmal_buffer);
     assert(buffer->cmd == 0);
@@ -686,7 +732,7 @@ void CMMALRenderer::Run()
       if (buffer->length > 0)
       {
         EINTERLACEMETHOD last_interlace_method = m_interlace_method;
-        EINTERLACEMETHOD interlace_method = CMediaSettings::GetInstance().GetCurrentVideoSettings().m_InterlaceMethod;
+        EINTERLACEMETHOD interlace_method = m_videoSettings.m_InterlaceMethod;
         if (interlace_method == VS_INTERLACEMETHOD_AUTO)
         {
           interlace_method = VS_INTERLACEMETHOD_MMAL_ADVANCED;
@@ -742,7 +788,12 @@ void CMMALRenderer::Run()
         {
           MMAL_STATUS_T status = mmal_port_send_buffer(m_deint_input, omvb->mmal_buffer);
           if (status != MMAL_SUCCESS)
-            CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p to %s (status=0%x %s)", CLASSNAME, __func__, omvb, omvb->mmal_buffer, m_deint_input->name, status, mmal_status_to_string(status));
+          {
+            CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p to %s (status=0%x %s)",
+                      CLASSNAME, __func__, static_cast<void*>(omvb),
+                      static_cast<void*>(omvb->mmal_buffer), m_deint_input->name, status,
+                      mmal_status_to_string(status));
+          }
           else
             kept = true;
         }
@@ -758,7 +809,12 @@ void CMMALRenderer::Run()
           {
             MMAL_STATUS_T status = mmal_port_send_buffer(m_vout_input, omvb->mmal_buffer);
             if (status != MMAL_SUCCESS)
-              CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p to %s (status=0%x %s)", CLASSNAME, __func__, omvb, omvb->mmal_buffer, m_vout_input->name, status, mmal_status_to_string(status));
+            {
+              CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal:%p to %s (status=0%x %s)",
+                        CLASSNAME, __func__, static_cast<void*>(omvb),
+                        static_cast<void*>(omvb->mmal_buffer), m_vout_input->name, status,
+                        mmal_status_to_string(status));
+            }
             else
               kept = true;
           }
@@ -774,7 +830,7 @@ void CMMALRenderer::Run()
         {
           mmal_queue_put(m_queue_render, buffer);
           if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-            CLog::Log(LOGDEBUG, "%s::%s send %p to m_queue_render", CLASSNAME, __func__, omvb);
+            CLog::Log(LOGDEBUG, "%s::%s send %p to m_queue_render", CLASSNAME, __func__, static_cast<void*>(omvb));
           kept = true;
         }
         else
@@ -783,10 +839,14 @@ void CMMALRenderer::Run()
           if (m_vout_input)
           {
             if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-              CLog::Log(LOGDEBUG, "%s::%s send %p to m_vout_input", CLASSNAME, __func__, omvb);
+              CLog::Log(LOGDEBUG, "%s::%s send %p to m_vout_input", CLASSNAME, __func__, static_cast<void*>(omvb));
             MMAL_STATUS_T status = mmal_port_send_buffer(m_vout_input, buffer);
             if (status != MMAL_SUCCESS)
-              CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal%:p to %s (status=0%x %s)", CLASSNAME, __func__, omvb, buffer, m_vout_input->name, status, mmal_status_to_string(status));
+            {
+              CLog::Log(LOGERROR, "%s::%s - Failed to send omvb:%p mmal%:p to %s (status=0%x %s)",
+                        CLASSNAME, __func__, static_cast<void*>(omvb), static_cast<void*>(buffer),
+                        m_vout_input->name, status, mmal_status_to_string(status));
+            }
             else
               kept = true;
           }
@@ -799,8 +859,14 @@ void CMMALRenderer::Run()
     if (!kept)
     {
       if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-        CLog::Log(LOGDEBUG, "%s::%s %s Not kept: omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x enc:%.4s", CLASSNAME, __func__,
-          omvb ? omvb->GetStateName():"", omvb, buffer, buffer->dts*1e-6, buffer->pts*1e-6, buffer->length, buffer->cmd, buffer->flags, omvb ? (char *)&omvb->Encoding():"");
+      {
+        CLog::Log(
+            LOGDEBUG,
+            "%s::%s %s Not kept: omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x enc:%.4s",
+            CLASSNAME, __func__, omvb ? omvb->GetStateName() : "", static_cast<void*>(omvb),
+            static_cast<void*>(buffer), buffer->dts * 1e-6, buffer->pts * 1e-6, buffer->length,
+            buffer->cmd, buffer->flags, omvb ? (char*)&omvb->Encoding() : "");
+      }
       if (omvb)
         omvb->Release();
       else
@@ -839,7 +905,10 @@ void CMMALRenderer::AddVideoPicture(const VideoPicture& pic, int id, double curr
   CMMALBuffer *buffer = dynamic_cast<CMMALBuffer*>(pic.videoBuffer);
   assert(buffer);
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s MMAL - %p (%p) %i", CLASSNAME, __func__, buffer, buffer->mmal_buffer, id);
+  {
+    CLog::Log(LOGDEBUG, "%s::%s MMAL - %p (%p) %i", CLASSNAME, __func__, static_cast<void*>(buffer),
+              static_cast<void*>(buffer->mmal_buffer), id);
+  }
 
   assert(!m_buffers[id]);
   buffer->Acquire();
@@ -847,7 +916,7 @@ void CMMALRenderer::AddVideoPicture(const VideoPicture& pic, int id, double curr
   UpdateFramerateStats(pic.pts);
 }
 
-bool CMMALRenderer::Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation)
+bool CMMALRenderer::Configure(const VideoPicture &picture, float fps, unsigned int orientation)
 {
   CSingleLock lock(m_sharedSection);
   ReleaseBuffers();
@@ -858,8 +927,11 @@ bool CMMALRenderer::Configure(const VideoPicture &picture, float fps, unsigned f
   m_sourceHeight = picture.iHeight;
   m_renderOrientation = orientation;
 
+  m_iFlags = GetFlagsChromaPosition(picture.chroma_position) |
+             GetFlagsColorPrimaries(picture.color_primaries) |
+             GetFlagsStereoMode(picture.stereoMode);
+
   m_fps = fps;
-  m_iFlags = flags;
   m_error = 0.0;
   m_lastPts = DVD_NOPTS_VALUE;
   m_frameInterval = 0.0;
@@ -869,11 +941,11 @@ bool CMMALRenderer::Configure(const VideoPicture &picture, float fps, unsigned f
   m_src_rect.SetRect(0, 0, 0, 0);
   m_dst_rect.SetRect(0, 0, 0, 0);
 
-  CLog::Log(LOGDEBUG, "%s::%s - %dx%d->%dx%d@%.2f flags:%x format:%d orient:%d", CLASSNAME, __func__, picture.iWidth, picture.iHeight, picture.iDisplayWidth, picture.iDisplayHeight, fps, flags, m_format, orientation);
+  CLog::Log(LOGDEBUG, "%s::%s - %dx%d->%dx%d@%.2f flags:%x format:%d orient:%d", CLASSNAME, __func__, picture.iWidth, picture.iHeight, picture.iDisplayWidth, picture.iDisplayHeight, fps, m_iFlags, m_format, orientation);
 
   // calculate the input frame aspect ratio
   CalculateFrameAspectRatio(picture.iDisplayWidth, picture.iDisplayHeight);
-  SetViewMode(CMediaSettings::GetInstance().GetCurrentVideoSettings().m_ViewMode);
+  SetViewMode(m_videoSettings.m_ViewMode);
   ManageRenderArea();
 
   m_bConfigured = true;
@@ -885,15 +957,13 @@ void CMMALRenderer::ReleaseBuffer(int id)
   CSingleLock lock(m_sharedSection);
   CMMALBuffer *omvb = m_buffers[id];
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s - MMAL: source:%d omvb:%p mmal:%p", CLASSNAME, __func__, id, omvb, omvb ? omvb->mmal_buffer:NULL);
+  {
+    CLog::Log(LOGDEBUG, "%s::%s - MMAL: source:%d omvb:%p mmal:%p", CLASSNAME, __func__, id,
+              static_cast<void*>(omvb), omvb ? static_cast<void*>(omvb->mmal_buffer) : nullptr);
+  }
   if (m_buffers[id])
     m_buffers[id]->Release();
   m_buffers[id] = nullptr;
-}
-
-void CMMALRenderer::Reset()
-{
-  CLog::Log(LOGDEBUG, "%s::%s", CLASSNAME, __func__);
 }
 
 void CMMALRenderer::Flush()
@@ -935,7 +1005,11 @@ void CMMALRenderer::RenderUpdate(int index, int index2, bool clear, unsigned int
   // we only want to upload frames once
   if (omvb && omvb->m_rendered)
   {
-    CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s - MMAL: clear:%d flags:%x alpha:%d source:%d omvb:%p mmal:%p mflags:%x skipping", CLASSNAME, __func__, clear, flags, alpha, index, omvb, omvb->mmal_buffer, omvb->mmal_buffer->flags);
+    CLog::Log(
+        LOGDEBUG, LOGVIDEO,
+        "%s::%s - MMAL: clear:%d flags:%x alpha:%d source:%d omvb:%p mmal:%p mflags:%x skipping",
+        CLASSNAME, __func__, clear, flags, alpha, index, static_cast<void*>(omvb),
+        static_cast<void*>(omvb->mmal_buffer), omvb->mmal_buffer->flags);
     SetVideoRect(m_cachedSourceRect, m_cachedDestRect);
     goto exit;
   }
@@ -944,7 +1018,10 @@ void CMMALRenderer::RenderUpdate(int index, int index2, bool clear, unsigned int
   {
     // dummy buffer from omxplayer
     if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-      CLog::Log(LOGDEBUG, "%s::%s - OMX: clear:%d flags:%x alpha:%d source:%d omvb:%p", CLASSNAME, __func__, clear, flags, alpha, index, omvb);
+    {
+      CLog::Log(LOGDEBUG, "%s::%s - OMX: clear:%d flags:%x alpha:%d source:%d omvb:%p", CLASSNAME,
+                __func__, clear, flags, alpha, index, static_cast<void*>(omvb));
+    }
   }
   else if (omvb && omvb->mmal_buffer)
   {
@@ -952,7 +1029,13 @@ void CMMALRenderer::RenderUpdate(int index, int index2, bool clear, unsigned int
       omvb->mmal_buffer->flags |= MMAL_BUFFER_HEADER_VIDEO_FLAG_INTERLACED | MMAL_BUFFER_HEADER_VIDEO_FLAG_TOP_FIELD_FIRST;
     else if (flags & RENDER_FLAG_BOT)
       omvb->mmal_buffer->flags |= MMAL_BUFFER_HEADER_VIDEO_FLAG_INTERLACED;
-    CLog::Log(LOGDEBUG, LOGVIDEO, "%s::%s - MMAL: clear:%d flags:%x alpha:%d source:%d omvb:%p mmal:%p mflags:%x len:%d data:%p enc:%.4s", CLASSNAME, __func__, clear, flags, alpha, index, omvb, omvb->mmal_buffer, omvb->mmal_buffer->flags, omvb->mmal_buffer->length, omvb->mmal_buffer->data, (char *)&omvb->Encoding());
+    CLog::Log(LOGDEBUG, LOGVIDEO,
+              "%s::%s - MMAL: clear:%d flags:%x alpha:%d source:%d omvb:%p mmal:%p mflags:%x "
+              "len:%d data:%p enc:%.4s",
+              CLASSNAME, __func__, clear, flags, alpha, index, static_cast<void*>(omvb),
+              static_cast<void*>(omvb->mmal_buffer), omvb->mmal_buffer->flags,
+              omvb->mmal_buffer->length, static_cast<void*>(omvb->mmal_buffer->data),
+              (char*)&omvb->Encoding());
     assert(omvb->mmal_buffer && omvb->mmal_buffer->data && omvb->mmal_buffer->length);
     omvb->Acquire();
     omvb->m_rendered = true;
@@ -960,7 +1043,13 @@ void CMMALRenderer::RenderUpdate(int index, int index2, bool clear, unsigned int
     mmal_queue_put(m_queue_process, omvb->mmal_buffer);
   }
   else
-    CLog::Log(LOGDEBUG, "%s::%s - MMAL: No buffer to update clear:%d flags:%x alpha:%d source:%d omvb:%p mmal:%p", CLASSNAME, __func__, clear, flags, alpha, index, omvb, omvb ? omvb->mmal_buffer : nullptr);
+  {
+    CLog::Log(
+        LOGDEBUG,
+        "%s::%s - MMAL: No buffer to update clear:%d flags:%x alpha:%d source:%d omvb:%p mmal:%p",
+        CLASSNAME, __func__, clear, flags, alpha, index, static_cast<void*>(omvb),
+        omvb ? static_cast<void*>(omvb->mmal_buffer) : nullptr);
+  }
 
 exit:
    lock.Leave();
@@ -1044,7 +1133,7 @@ bool CMMALRenderer::RenderCapture(CRenderCapture* capture)
   if (!m_bConfigured)
     return false;
 
-  CLog::Log(LOGDEBUG, "%s::%s - %p", CLASSNAME, __func__, capture);
+  CLog::Log(LOGDEBUG, "%s::%s - %p", CLASSNAME, __func__, static_cast<void*>(capture));
 
   capture->BeginRender();
   capture->EndRender();
@@ -1212,8 +1301,12 @@ void CMMALRenderer::SetVideoRect(const CRect& InSrcRect, const CRect& InDestRect
 void CMMALRenderer::deint_input_port_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x", CLASSNAME, __func__,
-        buffer->user_data, buffer, buffer->dts*1e-6, buffer->pts*1e-6, buffer->length, buffer->cmd, buffer->flags);
+  {
+    CLog::Log(LOGDEBUG, "%s::%s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x",
+              CLASSNAME, __func__, static_cast<void*>(buffer->user_data),
+              static_cast<void*>(buffer), buffer->dts * 1e-6, buffer->pts * 1e-6, buffer->length,
+              buffer->cmd, buffer->flags);
+  }
   mmal_queue_put(m_queue_process, buffer);
 }
 
@@ -1226,8 +1319,12 @@ static void deint_input_port_cb_static(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *
 void CMMALRenderer::deint_output_port_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
   if (VERBOSE && g_advancedSettings.CanLogComponent(LOGVIDEO))
-    CLog::Log(LOGDEBUG, "%s::%s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x", CLASSNAME, __func__,
-        buffer->user_data, buffer, buffer->dts*1e-6, buffer->pts*1e-6, buffer->length, buffer->cmd, buffer->flags);
+  {
+    CLog::Log(LOGDEBUG, "%s::%s omvb:%p mmal:%p dts:%.3f pts:%.3f len:%d cmd:%x flags:%x",
+              CLASSNAME, __func__, static_cast<void*>(buffer->user_data),
+              static_cast<void*>(buffer), buffer->dts * 1e-6, buffer->pts * 1e-6, buffer->length,
+              buffer->cmd, buffer->flags);
+  }
   mmal_queue_put(m_queue_process, buffer);
 }
 

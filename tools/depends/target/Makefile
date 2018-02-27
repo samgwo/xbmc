@@ -9,7 +9,7 @@ DEPENDS = \
 	libgcrypt bzip2 liblzo2 libzip freetype2 fontconfig \
 	openssl gmp nettle gnutls curl \
 	libjpeg-turbo libpng fribidi libass \
-	libxml2 rapidjson libmicrohttpd mysql libffi \
+	libxml2 rapidjson libmicrohttpd mariadb libffi \
 	python27 libshairplay libfmt \
 	libplist libcec libbluray tinyxml \
 	libssh taglib libusb libnfs \
@@ -75,8 +75,10 @@ ifeq ($(OS),linux)
   CROSSGUID_DEPS = libuuid
 endif
 
-ifeq ($(ENABLE_WAYLAND),yes)
+ifeq ($(TARGET_PLATFORM),wayland)
   DEPENDS += wayland waylandpp wayland-protocols
+else ifeq ($(TARGET_PLATFORM),aml)
+  DEPENDS += libamcodec
 endif
 
 .PHONY: $(DEPENDS)
@@ -92,10 +94,10 @@ libmicrohttpd: gnutls libgcrypt libgpg-error
 python27: expat gettext libxml2 sqlite3 openssl libffi
 libcdio: $(ICONV)
 libcdio-gplv3: $(ICONV)
-libplist: libxml2 $(ZLIB)
+libplist: $(ZLIB)
 libbluray: $(ICONV) libxml2
 libssh: libgcrypt openssl $(ZLIB)
-mysql: openssl $(ZLIB)
+mariadb: openssl $(ICONV) $(ZLIB)
 libzip: $(ZLIB)
 libpng: $(ZLIB)
 openssl: $(ZLIB)
@@ -178,3 +180,4 @@ linux-system-libs: linux-system-libs-egl
 	[ -f $(PREFIX)/lib/pkgconfig/sm.pc ] || ln -sf /usr/lib/$(HOST)/pkgconfig/sm.pc $(PREFIX)/lib/pkgconfig/sm.pc
 	[ -f $(PREFIX)/lib/pkgconfig/xmu.pc ] || ln -sf /usr/lib/$(HOST)/pkgconfig/xmu.pc $(PREFIX)/lib/pkgconfig/xmu.pc
 	[ -f $(PREFIX)/lib/pkgconfig/libdrm.pc ] || ln -sf /usr/lib/$(HOST)/pkgconfig/libdrm.pc $(PREFIX)/lib/pkgconfig/libdrm.pc
+	[ -f $(PREFIX)/lib/pkgconfig/xkbcommon.pc ] || ln -sf /usr/lib/$(HOST)/pkgconfig/xkbcommon.pc $(PREFIX)/lib/pkgconfig/xkbcommon.pc

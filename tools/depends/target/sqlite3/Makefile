@@ -1,5 +1,5 @@
 include ../../Makefile.include
-DEPS= ../../Makefile.include Makefile
+DEPS= ../../Makefile.include Makefile fix-32bits-on-64bits.patch sqlite3.c.patch
 
 # lib name, version
 LIBNAME=sqlite
@@ -16,8 +16,6 @@ CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
   --enable-threadsafe --disable-tcl --disable-readline \
 
 LIBDYLIB=$(PLATFORM)/.libs/lib$(LIBNAME)3.a
-
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: .installed-$(PLATFORM)
 

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 
 #include "easyhook/easyhook.h"
 #include "rendering/dx/RenderSystemDX.h"
-#include "utils/GlobalsHandling.h"
 #include "windowing/windows/WinSystemWin32.h"
 
 struct D3D10DDIARG_CREATERESOURCE;
@@ -85,12 +84,10 @@ protected:
   void CreateBackBuffer() override;
   void ResizeDeviceBuffers() override;
   bool IsStereoEnabled() override;
+  void OnScreenChange(int screen) override;
 
   HMODULE m_hDriverModule;
   TRACED_HOOK_HANDLE m_hHook;
 };
-
-XBMC_GLOBAL_REF(CWinSystemWin32DX,g_Windowing);
-#define g_Windowing XBMC_GLOBAL_USE(CWinSystemWin32DX)
 
 #endif // WIN_SYSTEM_WIN32_DX_H

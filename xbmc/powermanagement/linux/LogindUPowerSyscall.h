@@ -1,7 +1,7 @@
 /*
  *      Copyright (C) 2012 Denis Yantarev
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-
-#ifdef HAS_DBUS
 
 #include "powermanagement/IPowerSyscall.h"
 #include "DBusUtil.h"
@@ -40,7 +38,7 @@ public:
   int BatteryLevel() override;
   bool PumpPowerEvents(IPowerEventsCallback *callback) override;
   // we don't require UPower because everything except the battery level works fine without it
-  static bool HasLogind();  
+  static bool HasLogind();
 private:
   CDBusConnection m_connection;
   bool m_canPowerdown;
@@ -57,5 +55,3 @@ private:
   static bool LogindSetPowerState(const char *state);
   static bool LogindCheckCapability(const char *capability);
 };
-
-#endif

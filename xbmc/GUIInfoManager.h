@@ -8,7 +8,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -173,6 +173,7 @@ public:
   std::string GetMusicLabel(int item);
   std::string GetMusicTagLabel(int info, const CFileItem *item);
   std::string GetVideoLabel(int item);
+  std::string GetGameLabel(int item);
   std::string GetPlaylistLabel(int item, int playlistid = -1 /* PLAYLIST_NONE */) const;
   std::string GetMusicPartyModeLabel(int item);
   const std::string GetMusicPlaylistInfo(const GUIInfo& info);
@@ -344,8 +345,8 @@ protected:
   //For checking visibility of custom nodes for a role.
   std::vector<std::pair<std::string, int>> m_libraryRoleCounts; 
 
-  SPlayerVideoStreamInfo m_videoInfo;
-  SPlayerAudioStreamInfo m_audioInfo;
+  VideoStreamInfo m_videoInfo;
+  AudioStreamInfo m_audioInfo;
 
   CCriticalSection m_critInfo;
 

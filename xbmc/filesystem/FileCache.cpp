@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #include "settings/AdvancedSettings.h"
 
 #if !defined(TARGET_WINDOWS)
-#include "linux/ConvUtils.h" //GetLastError()
+#include "platform/linux/ConvUtils.h"
 #endif
 
 #include <cassert>
@@ -38,7 +38,7 @@
 #include <memory>
 
 #ifdef TARGET_POSIX
-#include "linux/ConvUtils.h"
+#include "platform/linux/ConvUtils.h"
 #endif
 
 using namespace XFILE;
@@ -534,7 +534,7 @@ int64_t CFileCache::Seek(int64_t iFilePosition, int iWhence)
   else
     m_readPos = iTarget;
 
-  return m_nSeekResult;
+  return iTarget;
 }
 
 void CFileCache::Close()

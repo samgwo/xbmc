@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 
 class CStreamDetails;
 class CVideoDatabase;
+class EmbeddedArt;
 
 /*!
  \ingroup thumbs,jobs
@@ -125,6 +126,10 @@ public:
    \param artwork the artwork map.
    */
   static void SetArt(CFileItem &item, const std::map<std::string, std::string> &artwork);
+
+  static bool GetEmbeddedThumb(const std::string& path,
+                               const std::string& type,
+                               EmbeddedArt& art);
 
 protected:
   CVideoDatabase *m_videoDatabase;

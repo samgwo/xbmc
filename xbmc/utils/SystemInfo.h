@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -86,9 +86,19 @@ public:
     WindowsVersionWin7,         // Windows 7, Windows Server 2008 R2
     WindowsVersionWin8,         // Windows 8, Windows Server 2012
     WindowsVersionWin8_1,       // Windows 8.1
-    WindowsVersionWin10,        // windows 10
+    WindowsVersionWin10,        // Windows 10
+    WindowsVersionWin10_FCU,    // Windows 10 Fall Creators Update
     /* Insert new Windows versions here, when they'll be known */
     WindowsVersionFuture = 100  // Future Windows version, not known to code
+  };
+  enum WindowsDeviceFamily
+  {
+    Mobile = 1,
+    Desktop = 2,
+    IoT = 3,
+    Xbox = 4,
+    Surface = 5,
+    Other = 100
   };
 
   CSysInfo(void);
@@ -116,7 +126,6 @@ public:
   bool HasInternet();
   bool HasVideoToolBoxDecoder();
   bool IsAeroDisabled();
-  bool HasHW3DInterlaced();
   static bool IsWindowsVersion(WindowsVersion ver);
   static bool IsWindowsVersionAtLeast(WindowsVersion ver);
   static WindowsVersion GetWindowsVersion();
@@ -144,6 +153,8 @@ public:
 
   static std::string GetUsedCompilerNameAndVer(void);
   std::string GetPrivacyPolicy();
+
+  static WindowsDeviceFamily GetWindowsDeviceFamily();
 
 protected:
   CJob *GetJob() const override;

@@ -21,8 +21,6 @@
 
 #include "WinSystemMirGLESContext.h"
 
-#if defined(HAS_GLES)
-
 bool CWinSystemMirGLESContext::CreateNewWindow(const std::string& name,
                                                bool fullScreen,
                                                RESOLUTION_INFO& res)
@@ -99,9 +97,7 @@ EGLConfig  CWinSystemMirGLESContext::GetEGLConfig() const
 }
 
 // FIXME Implement
-bool CWinSystemMirGLESContext::IsExtSupported(const char* extension)
+bool CWinSystemMirGLESContext::IsExtSupported(const char* extension) const
 {
   return false;
 }
-
-#endif

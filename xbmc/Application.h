@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
  *
  */
 
-#include "system.h" // for HAS_DVD_DRIVE et. al.
 #include "XBApplicationEx.h"
 
 #include "addons/AddonSystemSettings.h"
@@ -29,8 +28,10 @@
 #include "utils/GlobalsHandling.h"
 #include "messaging/IMessageTarget.h"
 #include "ServiceManager.h"
+#include "ApplicationStackHelper.h"
 
 #include <atomic>
+#include <deque>
 #include <map>
 #include <memory>
 #include <string>
@@ -67,14 +68,12 @@ namespace PLAYLIST
 #include "storage/DetectDVDType.h"
 #endif
 #ifdef TARGET_WINDOWS
-#include "platform/win32/WIN32Util.h"
+#include "powermanagement/WinIdleTimer.h"
 #endif
 #include "utils/Stopwatch.h"
-#ifdef HAS_PERFORMANCE_SAMPLE
-#include "utils/PerformanceStats.h"
-#endif
 #include "windowing/OSScreenSaver.h"
 #include "windowing/XBMC_events.h"
+#include "threads/SystemClock.h"
 #include "threads/Thread.h"
 
 #include "ApplicationPlayer.h"
@@ -85,7 +84,6 @@ class CInertialScrollingHandler;
 class DPMSSupport;
 class CSplash;
 class CBookmark;
-class CNetwork;
 class IActionListener;
 
 namespace VIDEO
@@ -165,9 +163,12 @@ public:
   std::shared_ptr<CFileItem> CurrentFileItemPtr();
   CFileItem& CurrentUnstackedItem();
   bool OnMessage(CGUIMessage& message) override;
+  CApplicationPlayer& GetAppPlayer();
   std::string GetCurrentPlayer();
+  CApplicationStackHelper& GetAppStackHelper();
   void OnPlayBackEnded() override;
   void OnPlayBackStarted(const CFileItem &file) override;
+  void OnPlayerCloseFile(const CFileItem &file, const CBookmark &bookmark) override;
   void OnPlayBackPaused() override;
   void OnPlayBackResumed() override;
   void OnPlayBackStopped() override;
@@ -176,23 +177,22 @@ public:
   void OnPlayBackSeek(int64_t iTime, int64_t seekOffset) override;
   void OnPlayBackSeekChapter(int iChapter) override;
   void OnPlayBackSpeedChanged(int iSpeed) override;
+  void OnAVChange() override;
+  void RequestVideoSettings(const CFileItem &fileItem) override;
+  void StoreVideoSettings(const CFileItem &fileItem, CVideoSettings vs) override;
 
   int  GetMessageMask() override;
   void OnApplicationMessage(KODI::MESSAGING::ThreadMessage* pMsg) override;
 
   bool PlayMedia(const CFileItem& item, const std::string &player, int iPlaylist);
   bool ProcessAndStartPlaylist(const std::string& strPlayList, PLAYLIST::CPlayList& playlist, int iPlaylist, int track=0);
-  PlayBackRet PlayFile(CFileItem item, const std::string& player, bool bRestart = false);
-  void SaveFileState(bool bForeground = false);
-  void UpdateFileState();
-  void LoadVideoSettings(const CFileItem& item);
+  bool PlayFile(CFileItem item, const std::string& player, bool bRestart = false);
   void StopPlaying();
   void Restart(bool bSamePosition = true);
   void DelayedPlayerRestart();
   void CheckDelayedPlayerRestart();
   bool IsPlayingFullScreenVideo() const;
   bool IsFullScreen();
-  bool OnAppCommand(const CAction &action);
   bool OnAction(const CAction &action);
   void CheckShutdown();
   void InhibitIdleShutdown(bool inhibit);
@@ -200,7 +200,6 @@ public:
   // Checks whether the screensaver and / or DPMS should become active.
   void CheckScreenSaverAndDPMS();
   void ActivateScreenSaver(bool forceType = false);
-  bool SetupNetwork();
   void CloseNetworkShares();
 
   void ShowAppMigrationMessage();
@@ -214,8 +213,8 @@ public:
   void ToggleMute(void);
   void SetMute(bool mute);
   void ShowVolumeBar(const CAction *action = NULL);
-  int GetSubtitleDelay() const;
-  int GetAudioDelay() const;
+  int GetSubtitleDelay();
+  int GetAudioDelay();
   void ResetSystemIdleTimer();
   void ResetScreenSaverTimer();
   void StopScreenSaverTimer();
@@ -253,8 +252,9 @@ public:
   /*!
    \brief Starts a video library cleanup.
    \param userInitiated Whether the action was initiated by the user (either via GUI or any other method) or not.  It is meant to hide or show dialogs.
+   \param content Content type to clean, blank for everything
    */
-  void StartVideoCleanup(bool userInitiated = true);
+  void StartVideoCleanup(bool userInitiated = true, const std::string& content = "");
 
   /*!
    \brief Starts a video library update.
@@ -284,15 +284,7 @@ public:
 
   bool ExecuteXBMCAction(std::string action, const CGUIListItemPtr &item = NULL);
 
-  static bool OnEvent(XBMC_Event& newEvent);
-
-  CNetwork& getNetwork();
-
-#ifdef HAS_PERFORMANCE_SAMPLE
-  CPerformanceStats &GetPerformanceStats();
-#endif
-
-  std::unique_ptr<CApplicationPlayer> m_pPlayer;
+  bool OnEvent(XBMC_Event& newEvent);
 
 #ifdef HAS_DVD_DRIVE
   std::unique_ptr<MEDIA_DETECT::CAutorun> m_Autorun;
@@ -444,6 +436,7 @@ protected:
   CStopWatch m_navigationTimer;
   CStopWatch m_slowTimer;
   CStopWatch m_shutdownTimer;
+  XbmcThreads::EndTime m_guiRefreshTimer;
 
   bool m_bInhibitIdleShutdown;
 
@@ -452,19 +445,12 @@ protected:
   bool m_dpmsIsManual;
 
   CFileItemPtr m_itemCurrentFile;
-  std::unique_ptr<CFileItemList> m_currentStack;
-  CFileItemPtr m_stackFileItemToUpdate;
 
   std::string m_prevMedia;
   ThreadIdentifier m_threadID;       // application thread ID.  Used in applicationMessenger to know where we are firing a thread with delay from.
   bool m_bInitializing;
   bool m_bPlatformDirectories;
 
-  CBookmark& m_progressTrackingVideoResumeBookmark;
-  CFileItemPtr m_progressTrackingItem;
-  bool m_progressTrackingPlayCountUpdate;
-
-  int m_currentStackPosition;
   int m_nextPlaylistItem;
 
   unsigned int m_lastRenderTime;
@@ -485,32 +471,27 @@ protected:
 
   void SetHardwareVolume(float hardwareVolume);
 
-  void VolumeChanged() const;
+  void VolumeChanged();
 
-  PlayBackRet PlayStack(const CFileItem& item, bool bRestart);
+  bool PlayStack(CFileItem& item, bool bRestart);
 
   float NavigationIdleTime();
-
   bool InitDirectoriesLinux();
   bool InitDirectoriesOSX();
   bool InitDirectoriesWin32();
   void CreateUserDirs() const;
+  void HandleWinEvents();
 
   /*! \brief Helper method to determine how to handle TMSG_SHUTDOWN
   */
   void HandleShutdownMessage();
 
   CInertialScrollingHandler *m_pInertialScrollingHandler;
-  CNetwork    *m_network;
-#ifdef HAS_PERFORMANCE_SAMPLE
-  CPerformanceStats m_perfStats;
-#endif
 
   ReplayGainSettings m_replayGainSettings;
-  
   std::vector<IActionListener *> m_actionListeners;
-
   std::vector<std::string> m_incompatibleAddons;  /*!< Result of addon migration */
+  std::deque<XBMC_Event> m_winEvents;
 
 private:
   CCriticalSection m_critSection;                 /*!< critical section for all changes to this class, except for changes to triggers */
@@ -519,6 +500,8 @@ private:
   std::atomic_uint m_WaitingExternalCalls;        /*!< counts threads wich are waiting to be processed in FrameMove */
   unsigned int m_ProcessedExternalCalls;          /*!< counts calls wich are processed during one "door open" cycle in FrameMove */
   unsigned int m_ProcessedExternalDecay = 0;      /*!< counts to close door after a few frames of no python activity */
+  CApplicationPlayer m_appPlayer;
+  CApplicationStackHelper m_stackHelper;
 };
 
 XBMC_GLOBAL_REF(CApplication,g_application);

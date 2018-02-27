@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,8 +23,6 @@
 #include <list>
 #include <vector>
 #include <utility>
-
-#include "system.h"
 
 #include "cores/AudioEngine/Utils/AEAudioFormat.h"
 
@@ -115,12 +113,6 @@ public:
   virtual bool IsSuspended() {return true;}
 
   /**
-   * Callback to alert the AudioEngine of setting changes
-   * @param setting The name of the setting that was changed
-   */
-  virtual void OnSettingsChange(const std::string& setting) {}
-
-  /**
    * Returns the current master volume level of the AudioEngine
    * @return The volume level between 0.0 and 1.0
    */
@@ -143,12 +135,6 @@ public:
    * @return The current mute state
    */
   virtual bool IsMuted() = 0;
-
-  /**
-   * Sets the sound mode
-   * @param mode One of AE_SOUND_OFF, AE_SOUND_IDLE or AE_SOUND_ALWAYS
-   */
-  virtual void SetSoundMode(const int mode) = 0;
 
   /**
    * Creates and returns a new IAEStream in the format specified, this function should never fail
@@ -190,13 +176,6 @@ public:
    * @param passthrough True if only passthrough devices are wanted
    */
   virtual void EnumerateOutputDevices(AEDeviceList &devices, bool passthrough) = 0;
-
-  /**
-   * Returns the default audio device
-   * @param passthrough True if the default passthrough device is wanted
-   * @return the default audio device
-   */
-  virtual std::string GetDefaultDevice(bool passthrough) { return "default"; }
 
   /**
    * Returns true if the AudioEngine supports AE_FMT_RAW streams for use with formats such as IEC61937

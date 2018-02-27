@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -105,7 +105,7 @@ bool CGLContextGLX::Refresh(bool force, int screen, Window glWindow, bool &newCo
     {
       glXMakeCurrent(m_dpy, None, NULL);
       glXDestroyContext(m_dpy, m_glxContext);
-      XSync(m_dpy, FALSE);
+      XSync(m_dpy, False);
     }
 
     if ((m_glxContext = glXCreateContext(m_dpy, vInfo, NULL, True)))
@@ -113,6 +113,7 @@ bool CGLContextGLX::Refresh(bool force, int screen, Window glWindow, bool &newCo
       // make this context current
       glXMakeCurrent(m_dpy, glWindow, m_glxContext);
       retVal = true;
+      newContext = true;
     }
     else
       CLog::Log(LOGERROR, "GLX Error: Could not create context");

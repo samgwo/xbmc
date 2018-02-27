@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,10 +18,6 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-
-#include "system.h" // for HAS_DVD_DRIVE
-
-#ifdef HAS_DVD_DRIVE
 
 #include "IFile.h"
 #include "storage/cdioSupport.h"
@@ -57,6 +53,3 @@ protected:
   std::shared_ptr<MEDIA_DETECT::CLibcdio> m_cdio;
 };
 }
-
-#endif
-

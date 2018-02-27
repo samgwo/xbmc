@@ -10,7 +10,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -43,7 +43,8 @@ class CGUITextBox : public CGUIControl, public CGUITextLayout
 {
 public:
   CGUITextBox(int parentID, int controlID, float posX, float posY, float width, float height,
-              const CLabelInfo &labelInfo, int scrollTime = 200);
+              const CLabelInfo &labelInfo, int scrollTime = 200,
+              const CLabelInfo* labelInfoMono = nullptr);
   CGUITextBox(const CGUITextBox &from);
   ~CGUITextBox(void) override;
   CGUITextBox *Clone() const override { return new CGUITextBox(*this); };

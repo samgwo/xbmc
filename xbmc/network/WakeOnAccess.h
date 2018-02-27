@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,9 +20,11 @@
 
 #include "URL.h"
 #include "XBDateTime.h"
-#include "utils/Job.h"
 #include "settings/lib/ISettingCallback.h"
 #include "settings/lib/ISettingsHandler.h"
+#include "threads/CriticalSection.h"
+#include "utils/Job.h"
+
 #include <string>
 #include <vector>
 
@@ -56,6 +58,8 @@ public:
     unsigned short ping_mode; // how to ping
 
     CDateTime nextWake;
+    std::string upnpUuid; // empty unless upnpmode
+    std::string friendlyName;
   };
 
 private:
@@ -73,12 +77,15 @@ private:
   typedef std::vector<WakeUpEntry> EntriesVector;
   EntriesVector m_entries;
   CCriticalSection m_entrylist_protect;
-  bool FindOrTouchHostEntry (const std::string& hostName, WakeUpEntry& server);
-  void TouchHostEntry (const std::string& hostName);
+  bool FindOrTouchHostEntry(const std::string& hostName, bool upnpMode, WakeUpEntry& server);
+  void TouchHostEntry(const std::string& hostName, bool upnpMode);
 
   unsigned int m_netinit_sec, m_netsettle_ms; //time to wait for network connection
 
   bool m_enabled;
 
+  bool WakeUpHost(const std::string& hostName, const std::string& customMessage, bool upnpMode);
   bool WakeUpHost(const WakeUpEntry& server);
+
+  std::vector<struct UPnPServer> m_UPnPServers; // list of wakeable upnp servers
 };

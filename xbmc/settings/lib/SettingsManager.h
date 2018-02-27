@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -58,8 +58,8 @@ public:
   CSettingsManager() = default;
   ~CSettingsManager() override;
 
-  static const uint32_t Version = 2;
-  static const uint32_t MinimumSupportedVersion = 0;
+  static const uint32_t Version;
+  static const uint32_t MinimumSupportedVersion;
 
   // implementation of ISettingCreator
   std::shared_ptr<CSetting> CreateSetting(const std::string &settingType, const std::string &settingId, CSettingsManager *settingsManager = nullptr) const override;

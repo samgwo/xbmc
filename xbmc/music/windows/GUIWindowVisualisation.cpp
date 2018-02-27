@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -176,7 +176,7 @@ bool CGUIWindowVisualisation::OnMessage(CGUIMessage& message)
     {
       // check whether we've come back here from a window during which time we've actually
       // stopped playing music
-      if (message.GetParam1() == WINDOW_INVALID && !g_application.m_pPlayer->IsPlayingAudio())
+      if (message.GetParam1() == WINDOW_INVALID && !g_application.GetAppPlayer().IsPlayingAudio())
       { // why are we here if nothing is playing???
         g_windowManager.PreviousWindow();
         return true;

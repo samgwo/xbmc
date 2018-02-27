@@ -19,8 +19,7 @@
  */
 #pragma once
 
-#include "games/controllers/ControllerTypes.h"
-#include "input/joysticks/IInputHandler.h"
+#include "input/joysticks/interfaces/IInputHandler.h"
 
 namespace KODI
 {
@@ -31,7 +30,7 @@ namespace GAME
   class CInputSink : public JOYSTICK::IInputHandler
   {
   public:
-    explicit CInputSink(CGameClient &m_gameClient);
+    explicit CInputSink(JOYSTICK::IInputHandler* gameInput);
 
     virtual ~CInputSink() = default;
 
@@ -44,10 +43,12 @@ namespace GAME
     virtual bool OnButtonMotion(const std::string& feature, float magnitude, unsigned int motionTimeMs) override;
     virtual bool OnAnalogStickMotion(const std::string& feature, float x, float y, unsigned int motionTimeMs) override;
     virtual bool OnAccelerometerMotion(const std::string& feature, float x, float y, float z) override;
+    virtual bool OnWheelMotion(const std::string& feature, float position, unsigned int motionTimeMs) override;
+    virtual bool OnThrottleMotion(const std::string& feature, float position, unsigned int motionTimeMs) override;
 
   private:
-    const CGameClient &m_gameClient;
-    const ControllerPtr m_controller;
+    // Construction parameters
+    JOYSTICK::IInputHandler* m_gameInput;
   };
 }
 }

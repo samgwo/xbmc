@@ -59,6 +59,7 @@
 #include "URL.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
+#include "utils/FileExtensionProvider.h"
 #include "utils/RegExp.h"
 #include "utils/log.h"
 #include "utils/Variant.h"
@@ -123,7 +124,7 @@ CFileItem::CFileItem(const CVideoInfoTag& movie)
   SetFromVideoInfoTag(movie);
 }
 
-void CFileItem::FillMusicInfoTag(const CPVRChannelPtr channel, const CPVREpgInfoTagPtr tag)
+void CFileItem::FillMusicInfoTag(const CPVRChannelPtr& channel, const CPVREpgInfoTagPtr& tag)
 {
   if (channel && channel->IsRadio() && !HasMusicInfoTag())
   {
@@ -184,6 +185,10 @@ CFileItem::CFileItem(const CPVRChannelPtr& channel)
 
   if (!channel->IconPath().empty())
     SetIconImage(channel->IconPath());
+  else if (channel->IsRadio())
+    SetIconImage("DefaultAudio.png");
+  else
+    SetIconImage("DefaultTVShows.png");
 
   SetProperty("channelid", channel->ChannelID());
   SetProperty("path", channel->Path());
@@ -822,7 +827,7 @@ bool CFileItem::IsVideo() const
   //! @todo If the file is a zip file, ask the game clients if any support this
   // file before assuming it is video.
 
-  return URIUtils::HasExtension(m_strPath, g_advancedSettings.m_videoExtensions);
+  return URIUtils::HasExtension(m_strPath, CServiceBroker::GetFileExtensionProvider().GetVideoExtensions());
 }
 
 bool CFileItem::IsEPG() const
@@ -873,7 +878,7 @@ bool CFileItem::IsDiscStub() const
     return dbItem.IsDiscStub();
   }
 
-  return URIUtils::HasExtension(m_strPath, g_advancedSettings.m_discStubExtensions);
+  return URIUtils::HasExtension(m_strPath, CServiceBroker::GetFileExtensionProvider().GetDiscStubExtensions());
 }
 
 bool CFileItem::IsAudio() const
@@ -909,7 +914,7 @@ bool CFileItem::IsAudio() const
   //! @todo If the file is a zip file, ask the game clients if any support this
   // file before assuming it is audio
 
-  return URIUtils::HasExtension(m_strPath, g_advancedSettings.GetMusicExtensions());
+  return URIUtils::HasExtension(m_strPath, CServiceBroker::GetFileExtensionProvider().GetMusicExtensions());
 }
 
 bool CFileItem::IsDeleted() const
@@ -975,7 +980,7 @@ bool CFileItem::IsLyrics() const
 
 bool CFileItem::IsSubtitle() const
 {
-  return URIUtils::HasExtension(m_strPath, g_advancedSettings.m_subtitlesExtensions);
+  return URIUtils::HasExtension(m_strPath, CServiceBroker::GetFileExtensionProvider().GetSubtitleExtensions());
 }
 
 bool CFileItem::IsCUESheet() const
@@ -1008,13 +1013,17 @@ bool CFileItem::IsFileFolder(EFileFolderType types) const
     || IsRAR()
     || IsRSS()
     || IsAudioBook()
-    || IsType(".ogg|.oga|.nsf|.sid|.sap|.xbt|.xsp")
+    || IsType(".ogg|.oga|.xbt")
 #if defined(TARGET_ANDROID)
     || IsType(".apk")
 #endif
     )
     return true;
   }
+
+  if (CServiceBroker::IsBinaryAddonCacheUp() &&
+      IsType(CServiceBroker::GetFileExtensionProvider().GetFileFolderExtensions().c_str()))
+    return true;
 
   if(types & EFILEFOLDER_TYPE_ONBROWSE)
   {
@@ -1130,6 +1139,7 @@ bool CFileItem::IsCBR() const
 bool CFileItem::IsRSS() const
 {
   return StringUtils::StartsWithNoCase(m_strPath, "rss://") || URIUtils::HasExtension(m_strPath, ".rss")
+      || StringUtils::StartsWithNoCase(m_strPath, "rsss://")
       || m_mimetype == "application/rss+xml";
 }
 
@@ -1295,12 +1305,12 @@ void CFileItem::FillInDefaultIcon()
         if (GetPVRChannelInfoTag()->IsRadio())
           SetIconImage("DefaultAudio.png");
         else
-          SetIconImage("DefaultVideo.png");
+          SetIconImage("DefaultTVShows.png");
       }
       else if ( IsLiveTV() )
       {
         // Live TV Channel
-        SetIconImage("DefaultVideo.png");
+        SetIconImage("DefaultTVShows.png");
       }
       else if ( URIUtils::IsArchive(m_strPath) )
       { // archive
@@ -1828,13 +1838,13 @@ bool CFileItem::LoadTracksFromCueDocument(CFileItemList& scannedItems)
         tag.GetReleaseDate(dateTime);
         if (dateTime.wYear)
           song.iYear = dateTime.wYear;
-        if (song.embeddedArt.empty() && !tag.GetCoverArtInfo().empty())
+        if (song.embeddedArt.Empty() && !tag.GetCoverArtInfo().Empty())
           song.embeddedArt = tag.GetCoverArtInfo();
       }
 
       if (!song.iDuration && tag.GetDuration() > 0)
       { // must be the last song
-        song.iDuration = (tag.GetDuration() * 75 - song.iStartOffset + 37) / 75;
+        song.iDuration = CUtil::ConvertMilliSecsToSecsIntRounded(CUtil::ConvertSecsToMilliSecs(tag.GetDuration()) - song.iStartOffset);
       }
       if ( tag.Loaded() && oneFilePerTrack && ! ( tag.GetAlbum().empty() || tag.GetArtist().empty() || tag.GetTitle().empty() ) )
       {
@@ -2493,7 +2503,7 @@ void CFileItemList::FilterCueItems()
                 }
                 else
                 { // try replacing the extension with one of our allowed ones.
-                  std::vector<std::string> extensions = StringUtils::Split(g_advancedSettings.GetMusicExtensions(), "|");
+                  std::vector<std::string> extensions = StringUtils::Split(CServiceBroker::GetFileExtensionProvider().GetMusicExtensions(), "|");
                   for (std::vector<std::string>::const_iterator i = extensions.begin(); i != extensions.end(); ++i)
                   {
                     strMediaFile = URIUtils::ReplaceExtension(pItem->GetPath(), *i);
@@ -2623,7 +2633,7 @@ void CFileItemList::StackFolders()
           if (bMatch)
           {
             CFileItemList items;
-            CDirectory::GetDirectory(item->GetPath(),items,g_advancedSettings.m_videoExtensions);
+            CDirectory::GetDirectory(item->GetPath(), items, CServiceBroker::GetFileExtensionProvider().GetVideoExtensions());
             // optimized to only traverse listing once by checking for filecount
             // and recording last file item for later use
             int nFiles = 0;
@@ -3247,11 +3257,11 @@ std::string CFileItem::GetLocalFanart() const
     return "";
 
   CFileItemList items;
-  CDirectory::GetDirectory(strDir, items, g_advancedSettings.GetPictureExtensions(), DIR_FLAG_NO_FILE_DIRS | DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO);
+  CDirectory::GetDirectory(strDir, items, CServiceBroker::GetFileExtensionProvider().GetPictureExtensions(), DIR_FLAG_NO_FILE_DIRS | DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO);
   if (IsOpticalMediaFile())
   { // grab from the optical media parent folder as well
     CFileItemList moreItems;
-    CDirectory::GetDirectory(GetLocalMetadataPath(), moreItems, g_advancedSettings.GetPictureExtensions(), DIR_FLAG_NO_FILE_DIRS | DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO);
+    CDirectory::GetDirectory(GetLocalMetadataPath(), moreItems, CServiceBroker::GetFileExtensionProvider().GetPictureExtensions(), DIR_FLAG_NO_FILE_DIRS | DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO);
     items.Append(moreItems);
   }
 
@@ -3514,7 +3524,7 @@ std::string CFileItem::FindTrailer() const
 
   std::string strDir = URIUtils::GetDirectory(strFile);
   CFileItemList items;
-  CDirectory::GetDirectory(strDir, items, g_advancedSettings.m_videoExtensions, DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO | DIR_FLAG_NO_FILE_DIRS);
+  CDirectory::GetDirectory(strDir, items, CServiceBroker::GetFileExtensionProvider().GetVideoExtensions(), DIR_FLAG_READ_CACHE | DIR_FLAG_NO_FILE_INFO | DIR_FLAG_NO_FILE_DIRS);
   URIUtils::RemoveExtension(strFile);
   strFile += "-trailer";
   std::string strFile3 = URIUtils::AddFileToFolder(strDir, "movie-trailer");
@@ -3613,12 +3623,12 @@ double CFileItem::GetCurrentResumeTime() const
   return lrint(GetResumePoint().timeInSeconds);
 }
 
-bool CFileItem::GetCurrentResumeTimeAndPartNumber(int& startOffset, int& partNumber) const
+bool CFileItem::GetCurrentResumeTimeAndPartNumber(int64_t& startOffset, int& partNumber) const
 {
   CBookmark resumePoint(GetResumePoint());
   if (resumePoint.IsSet())
   {
-    startOffset = lrint(resumePoint.timeInSeconds);
+    startOffset = llrint(resumePoint.timeInSeconds);
     partNumber = resumePoint.partNumber;
     return true;
   }

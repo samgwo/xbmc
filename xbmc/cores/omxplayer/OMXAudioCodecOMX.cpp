@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 #include "ServiceBroker.h"
 #include "cores/AudioEngine/Interfaces/AE.h"
 #include "settings/Settings.h"
-#include "linux/RBP.h"
+#include "platform/linux/RBP.h"
 
 // the size of the audio_render output port buffers
 #define AUDIO_DECODE_OUTPUT_BUFFER (32*1024)
@@ -147,7 +147,7 @@ void COMXAudioCodecOMX::Dispose()
   m_bGotFrame = false;
 }
 
-int COMXAudioCodecOMX::Decode(BYTE* pData, int iSize, double dts, double pts)
+int COMXAudioCodecOMX::Decode(unsigned char* pData, int iSize, double dts, double pts)
 {
   int iBytesUsed, got_frame;
   if (!m_pCodecContext) return -1;
@@ -191,7 +191,7 @@ int COMXAudioCodecOMX::Decode(BYTE* pData, int iSize, double dts, double pts)
   return iBytesUsed;
 }
 
-int COMXAudioCodecOMX::GetData(BYTE** dst, double &dts, double &pts)
+int COMXAudioCodecOMX::GetData(unsigned char** dst, double &dts, double &pts)
 {
   if (!m_bGotFrame)
     return 0;
@@ -223,7 +223,7 @@ int COMXAudioCodecOMX::GetData(BYTE** dst, double &dts, double &pts)
 
   if (m_iBufferOutputAlloced < m_iBufferOutputUsed + outputSize)
   {
-     m_pBufferOutput = (BYTE*)av_realloc(m_pBufferOutput, m_iBufferOutputUsed + outputSize + FF_INPUT_BUFFER_PADDING_SIZE);
+     m_pBufferOutput = (unsigned char*)av_realloc(m_pBufferOutput, m_iBufferOutputUsed + outputSize + FF_INPUT_BUFFER_PADDING_SIZE);
      m_iBufferOutputAlloced = m_iBufferOutputUsed + outputSize;
   }
 

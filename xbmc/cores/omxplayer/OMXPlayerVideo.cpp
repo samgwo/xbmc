@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,23 +29,20 @@
 #include "OMXPlayerVideo.h"
 
 #include "ServiceBroker.h"
-#include "linux/XMemUtils.h"
+#include "platform/linux/XMemUtils.h"
 #include "utils/BitstreamStats.h"
 
 #include "DVDDemuxers/DVDDemuxUtils.h"
 #include "DVDCodecs/DVDCodecUtils.h"
-#include "windowing/WindowingFactory.h"
 #include "settings/DisplaySettings.h"
 #include "settings/Settings.h"
 #include "settings/MediaSettings.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
 #include "cores/VideoPlayer/VideoRenderers/HwDecRender/MMALRenderer.h"
 #include "guilib/GraphicContext.h"
-#include "TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 
-#include "linux/RBP.h"
-
-using namespace RenderManager;
+#include "platform/linux/RBP.h"
 
 class COMXMsgVideoCodecChange : public CDVDMsg
 {
@@ -263,18 +260,25 @@ void OMXPlayerVideo::ProcessOverlays(double pts)
 
 std::string OMXPlayerVideo::GetStereoMode()
 {
-  std::string  stereo_mode;
+  std::string  stereoMode;
 
-  switch(CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoMode)
+  switch(m_processInfo.GetVideoSettings().m_StereoMode)
   {
-    case RENDER_STEREO_MODE_SPLIT_VERTICAL:   stereo_mode = "left_right"; break;
-    case RENDER_STEREO_MODE_SPLIT_HORIZONTAL: stereo_mode = "top_bottom"; break;
-    default:                                  stereo_mode = m_hints.stereo_mode; break;
+    case RENDER_STEREO_MODE_SPLIT_VERTICAL:
+      stereoMode = "left_right";
+      if (m_processInfo.GetVideoSettings().m_StereoInvert)
+        stereoMode = "right_left";
+      break;
+    case RENDER_STEREO_MODE_SPLIT_HORIZONTAL:
+      stereoMode = "top_bottom";
+      if (m_processInfo.GetVideoSettings().m_StereoInvert)
+        stereoMode = "bottom_top";
+      break;
+    default:
+      stereoMode = m_hints.stereo_mode;
+      break;
   }
-
-  if(CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoInvert)
-    stereo_mode = GetStereoModeInvert(stereo_mode);
-  return stereo_mode;
+  return stereoMode;
 }
 
 void OMXPlayerVideo::Output(double pts, bool bDropPacket)
@@ -313,7 +317,6 @@ void OMXPlayerVideo::Output(double pts, bool bDropPacket)
   time += m_av_clock->GetAbsoluteClock();
 
   VideoPicture picture = {};
-  memset(&picture, 0, sizeof(VideoPicture));
   picture.pts = time/DVD_TIME_BASE;
   MMAL::CMMALBuffer *omvb = new MMAL::CMMALBuffer(0);
   omvb->m_state = MMAL::MMALStateBypass;
@@ -460,7 +463,7 @@ void OMXPlayerVideo::Process()
       bool bPacketDrop     = ((CDVDMsgDemuxerPacket*)pMsg)->GetPacketDrop();
 
       #ifdef _DEBUG
-      CLog::Log(LOGINFO, "Video: dts:%.0f pts:%.0f size:%d (s:%d f:%d d:%d l:%d) s:%d %d/%d late:%d\n", pPacket->dts, pPacket->pts, 
+      CLog::Log(LOGINFO, "Video: dts:%.0f pts:%.0f size:%d (s:%d f:%d d:%d l:%d) s:%d %d/%d late:%d\n", pPacket->dts, pPacket->pts,
           (int)pPacket->iSize, m_syncState, m_flush, bPacketDrop, m_stalled, m_speed, 0, 0, 0);
       #endif
       if (m_messageQueue.GetDataSize() == 0
@@ -486,7 +489,7 @@ void OMXPlayerVideo::Process()
           Sleep(10);
           continue;
         }
-  
+
         if (m_stalled)
         {
           if(m_syncState == IDVDStreamPlayer::SYNC_INSYNC)
@@ -664,11 +667,29 @@ double OMXPlayerVideo::GetOutputDelay()
 void OMXPlayerVideo::SetVideoRect(const CRect &InSrcRect, const CRect &InDestRect)
 {
   CRect SrcRect = InSrcRect, DestRect = InDestRect;
-  unsigned flags = GetStereoModeFlags(GetStereoMode());
-  RENDER_STEREO_MODE video_stereo_mode = (flags & CONF_FLAGS_STEREO_MODE_SBS) ? RENDER_STEREO_MODE_SPLIT_VERTICAL :
-                                         (flags & CONF_FLAGS_STEREO_MODE_TAB) ? RENDER_STEREO_MODE_SPLIT_HORIZONTAL : RENDER_STEREO_MODE_OFF;
-  bool stereo_invert                   = (flags & CONF_FLAGS_STEREO_CADANCE_RIGHT_LEFT) ? true : false;
+  bool stereo_invert = false;
   RENDER_STEREO_MODE display_stereo_mode = g_graphicsContext.GetStereoMode();
+  RENDER_STEREO_MODE video_stereo_mode = RENDER_STEREO_MODE_OFF;
+  std::string stereoMode = GetStereoMode();
+
+  if (stereoMode == "left_right")
+  {
+    video_stereo_mode = RENDER_STEREO_MODE_SPLIT_HORIZONTAL;
+  }
+  else if (stereoMode == "right_left")
+  {
+    video_stereo_mode = RENDER_STEREO_MODE_SPLIT_HORIZONTAL;
+    stereo_invert = true;
+  }
+  else if (stereoMode == "top_bottom")
+  {
+    video_stereo_mode = RENDER_STEREO_MODE_SPLIT_VERTICAL;
+  }
+  else if (stereoMode == "bottom_top")
+  {
+    video_stereo_mode = RENDER_STEREO_MODE_SPLIT_VERTICAL;
+    stereo_invert = true;
+  }
 
   // ignore video stereo mode when 3D display mode is disabled
   if (display_stereo_mode == RENDER_STEREO_MODE_OFF)
@@ -710,7 +731,7 @@ void OMXPlayerVideo::SetVideoRect(const CRect &InSrcRect, const CRect &InDestRec
   CLog::Log(LOGDEBUG, "OMXPlayerVideo::%s %d,%d,%d,%d -> %d,%d,%d,%d (%d,%d,%d,%d,%s)", __func__,
       (int)SrcRect.x1, (int)SrcRect.y1, (int)SrcRect.x2, (int)SrcRect.y2,
       (int)DestRect.x1, (int)DestRect.y1, (int)DestRect.x2, (int)DestRect.y2,
-      video_stereo_mode, display_stereo_mode, CMediaSettings::GetInstance().GetCurrentVideoSettings().m_StereoInvert, g_graphicsContext.GetStereoView(), OMXPlayerVideo::GetStereoMode().c_str());
+      video_stereo_mode, display_stereo_mode, m_processInfo.GetVideoSettings().m_StereoInvert, g_graphicsContext.GetStereoView(), OMXPlayerVideo::GetStereoMode().c_str());
 
   m_src_rect = SrcRect;
   m_dst_rect = DestRect;
@@ -755,14 +776,7 @@ void OMXPlayerVideo::ResolutionUpdateCallBack(uint32_t width, uint32_t height, f
   uint32_t video_width   = CDisplaySettings::GetInstance().GetResolutionInfo(res).iScreenWidth;
   uint32_t video_height  = CDisplaySettings::GetInstance().GetResolutionInfo(res).iScreenHeight;
 
-  /* figure out stereomode expected based on user settings and hints */
-  unsigned flags = GetStereoModeFlags(GetStereoMode());
-
-  if(m_bAllowFullscreen)
-  {
-    flags |= CONF_FLAGS_FULLSCREEN;
-    m_bAllowFullscreen = false; // only allow on first configure
-  }
+  m_processInfo.SetVideoStereoMode(m_hints.stereo_mode);
 
   unsigned int iDisplayWidth  = width;
   unsigned int iDisplayHeight = height;
@@ -787,11 +801,13 @@ void OMXPlayerVideo::ResolutionUpdateCallBack(uint32_t width, uint32_t height, f
   picture.iDisplayWidth = iDisplayWidth;
   picture.iDisplayHeight = iDisplayHeight;
 
-  if(!m_renderManager.Configure(picture, m_fFrameRate, flags, m_hints.orientation, 3))
+  if(!m_renderManager.Configure(picture, m_fFrameRate, m_bAllowFullscreen, m_hints.orientation, 3))
   {
     CLog::Log(LOGERROR, "%s - failed to configure renderer", __FUNCTION__);
     return;
   }
+
+  m_bAllowFullscreen = false; // only allow on first configure
 
   m_src_rect.SetRect(0, 0, 0, 0);
   m_dst_rect.SetRect(0, 0, 0, 0);
@@ -802,4 +818,3 @@ void OMXPlayerVideo::ResolutionUpdateCallBack(void *ctx, uint32_t width, uint32_
   OMXPlayerVideo *player = static_cast<OMXPlayerVideo*>(ctx);
   player->ResolutionUpdateCallBack(width, height, framerate, display_aspect);
 }
-

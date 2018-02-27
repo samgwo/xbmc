@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
  *
  */
 
-#include "system.h"
 #include "GUIWindowFileManager.h"
 #include "Application.h"
 #include "ServiceBroker.h"
@@ -38,6 +37,7 @@
 #include "guilib/GUIWindowManager.h"
 #include "input/Key.h"
 #include "dialogs/GUIDialogYesNo.h"
+#include "dialogs/GUIDialogTextViewer.h"
 #include "guilib/GUIKeyboardFactory.h"
 #include "dialogs/GUIDialogProgress.h"
 #include "favourites/FavouritesService.h"
@@ -61,7 +61,7 @@
 #include "URL.h"
 #include "platform/Filesystem.h"
 #ifdef TARGET_POSIX
-#include "linux/XFileUtils.h"
+#include "platform/linux/XFileUtils.h"
 #endif
 
 using namespace XFILE;
@@ -79,6 +79,7 @@ using namespace KODI::MESSAGING;
 #define CONTROL_BTNCALCSIZE             9
 #define CONTROL_BTNSWITCHMEDIA          11
 #define CONTROL_BTNCANCELJOB            12
+#define CONTROL_BTNVIEW                 13
 
 
 #define CONTROL_NUMFILES_LEFT           12
@@ -644,7 +645,7 @@ void CGUIWindowFileManager::OnStart(CFileItem *pItem, const std::string &player)
     CGUIWindowSlideShow *pSlideShow = g_windowManager.GetWindow<CGUIWindowSlideShow>(WINDOW_SLIDESHOW);
     if (!pSlideShow)
       return ;
-    if (g_application.m_pPlayer->IsPlayingVideo())
+    if (g_application.GetAppPlayer().IsPlayingVideo())
       g_application.StopPlaying();
 
     pSlideShow->Reset();
@@ -652,7 +653,10 @@ void CGUIWindowFileManager::OnStart(CFileItem *pItem, const std::string &player)
     pSlideShow->Select(pItem->GetPath());
 
     g_windowManager.ActivateWindow(WINDOW_SLIDESHOW);
+    return;
   }
+  if (pItem->IsType(".txt") || pItem->IsType(".xml"))
+    CGUIDialogTextViewer::ShowForFile(pItem->GetPath(), true);
 }
 
 bool CGUIWindowFileManager::HaveDiscOrConnection( std::string& strPath, int iDriveType )
@@ -672,7 +676,7 @@ bool CGUIWindowFileManager::HaveDiscOrConnection( std::string& strPath, int iDri
   else if ( iDriveType == CMediaSource::SOURCE_TYPE_REMOTE )
   {
     //! @todo Handle not connected to a remote share
-    if ( !g_application.getNetwork().IsConnected() )
+    if (!CServiceBroker::GetNetwork().IsConnected())
     {
       HELPERS::ShowOKDialogText(CVariant{220}, CVariant{221});
       return false;
@@ -995,6 +999,9 @@ void CGUIWindowFileManager::OnPopupMenu(int list, int item, bool bContextDriven 
     pItem->Select(false);
     return ;
   }
+
+  const CPlayerCoreFactory &playerCoreFactory = CServiceBroker::GetPlayerCoreFactory();
+
   // popup the context menu
 
   bool showEntry = false;
@@ -1004,7 +1011,7 @@ void CGUIWindowFileManager::OnPopupMenu(int list, int item, bool bContextDriven 
 
   // determine available players
   std::vector<std::string>players;
-  CPlayerCoreFactory::GetInstance().GetPlayers(*pItem, players);
+  playerCoreFactory.GetPlayers(*pItem, players);
 
   // add the needed buttons
   CContextButtons choices;
@@ -1035,6 +1042,9 @@ void CGUIWindowFileManager::OnPopupMenu(int list, int item, bool bContextDriven 
   if (CJobManager::GetInstance().IsProcessing("filemanager"))
     choices.Add(CONTROL_BTNCANCELJOB, 167);
 
+  if (!pItem->m_bIsFolder)
+    choices.Add(CONTROL_BTNVIEW, 39104);
+
   int btnid = CGUIDialogContextMenu::ShowAndGetChoice(choices);
   if (btnid == CONTROL_BTNSELECTALL)
   {
@@ -1049,8 +1059,8 @@ void CGUIWindowFileManager::OnPopupMenu(int list, int item, bool bContextDriven 
   if (btnid == CONTROL_BTNPLAYWITH)
   {
     std::vector<std::string>players;
-    CPlayerCoreFactory::GetInstance().GetPlayers(*pItem, players);
-    std::string player = CPlayerCoreFactory::GetInstance().SelectPlayerDialog(players);
+    playerCoreFactory.GetPlayers(*pItem, players);
+    std::string player = playerCoreFactory.SelectPlayerDialog(players);
     if (!player.empty())
       OnStart(pItem.get(), player);
   }
@@ -1103,6 +1113,8 @@ void CGUIWindowFileManager::OnPopupMenu(int list, int item, bool bContextDriven 
   }
   if (btnid == CONTROL_BTNCANCELJOB)
     CancelJobs();
+  if (btnid == CONTROL_BTNVIEW)
+    CGUIDialogTextViewer::ShowForFile(pItem->GetPath(), true);
 
   if (bDeselect && item >= 0 && item < m_vecItems[list]->Size())
   { // deselect item as we didn't do anything

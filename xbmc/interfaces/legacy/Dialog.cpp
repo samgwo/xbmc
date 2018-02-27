@@ -1,6 +1,6 @@
  /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@
 #include "Dialog.h"
 #include "ListItem.h"
 #ifdef TARGET_POSIX
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #endif
 
 using namespace KODI::MESSAGING;
@@ -185,7 +185,7 @@ namespace XBMCAddon
       return HELPERS::ShowOKDialogLines(CVariant{heading}, CVariant{line1}, CVariant{line2}, CVariant{line3});
     }
 
-    void Dialog::textviewer(const String& heading, const String& text)
+    void Dialog::textviewer(const String& heading, const String& text, bool usemono)
     {
       DelayedCallGuard dcguard(languageHook);
 
@@ -196,6 +196,7 @@ namespace XBMCAddon
         pDialog->SetHeading(heading);
       if (!text.empty())
         pDialog->SetText(text);
+      pDialog->UseMonoFont(usemono);
       pDialog->Open();
     }
 

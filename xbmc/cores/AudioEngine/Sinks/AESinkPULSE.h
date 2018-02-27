@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,12 +19,11 @@
  *
  */
 
-#include "system.h"
-
 #include "cores/AudioEngine/Interfaces/AESink.h"
-#include "Utils/AEDeviceInfo.h"
-#include "Utils/AEUtil.h"
+#include "cores/AudioEngine/Utils/AEDeviceInfo.h"
+#include "cores/AudioEngine/Utils/AEUtil.h"
 #include <pulse/pulseaudio.h>
+#include <pulse/simple.h>
 #include "threads/CriticalSection.h"
 
 class CAESinkPULSE : public IAESink
@@ -34,6 +33,10 @@ public:
 
   CAESinkPULSE();
   ~CAESinkPULSE() override;
+
+  static bool Register();
+  static IAESink* Create(std::string &device, AEAudioFormat &desiredFormat);
+  static void EnumerateDevicesEx(AEDeviceInfoList &list, bool force = false);
 
   bool Initialize(AEAudioFormat &format, std::string &device) override;
   void Deinitialize() override;
@@ -47,7 +50,6 @@ public:
   bool HasVolume() override { return true; };
   void SetVolume(float volume) override;
 
-  static void EnumerateDevicesEx(AEDeviceInfoList &list, bool force = false);
   bool IsInitialized();
   void UpdateInternalVolume(const pa_cvolume* nVol);
   pa_stream* GetInternalStream();

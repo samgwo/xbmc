@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -2194,7 +2194,7 @@ namespace XBMCAddon
       /// ~~~~~~~~~~~~~{.py}
       /// ...
       /// # getPercent()
-      /// print self.progress.getPercent()
+      /// print(self.progress.getPercent())
       /// ...
       /// ~~~~~~~~~~~~~
       ///
@@ -2826,7 +2826,7 @@ namespace XBMCAddon
       /// **Example:**
       /// ~~~~~~~~~~~~~{.py}
       /// ...
-      /// print self.slider.getPercent()
+      /// print(self.slider.getPercent())
       /// ...
       /// ~~~~~~~~~~~~~
       ///
@@ -2875,7 +2875,7 @@ namespace XBMCAddon
       /// **Example:**
       /// ~~~~~~~~~~~~~{.py}
       /// ...
-      /// print self.slider.getInt()
+      /// print(self.slider.getInt())
       /// ...
       /// ~~~~~~~~~~~~~
       ///
@@ -2928,7 +2928,7 @@ namespace XBMCAddon
       /// **Example:**
       /// ~~~~~~~~~~~~~{.py}
       /// ...
-      /// print self.slider.getFloat()
+      /// print(self.slider.getFloat())
       /// ...
       /// ~~~~~~~~~~~~~
       ///

@@ -21,7 +21,6 @@
 #include "TextureBundleXBT.h"
 
 #include "ServiceBroker.h"
-#include "system.h"
 #include "Texture.h"
 #include "GraphicContext.h"
 #include "utils/log.h"
@@ -34,7 +33,7 @@
 #include "XBTFReader.h"
 #include <lzo/lzo1x.h>
 
-#ifdef TARGET_WINDOWS
+#ifdef TARGET_WINDOWS_DESKTOP
 #ifdef NDEBUG
 #pragma comment(lib,"lzo2.lib")
 #elif defined _WIN64

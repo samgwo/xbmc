@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ public:
   bool Open(const std::string& filename, int source, const std::string& subfilename);
 
   // implementation of CDVDDemux
-  void Reset() override;
+  bool Reset() override;
   void Flush() override;
   DemuxPacket* Read() override;
   bool SeekTime(double time, bool backwards, double* startpts = NULL) override;
@@ -69,7 +69,7 @@ private:
   } STimestamp;
 
   std::string m_Filename;
-  std::unique_ptr<CDVDInputStream> m_Input;
+  std::shared_ptr<CDVDInputStream> m_Input;
   std::unique_ptr<CDVDDemuxFFmpeg> m_Demuxer;
   std::vector<STimestamp> m_Timestamps;
   std::vector<STimestamp>::iterator m_Timestamp;

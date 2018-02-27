@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -255,7 +255,7 @@ bool CPVRRecording::Undelete(void)
 
 bool CPVRRecording::Rename(const std::string &strNewName)
 {
-  m_strTitle = StringUtils::Format("%s", strNewName.c_str());
+  m_strTitle = strNewName;
   PVR_ERROR error = CServiceBroker::GetPVRManager().Clients()->RenameRecording(*this);
   if (error != PVR_ERROR_NO_ERROR)
     return false;
@@ -321,7 +321,7 @@ CBookmark CPVRRecording::GetResumePoint() const
 
 void CPVRRecording::UpdateMetadata(CVideoDatabase &db)
 {
-  if (m_bGotMetaData)
+  if (m_bGotMetaData || !db.IsOpen())
     return;
 
   if (!CServiceBroker::GetPVRManager().Clients()->GetClientCapabilities(m_iClientId).SupportsRecordingsPlayCount())

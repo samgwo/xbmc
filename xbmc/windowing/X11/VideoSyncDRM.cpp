@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,21 +18,21 @@
  *
  */
 
-#include "system.h"
-
 #include "VideoSyncDRM.h"
+#include "ServiceBroker.h"
 #include "xf86drm.h"
 #include <sys/poll.h>
 #include <sys/time.h>
 #include "utils/TimeUtils.h"
 #include "utils/MathUtils.h"
-#include "windowing/WindowingFactory.h"
 #include "guilib/GraphicContext.h"
 #include "utils/log.h"
+#include "windowing/X11/WinSystemX11GLContext.h"
 
 static drmVBlankSeqType CrtcSel(void)
 {
-  int crtc = g_Windowing.GetCrtc();
+  CWinSystemX11& winSystem = dynamic_cast<CWinSystemX11&>(CServiceBroker::GetWinSystem());
+  int crtc = winSystem.GetCrtc();
   int ret = 0;
 
   if (crtc == 1)
@@ -71,7 +71,7 @@ bool CVideoSyncDRM::Setup(PUPDATECLOCK func)
   }
 
   m_abort = false;
-  g_Windowing.Register(this);
+  m_winSystem.Register(this);
 
   return true;
 }
@@ -139,7 +139,7 @@ void CVideoSyncDRM::Run(CEvent& stopEvent)
 void CVideoSyncDRM::Cleanup()
 {
   close(m_fd);
-  g_Windowing.Unregister(this);
+  m_winSystem.Unregister(this);
 }
 
 void CVideoSyncDRM::EventHandler(int fd, unsigned int frame, unsigned int sec,

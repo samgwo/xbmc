@@ -26,7 +26,6 @@
 #include "filesystem/Directory.h"
 #include "filesystem/File.h"
 #include "GraphicContext.h"
-#include "system.h"
 #include "Texture.h"
 #include "threads/SingleLock.h"
 #include "threads/SystemClock.h"
@@ -39,7 +38,8 @@
 #include "utils/TimeUtils.h"
 #endif
 #if defined(TARGET_DARWIN_IOS)
-#include "windowing/WindowingFactory.h" // for g_Windowing in CGUITextureManager::FreeUnusedTextures
+#include "ServiceBroker.h"
+#include "windowing/osx/WinSystemIOS.h" // for g_Windowing in CGUITextureManager::FreeUnusedTextures
 #endif
 #include "FFmpegImage.h"
 
@@ -517,7 +517,8 @@ void CGUITextureManager::FreeUnusedTextures(unsigned int timeDelay)
   // when XBMC is backgrounded (e.x. for backgrounded music playback)
   // sanity check before delete in that case.
 #if defined(TARGET_DARWIN_IOS)
-    if (!g_Windowing.IsBackgrounded() || glIsTexture(m_unusedHwTextures[i]))
+    CWinSystemIOS& winSystem = dynamic_cast<CWinSystemIOS&>(CServiceBroker::GetWinSystem());
+    if (!winSystem.IsBackgrounded() || glIsTexture(m_unusedHwTextures[i]))
 #endif
       glDeleteTextures(1, (GLuint*) &m_unusedHwTextures[i]);
   }

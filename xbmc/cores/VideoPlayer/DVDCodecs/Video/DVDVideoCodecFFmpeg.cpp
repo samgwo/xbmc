@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #include "DVDVideoCodecFFmpeg.h"
 #include "DVDDemuxers/DVDDemux.h"
 #include "DVDStreamInfo.h"
-#include "TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 #include "DVDCodecs/DVDCodecs.h"
 #include "DVDCodecs/DVDCodecUtils.h"
 #include "DVDCodecs/DVDFactoryCodec.h"
@@ -30,8 +30,7 @@
 #include "utils/CPUInfo.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
-#include "settings/VideoSettings.h"
-#include "settings/MediaSettings.h"
+#include "cores/VideoSettings.h"
 #include "utils/log.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderManager.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderInfo.h"
@@ -40,6 +39,7 @@
 
 extern "C" {
 #include "libavutil/opt.h"
+#include "libavutil/mastering_display_metadata.h"
 #include "libavfilter/avfilter.h"
 #include "libavfilter/buffersink.h"
 #include "libavfilter/buffersrc.h"
@@ -50,7 +50,7 @@ extern "C" {
 #define RINT(x) ((x) >= 0 ? ((int)((x) + 0.5)) : ((int)((x) - 0.5)))
 #else
 #include <math.h>
-#include "linux/XTimeUtils.h"
+#include "platform/linux/XTimeUtils.h"
 #define RINT lrint
 #endif
 
@@ -282,7 +282,7 @@ enum AVPixelFormat CDVDVideoCodecFFmpeg::GetFormat(struct AVCodecContext * avctx
     ctx->SetHardware(nullptr);
     avctx->get_buffer2 = avcodec_default_get_buffer2;
     avctx->slice_flags = 0;
-    avctx->hwaccel_context = 0;
+    av_buffer_unref(&avctx->hw_frames_ctx);
   }
 
   const AVPixelFormat * cur = fmt;
@@ -406,16 +406,6 @@ bool CDVDVideoCodecFFmpeg::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options
   else
     m_decoderState = STATE_SW_SINGLE;
 
-#if defined(TARGET_DARWIN_IOS)
-  // ffmpeg with enabled neon will crash and burn if this is enabled
-  m_pCodecContext->flags &= CODEC_FLAG_EMU_EDGE;
-#else
-  if (pCodec->id != AV_CODEC_ID_H264 && pCodec->capabilities & CODEC_CAP_DR1
-      && pCodec->id != AV_CODEC_ID_VP8
-     )
-    m_pCodecContext->flags |= CODEC_FLAG_EMU_EDGE;
-#endif
-
   // if we don't do this, then some codecs seem to fail.
   m_pCodecContext->coded_height = hints.height;
   m_pCodecContext->coded_width = hints.width;
@@ -424,7 +414,7 @@ bool CDVDVideoCodecFFmpeg::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options
   if( hints.extradata && hints.extrasize > 0 )
   {
     m_pCodecContext->extradata_size = hints.extrasize;
-    m_pCodecContext->extradata = (uint8_t*)av_mallocz(hints.extrasize + FF_INPUT_BUFFER_PADDING_SIZE);
+    m_pCodecContext->extradata = (uint8_t*)av_mallocz(hints.extrasize + AV_INPUT_BUFFER_PADDING_SIZE);
     memcpy(m_pCodecContext->extradata, hints.extradata, hints.extrasize);
   }
 
@@ -440,10 +430,6 @@ bool CDVDVideoCodecFFmpeg::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options
   {
     av_opt_set(m_pCodecContext, it->m_name.c_str(), it->m_value.c_str(), 0);
   }
-
-  // If non-zero, the decoded audio and video frames returned from avcodec_decode_video2() are reference-counted and are valid indefinitely.
-  // Without this frames will get (deep) copied when deinterlace is set to automatic, but file is not deinterlaced.
-  m_pCodecContext->refcounted_frames = 1;
 
   if (avcodec_open2(m_pCodecContext, pCodec, nullptr) < 0)
   {
@@ -500,7 +486,7 @@ void CDVDVideoCodecFFmpeg::Dispose()
 void CDVDVideoCodecFFmpeg::SetFilters()
 {
   // ask codec to do deinterlacing if possible
-  EINTERLACEMETHOD mInt = CMediaSettings::GetInstance().GetCurrentVideoSettings().m_InterlaceMethod;
+  EINTERLACEMETHOD mInt = m_processInfo.GetVideoSettings().m_InterlaceMethod;
 
   if (!m_processInfo.Supports(mInt))
     mInt = m_processInfo.GetFallbackDeintMethod();
@@ -594,6 +580,9 @@ bool CDVDVideoCodecFFmpeg::AddData(const DemuxPacket &packet)
     Reset();
   }
 
+  if (packet.recoveryPoint)
+    m_started = true;
+
   m_dts = packet.dts;
   m_pCodecContext->reordered_opaque = pts_dtoi(packet.pts);
 
@@ -603,6 +592,8 @@ bool CDVDVideoCodecFFmpeg::AddData(const DemuxPacket &packet)
   avpkt.size = packet.iSize;
   avpkt.dts = (packet.dts == DVD_NOPTS_VALUE) ? AV_NOPTS_VALUE : static_cast<int64_t>(packet.dts / DVD_TIME_BASE * AV_TIME_BASE);
   avpkt.pts = (packet.pts == DVD_NOPTS_VALUE) ? AV_NOPTS_VALUE : static_cast<int64_t>(packet.pts / DVD_TIME_BASE * AV_TIME_BASE);
+  avpkt.side_data = static_cast<AVPacketSideData*>(packet.pSideData);
+  avpkt.side_data_elems = packet.iSideDataElems;
 
   int ret = avcodec_send_packet(m_pCodecContext, &avpkt);
 
@@ -884,7 +875,7 @@ bool CDVDVideoCodecFFmpeg::SetPictureParams(VideoPicture* pVideoPicture)
   buffer->SetRef(m_pFrame);
   pVideoPicture->videoBuffer = buffer;
 
-  if (CMediaSettings::GetInstance().GetCurrentVideoSettings().m_PostProcess)
+  if (m_processInfo.GetVideoSettings().m_PostProcess)
   {
     m_postProc.SetType(g_advancedSettings.m_videoPPFFmpegPostProc, false);
     m_postProc.Process(pVideoPicture);
@@ -903,6 +894,7 @@ void CDVDVideoCodecFFmpeg::Reset()
   m_eof = false;
   m_iLastKeyframe = m_pCodecContext->has_b_frames;
   avcodec_flush_buffers(m_pCodecContext);
+  av_frame_unref(m_pFrame);
 
   if (m_pHardware)
     m_pHardware->Reset();
@@ -972,9 +964,10 @@ bool CDVDVideoCodecFFmpeg::GetPictureCommon(VideoPicture* pVideoPicture)
   AVDictionaryEntry * entry = av_dict_get(av_frame_get_metadata(m_pFrame), "stereo_mode", NULL, 0);
   if(entry && entry->value)
   {
-    strncpy(pVideoPicture->stereo_mode, (const char*)entry->value, sizeof(pVideoPicture->stereo_mode));
-    pVideoPicture->stereo_mode[sizeof(pVideoPicture->stereo_mode)-1] = '\0';
+    pVideoPicture->stereoMode = (const char*)entry->value;
   }
+  else
+    pVideoPicture->stereoMode.clear();
 
   pVideoPicture->iRepeatPicture = 0.5 * m_pFrame->repeat_pict;
   pVideoPicture->iFlags = 0;
@@ -989,29 +982,46 @@ bool CDVDVideoCodecFFmpeg::GetPictureCommon(VideoPicture* pVideoPicture)
   pVideoPicture->chroma_position = m_pCodecContext->chroma_sample_location;
   pVideoPicture->color_primaries = m_pCodecContext->color_primaries;
   pVideoPicture->color_transfer = m_pCodecContext->color_trc;
-  pVideoPicture->color_matrix = m_pCodecContext->colorspace;
-  if(m_pCodecContext->color_range == AVCOL_RANGE_JPEG
-  || m_pCodecContext->pix_fmt     == AV_PIX_FMT_YUVJ420P)
+  pVideoPicture->color_space = m_pCodecContext->colorspace;
+  pVideoPicture->colorBits = 8;
+  // determine how number of bits of encoded video
+  if (m_pCodecContext->pix_fmt == AV_PIX_FMT_YUV420P12)
+    pVideoPicture->colorBits = 12;
+  else if (m_pCodecContext->pix_fmt == AV_PIX_FMT_YUV420P10)
+    pVideoPicture->colorBits = 10;
+  else if (m_pCodecContext->codec_id == AV_CODEC_ID_HEVC &&
+           m_pCodecContext->profile == FF_PROFILE_HEVC_MAIN_10)
+    pVideoPicture->colorBits = 10;
+  else if (m_pCodecContext->codec_id == AV_CODEC_ID_H264 &&
+           (m_pCodecContext->profile == FF_PROFILE_H264_HIGH_10||
+            m_pCodecContext->profile == FF_PROFILE_H264_HIGH_10_INTRA))
+    pVideoPicture->colorBits = 10;
+
+  if (m_pCodecContext->color_range == AVCOL_RANGE_JPEG ||
+    m_pCodecContext->pix_fmt == AV_PIX_FMT_YUVJ420P)
     pVideoPicture->color_range = 1;
   else
     pVideoPicture->color_range = 0;
 
-  int qscale_type;
-  pVideoPicture->qp_table = av_frame_get_qp_table(m_pFrame, &pVideoPicture->qstride, &qscale_type);
+  pVideoPicture->qp_table = av_frame_get_qp_table(m_pFrame,
+                                                  &pVideoPicture->qstride,
+                                                  &pVideoPicture->qscale_type);
+  pVideoPicture->pict_type = m_pFrame->pict_type;
 
-  switch (qscale_type)
+  // metadata
+  pVideoPicture->hasDisplayMetadata = false;
+  pVideoPicture->hasLightMetadata = false;
+  AVFrameSideData *sd = av_frame_get_side_data(m_pFrame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+  if (sd)
   {
-  case FF_QSCALE_TYPE_MPEG1:
-    pVideoPicture->qscale_type = DVP_QSCALE_MPEG1;
-    break;
-  case FF_QSCALE_TYPE_MPEG2:
-    pVideoPicture->qscale_type = DVP_QSCALE_MPEG2;
-    break;
-  case FF_QSCALE_TYPE_H264:
-    pVideoPicture->qscale_type = DVP_QSCALE_H264;
-    break;
-  default:
-    pVideoPicture->qscale_type = DVP_QSCALE_UNKNOWN;
+    pVideoPicture->displayMetadata = *(AVMasteringDisplayMetadata *)sd->data;
+    pVideoPicture->hasDisplayMetadata = true;
+  }
+  sd = av_frame_get_side_data(m_pFrame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+  if (sd)
+  {
+    pVideoPicture->lightMetadata = *(AVContentLightMetadata *)sd->data;
+    pVideoPicture->hasLightMetadata = true;
   }
 
   if (pVideoPicture->iRepeatPicture)
@@ -1072,8 +1082,8 @@ int CDVDVideoCodecFFmpeg::FilterOpen(const std::string& filters, bool scale)
     return -1;
   }
 
-  AVFilter* srcFilter = avfilter_get_by_name("buffer");
-  AVFilter* outFilter = avfilter_get_by_name("buffersink"); // should be last filter in the graph for now
+  const AVFilter* srcFilter = avfilter_get_by_name("buffer");
+  const AVFilter* outFilter = avfilter_get_by_name("buffersink"); // should be last filter in the graph for now
 
   std::string args = StringUtils::Format("%d:%d:%d:%d:%d:%d:%d",
                                         m_pCodecContext->width,

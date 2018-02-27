@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include "GUIWindowManager.h"
 #include "GUIControlProfiler.h"
 #include "GUITexture.h"
-#include "input/MouseStat.h"
+#include "input/mouse/MouseStat.h"
 #include "input/InputManager.h"
 #include "input/Key.h"
 #include "ServiceBroker.h"
@@ -167,7 +167,7 @@ void CGUIControl::DoProcess(unsigned int currentTime, CDirtyRegionList &dirtyreg
 void CGUIControl::Process(unsigned int currentTime, CDirtyRegionList &dirtyregions)
 {
   // update our render region
-  m_renderRegion = g_graphicsContext.generateAABB(CalcRenderRegion());
+  m_renderRegion = g_graphicsContext.GenerateAABB(CalcRenderRegion());
   m_hasProcessed = true;
 }
 
@@ -194,7 +194,7 @@ void CGUIControl::DoRender()
     if (m_hitColor != 0xffffffff)
     {
       color_t color = g_graphicsContext.MergeAlpha(m_hitColor);
-      CGUITexture::DrawQuad(g_graphicsContext.generateAABB(m_hitRect), color);
+      CGUITexture::DrawQuad(g_graphicsContext.GenerateAABB(m_hitRect), color);
     }
 
     Render();

@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -114,9 +114,9 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
   if (!m_pInputStream->Open())
   {
     CLog::Log(LOGERROR, "%s: Error opening file %s", __FUNCTION__, strFileToOpen.c_str());
-    if (m_pInputStream)
-      delete m_pInputStream;
-    m_pInputStream = NULL;
+    if (m_pInputStream.use_count() > 1)
+      throw std::runtime_error("m_pInputStream reference count is greater than 1");
+    m_pInputStream.reset();
     return false;
   }
 
@@ -127,8 +127,9 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
     m_pDemuxer = CDVDFactoryDemuxer::CreateDemuxer(m_pInputStream);
     if (!m_pDemuxer)
     {
-      delete m_pInputStream;
-      m_pInputStream = NULL;
+      if (m_pInputStream.use_count() > 1)
+        throw std::runtime_error("m_pInputStream reference count is greater than 1");
+      m_pInputStream.reset();
       CLog::Log(LOGERROR, "%s: Error creating demuxer", __FUNCTION__);
       return false;
     }
@@ -141,8 +142,6 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
       delete m_pDemuxer;
       m_pDemuxer = NULL;
     }
-    delete m_pInputStream;
-    m_pInputStream = NULL;
     return false;
   }
 
@@ -165,8 +164,9 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
     CLog::Log(LOGERROR, "%s: Could not find audio stream", __FUNCTION__);
     delete m_pDemuxer;
     m_pDemuxer = NULL;
-    delete m_pInputStream;
-    m_pInputStream = NULL;
+    if (m_pInputStream.use_count() > 1)
+      throw std::runtime_error("m_pInputStream reference count is greater than 1");
+    m_pInputStream.reset();
     return false;
   }
 
@@ -179,8 +179,9 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
     CLog::Log(LOGERROR, "%s: Could not create audio codec", __FUNCTION__);
     delete m_pDemuxer;
     m_pDemuxer = NULL;
-    delete m_pInputStream;
-    m_pInputStream = NULL;
+    if (m_pInputStream.use_count() > 1)
+      throw std::runtime_error("m_pInputStream reference count is greater than 1");
+    m_pInputStream.reset();
     return false;
   }
 
@@ -203,7 +204,7 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
   int nErrors = 0;
   for (int nPacket=0; nPacket < 10 && (m_channels == 0 || m_format.m_sampleRate == 0); nPacket++)
   {
-    BYTE dummy[256];
+    unsigned char dummy[256];
     int nSize = 256;
     if (ReadPCM(dummy, nSize, &nSize) == READ_ERROR)
       ++nErrors;
@@ -233,7 +234,8 @@ bool VideoPlayerCodec::Init(const CFileItem &file, unsigned int filecache)
     else
     {
       m_pInputStream->Seek(0, SEEK_SET);
-      m_pDemuxer->Reset();
+      if (!m_pDemuxer->Reset())
+        return false;
     }
   }
 
@@ -297,11 +299,9 @@ void VideoPlayerCodec::DeInit()
     m_pDemuxer = NULL;
   }
 
-  if (m_pInputStream != NULL)
-  {
-    delete m_pInputStream;
-    m_pInputStream = NULL;
-  }
+  if (m_pInputStream.use_count() > 1)
+    throw std::runtime_error("m_pInputStream reference count is greater than 1");
+  m_pInputStream.reset();
 
   if (m_pAudioCodec != NULL)
   {
@@ -339,7 +339,7 @@ bool VideoPlayerCodec::Seek(int64_t iSeekTime)
   return ret;
 }
 
-int VideoPlayerCodec::ReadPCM(BYTE *pBuffer, int size, int *actualsize)
+int VideoPlayerCodec::ReadPCM(unsigned char *pBuffer, int size, int *actualsize)
 {
   if (m_nDecodedLen > 0)
   {

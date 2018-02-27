@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,7 +25,8 @@
 #include "AndroidExtra.h"
 #include "XBMCApp.h"
 #include "input/Key.h"
-#include "windowing/WinEvents.h"
+#include "ServiceBroker.h"
+#include "windowing/android/WinSystemAndroid.h"
 
 
 typedef struct {
@@ -155,6 +156,8 @@ static KeyMap keyMap[] = {
   { AKEYCODE_PROG_GREEN      , XBMCK_GREEN },
   { AKEYCODE_PROG_YELLOW     , XBMCK_YELLOW },
   { AKEYCODE_PROG_BLUE       , XBMCK_BLUE },
+  { AKEYCODE_CHANNEL_UP      , XBMCK_PAGEUP },
+  { AKEYCODE_CHANNEL_DOWN    , XBMCK_PAGEDOWN },
 
   { AKEYCODE_F1              , XBMCK_F1 },
   { AKEYCODE_F2              , XBMCK_F2 },
@@ -332,5 +335,5 @@ void CAndroidKey::XBMC_Key(uint8_t code, uint16_t key, uint16_t modifiers, uint1
   newEvent.key.keysym.mod = (XBMCMod)modifiers;
 
   //CXBMCApp::android_printf("XBMC_Key(%u, %u, 0x%04X, %d)", code, key, modifiers, up);
-  CWinEvents::MessagePush(&newEvent);
+  dynamic_cast<CWinSystemAndroid&>(CServiceBroker::GetWinSystem()).MessagePush(&newEvent);
 }

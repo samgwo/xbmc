@@ -5,7 +5,7 @@
  *      http://www.boxee.tv
  *
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -188,7 +188,7 @@ public:
   udf25( );
   virtual ~udf25( );
 
-  DWORD SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod );
+  DWORD SetFilePointer(HANDLE hFile, long lDistanceToMove, long* lpDistanceToMoveHigh, DWORD dwMoveMethod );
   int64_t GetFileSize(HANDLE hFile);
   int64_t GetFilePosition(HANDLE hFile);
   int64_t Seek(HANDLE hFile, int64_t lOffset, int whence);

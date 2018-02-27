@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include "network/Network.h"
 #include "network/NetworkServices.h"
 #include "profiles/ProfilesManager.h"
+#include "ServiceBroker.h"
 #include "Util.h"
 #include "utils/StringUtils.h"
 #include "video/VideoLibraryQueue.h"
@@ -44,11 +45,13 @@ using namespace KODI::MESSAGING;
  */
 static int LoadProfile(const std::vector<std::string>& params)
 {
-  int index = CProfilesManager::GetInstance().GetProfileIndex(params[0]);
+  const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
+  int index = profileManager.GetProfileIndex(params[0]);
   bool prompt = (params.size() == 2 && StringUtils::EqualsNoCase(params[1], "prompt"));
   bool bCanceled;
   if (index >= 0
-      && (CProfilesManager::GetInstance().GetMasterProfile().getLockMode() == LOCK_MODE_EVERYONE
+      && (profileManager.GetMasterProfile().getLockMode() == LOCK_MODE_EVERYONE
         || g_passwordManager.IsProfileLockUnlocked(index,bCanceled,prompt)))
   {
     CApplicationMessenger::GetInstance().PostMsg(TMSG_LOADPROFILE, index);
@@ -75,8 +78,12 @@ static int LogOff(const std::vector<std::string>& params)
   if (CVideoLibraryQueue::GetInstance().IsRunning())
     CVideoLibraryQueue::GetInstance().CancelAllJobs();
 
-  g_application.getNetwork().NetworkMessage(CNetwork::SERVICES_DOWN,1);
-  CProfilesManager::GetInstance().LoadMasterProfileForLogin();
+  CServiceBroker::GetNetwork().NetworkMessage(CNetwork::SERVICES_DOWN,1);
+
+
+  CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+  profileManager.LoadMasterProfileForLogin();
+
   g_passwordManager.bMasterUser = false;
 
   g_application.WakeUpScreenSaverAndDPMS();

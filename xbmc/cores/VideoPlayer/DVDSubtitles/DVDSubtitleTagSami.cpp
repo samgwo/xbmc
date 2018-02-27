@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -233,11 +233,11 @@ void CDVDSubtitleTagSami::LoadHead(CDVDSubtitleStream* samiStream)
     std::string line = cLine;
     StringUtils::Trim(line);
 
-   if (!StringUtils::CompareNoCase(line, "<BODY>"))
+   if (StringUtils::EqualsNoCase(line, "<BODY>"))
       break;
     if (inSTYLE)
     {
-      if (!StringUtils::CompareNoCase(line, "</STYLE>"))
+      if (StringUtils::EqualsNoCase(line, "</STYLE>"))
         break;
       else
       {
@@ -257,7 +257,7 @@ void CDVDSubtitleTagSami::LoadHead(CDVDSubtitleStream* samiStream)
     }
     else
     {
-      if (!StringUtils::CompareNoCase(line, "<STYLE TYPE=\"text/css\">"))
+      if (StringUtils::EqualsNoCase(line, "<STYLE TYPE=\"text/css\">"))
         inSTYLE = true;
     }
   }

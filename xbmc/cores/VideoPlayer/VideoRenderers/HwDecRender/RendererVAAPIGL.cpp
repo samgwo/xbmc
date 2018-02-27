@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2007-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,9 +26,10 @@
 #include "settings/AdvancedSettings.h"
 #include "utils/log.h"
 #include "utils/GLUtils.h"
-#include "windowing/WindowingFactory.h"
 
 using namespace VAAPI;
+
+IVaapiWinSystem *CRendererVAAPI::m_pWinSystem = nullptr;
 
 CBaseRenderer* CRendererVAAPI::Create(CVideoBuffer *buffer)
 {
@@ -39,11 +40,14 @@ CBaseRenderer* CRendererVAAPI::Create(CVideoBuffer *buffer)
   return nullptr;
 }
 
-void CRendererVAAPI::Register(VADisplay vaDpy, EGLDisplay eglDisplay, bool &general, bool &hevc)
+void CRendererVAAPI::Register(IVaapiWinSystem *winSystem, VADisplay vaDpy, EGLDisplay eglDisplay, bool &general, bool &hevc)
 {
   CVaapiTexture::TestInterop(vaDpy, eglDisplay, general, hevc);
   if (general)
+  {
     VIDEOPLAYER::CRendererFactory::RegisterRenderer("vaapi", CRendererVAAPI::Create);
+    m_pWinSystem = winSystem;
+  }
 }
 
 CRendererVAAPI::CRendererVAAPI() = default;
@@ -56,7 +60,7 @@ CRendererVAAPI::~CRendererVAAPI()
   }
 }
 
-bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation)
+bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned int orientation)
 {
   CVaapiRenderPicture *pic = dynamic_cast<CVaapiRenderPicture*>(picture.videoBuffer);
   if (pic->procPic.videoSurface != VA_INVALID_ID)
@@ -69,7 +73,7 @@ bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned 
   interop.eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
   interop.eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   interop.glEGLImageTargetTexture2DOES = (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)eglGetProcAddress("glEGLImageTargetTexture2DOES");
-  interop.eglDisplay = g_Windowing.GetEGLDisplay();
+  interop.eglDisplay = CRendererVAAPI::m_pWinSystem->GetEGLDisplay();
 
   for (auto &tex : m_vaapiTextures)
   {
@@ -80,13 +84,14 @@ bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned 
     fence = GL_NONE;
   }
 
-  return CLinuxRendererGL::Configure(picture, fps, flags, orientation);
+  return CLinuxRendererGL::Configure(picture, fps, orientation);
 }
 
 bool CRendererVAAPI::ConfigChanged(const VideoPicture &picture)
 {
   CVaapiRenderPicture *pic = dynamic_cast<CVaapiRenderPicture*>(picture.videoBuffer);
-  if (pic->procPic.videoSurface != VA_INVALID_ID && !m_isVAAPIBuffer)
+  if ((pic->procPic.videoSurface != VA_INVALID_ID && !m_isVAAPIBuffer) ||
+      (pic->procPic.videoSurface == VA_INVALID_ID && m_isVAAPIBuffer))
     return true;
 
   return false;
@@ -104,14 +109,7 @@ bool CRendererVAAPI::Supports(ESCALINGMETHOD method)
 
 EShaderFormat CRendererVAAPI::GetShaderFormat()
 {
-  EShaderFormat ret = SHADER_NONE;
-
-  if (m_isVAAPIBuffer)
-    ret = SHADER_NV12_RRG;
-  else
-    ret = SHADER_NV12;
-
-  return ret;
+  return SHADER_NV12;
 }
 
 bool CRendererVAAPI::LoadShadersHook()
@@ -131,7 +129,7 @@ bool CRendererVAAPI::CreateTexture(int index)
     return CreateNV12Texture(index);
   }
 
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   YuvImage &im = buf.image;
   YUVPLANE (&planes)[YuvImage::MAX_PLANES] = buf.fields[0];
 
@@ -159,7 +157,7 @@ void CRendererVAAPI::DeleteTexture(int index)
     return;
   }
 
-  YUVBUFFER &buf = m_buffers[index];
+  CPictureBuffer &buf = m_buffers[index];
   buf.fields[FIELD_FULL][0].id = 0;
   buf.fields[FIELD_FULL][1].id = 0;
   buf.fields[FIELD_FULL][2].id = 0;
@@ -167,13 +165,7 @@ void CRendererVAAPI::DeleteTexture(int index)
 
 bool CRendererVAAPI::UploadTexture(int index)
 {
-  if (!m_isVAAPIBuffer)
-  {
-    return UploadNV12Texture(index);
-  }
-
-  YUVBUFFER &buf = m_buffers[index];
-
+  CPictureBuffer &buf = m_buffers[index];
   CVaapiRenderPicture *pic = dynamic_cast<CVaapiRenderPicture*>(buf.videoBuffer);
 
   if (!pic || !pic->valid)
@@ -181,7 +173,20 @@ bool CRendererVAAPI::UploadTexture(int index)
     return false;
   }
 
+  if (!m_isVAAPIBuffer)
+  {
+    YuvImage &dst = m_buffers[index].image;
+    YuvImage src;
+    pic->GetPlanes(src.plane);
+    pic->GetStrides(src.stride);
+    UnBindPbo(m_buffers[index]);
+    CVideoBuffer::CopyNV12Picture(&dst, &src);
+    BindPbo(m_buffers[index]);
+    return UploadNV12Texture(index);
+  }
+
   m_vaapiTextures[index].Map(pic);
+  m_buffers[index].m_srcTextureBits = m_vaapiTextures[index].GetBits();
 
   YuvImage &im = buf.image;
   YUVPLANE (&planes)[3] = buf.fields[0];
@@ -205,8 +210,6 @@ bool CRendererVAAPI::UploadTexture(int index)
   planes[1].id = m_vaapiTextures[index].m_textureVU;
   planes[2].id = m_vaapiTextures[index].m_textureVU;
 
-  glEnable(m_textureTarget);
-
   for (int p=0; p<2; p++)
   {
     glBindTexture(m_textureTarget, planes[p].id);
@@ -220,7 +223,6 @@ bool CRendererVAAPI::UploadTexture(int index)
   }
 
   CalculateTextureSourceRects(index, 3);
-  glDisable(m_textureTarget);
   return true;
 }
 

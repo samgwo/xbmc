@@ -19,7 +19,7 @@
  */
 #pragma once
 
-#include "input/joysticks/IInputHandler.h"
+#include "input/joysticks/interfaces/IInputHandler.h"
 #include "input/KeymapEnvironment.h"
 
 #include <memory>
@@ -34,14 +34,12 @@ namespace JOYSTICK
 
 namespace GAME
 {
-  class CGameClient;
-
   class CPort : public JOYSTICK::IInputHandler,
                 public IKeymapEnvironment
   {
   public:
-    CPort(JOYSTICK::IInputHandler* gameInput, CGameClient& gameClient);
-    ~CPort();
+    CPort(JOYSTICK::IInputHandler* gameInput);
+    ~CPort() override;
 
     void RegisterInput(JOYSTICK::IInputProvider *provider);
     void UnregisterInput(JOYSTICK::IInputProvider *provider);
@@ -57,6 +55,8 @@ namespace GAME
     virtual bool OnButtonMotion(const std::string& feature, float magnitude, unsigned int motionTimeMs) override;
     virtual bool OnAnalogStickMotion(const std::string& feature, float x, float y, unsigned int motionTimeMs) override;
     virtual bool OnAccelerometerMotion(const std::string& feature, float x, float y, float z) override;
+    virtual bool OnWheelMotion(const std::string& feature, float position, unsigned int motionTimeMs) override;
+    virtual bool OnThrottleMotion(const std::string& feature, float position, unsigned int motionTimeMs) override;
 
     // Implementation of IKeymapEnvironment
     virtual int GetWindowID() const override;
@@ -68,7 +68,6 @@ namespace GAME
   private:
     // Construction parameters
     JOYSTICK::IInputHandler* const m_gameInput;
-    CGameClient& m_gameClient;
 
     // Handles input to Kodi
     std::unique_ptr<JOYSTICK::CKeymapHandling> m_appInput;

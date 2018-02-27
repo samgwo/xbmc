@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #include "VideoBuffer.h"
 #include "cores/IPlayer.h"
+#include "cores/VideoSettings.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderInfo.h"
 #include "threads/CriticalSection.h"
 #include <atomic>
@@ -50,6 +51,8 @@ public:
   std::string GetVideoDeintMethod();
   void SetVideoPixelFormat(const std::string &pixFormat);
   std::string GetVideoPixelFormat();
+  void SetVideoStereoMode(const std::string &mode);
+  std::string GetVideoStereoMode();
   void SetVideoDimensions(int width, int height);
   void GetVideoDimensions(int &width, int &height);
   void SetVideoFps(float fps);
@@ -95,7 +98,9 @@ public:
   void SetTempo(float tempo);
   void SetNewTempo(float tempo);
   float GetNewTempo();
-  virtual bool IsTempoAllowed(float tempo);
+  bool IsTempoAllowed(float tempo);
+  virtual float MinTempoPlatform();
+  virtual float MaxTempoPlatform();
   void SetLevelVQ(int level);
   int GetLevelVQ();
   void SetGuiRender(bool gui);
@@ -106,8 +111,13 @@ public:
   void SetPlayTimes(time_t start, int64_t current, int64_t min, int64_t max);
   int64_t GetMaxTime();
 
+  // settings
+  CVideoSettings GetVideoSettings();
+  void SetVideoSettings(CVideoSettings &settings);
+  CVideoSettingsLocked& UpdateVideoSettings();
+
 protected:
-  CProcessInfo() = default;
+  CProcessInfo();
   static std::map<std::string, CreateProcessControl> m_processControls;
   CDataCacheCore *m_dataCache = nullptr;
 
@@ -116,6 +126,7 @@ protected:
   std::string m_videoDecoderName;
   std::string m_videoDeintMethod;
   std::string m_videoPixelFormat;
+  std::string m_videoStereoMode;
   int m_videoWidth;
   int m_videoHeight;
   float m_videoFPS;
@@ -155,4 +166,9 @@ protected:
   int64_t m_time;
   int64_t m_timeMax;
   int64_t m_timeMin;
+
+  // settings
+  CCriticalSection m_settingsSection;
+  CVideoSettings m_videoSettings;
+  std::unique_ptr<CVideoSettingsLocked> m_videoSettingsLocked;
 };

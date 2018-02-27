@@ -1,6 +1,6 @@
 /*
 *      Copyright (C) 2014 Team XBMC
-*      http://xbmc.org
+*      http://kodi.tv
 *
 *  This Program is free software; you can redistribute it and/or modify
 *  it under the terms of the GNU General Public License as published by
@@ -24,9 +24,6 @@
 #include "URL.h"
 #include "platform/win32/WIN32Util.h"
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN 1
-#endif // WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
 #include <cassert>

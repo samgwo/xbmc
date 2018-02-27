@@ -7,7 +7,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@
  */
 
 class IListProvider;
+class TiXmlNode;
 
 class CGUIBaseContainer : public IGUIContainer
 {
@@ -134,7 +135,6 @@ protected:
 
   int ScrollCorrectionRange() const;
   inline float Size() const;
-  void MoveToRow(int row);
   void FreeMemory(int keepStart, int keepEnd);
   void GetCurrentLayouts();
   CGUIListItemLayout *GetFocusedLayout() const;

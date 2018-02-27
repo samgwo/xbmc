@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ bool CGUIDialogTeletext::OnMessage(CGUIMessage& message)
   if (message.GetMessage() == GUI_MSG_WINDOW_INIT)
   {
     /* Do not open if no teletext is available */
-    if (!g_application.m_pPlayer->GetTeletextCache())
+    if (!g_application.GetAppPlayer().GetTeletextCache())
     {
       Close();
       CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Info, g_localizeStrings.Get(23049), "", 1500, false);

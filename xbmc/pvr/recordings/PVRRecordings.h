@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
  */
 
 #include <map>
+#include <memory>
 
 #include "FileItem.h"
 #include "video/VideoDatabase.h"
@@ -37,8 +38,17 @@ namespace PVR
     CPVRRecordings(void);
     virtual ~CPVRRecordings(void);
 
+    /**
+     * @brief (re)load the recordings from the clients.
+     * @return the number of recordings loaded.
+     */
     int Load();
-    void Clear();
+
+    /**
+     * @brief unload all recordings.
+     */
+    void Unload();
+
     void UpdateFromClient(const CPVRRecordingPtr &tag);
 
     /**
@@ -94,7 +104,7 @@ namespace PVR
     bool m_bIsUpdating;
     PVR_RECORDINGMAP m_recordings;
     unsigned int m_iLastId;
-    CVideoDatabase m_database;
+    std::unique_ptr<CVideoDatabase> m_database;
     bool m_bDeletedTVRecordings;
     bool m_bDeletedRadioRecordings;
     unsigned int m_iTVRecordings;
@@ -104,6 +114,12 @@ namespace PVR
     std::string TrimSlashes(const std::string &strOrig) const;
     bool IsDirectoryMember(const std::string &strDirectory, const std::string &strEntryDirectory, bool bGrouped) const;
     void GetSubDirectories(const CPVRRecordingsPath &recParentPath, CFileItemList *results);
+
+    /**
+     * @brief Get/Open the video database.
+     * @return A reference to the video database.
+     */
+    CVideoDatabase& GetVideoDatabase();
 
     /**
      * @brief recursively deletes all recordings in the specified directory

@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,8 +20,6 @@
  *
  */
 
-#include "system.h"
-
 #include <deque>
 #include <vector>
 #include <memory>
@@ -34,7 +32,7 @@
 #include "platform/android/activity/JNIXBMCVideoView.h"
 #include "threads/Thread.h"
 #include "threads/SingleLock.h"
-#include "guilib/Geometry.h"
+#include "utils/Geometry.h"
 #include "cores/VideoPlayer/Process/VideoBuffer.h"
 
 #include <media/NdkMediaCodec.h>

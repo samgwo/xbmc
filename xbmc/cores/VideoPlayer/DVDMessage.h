@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@ public:
     PLAYER_SET_SUBTITLESTREAM,      //
     PLAYER_SET_SUBTITLESTREAM_VISIBLE, //
     PLAYER_SET_STATE,               // restore the VideoPlayer to a certain state
-    PLAYER_SET_RECORD,              // set record state
+    PLAYER_SET_PROGRAM,
     PLAYER_SEEK,                    //
     PLAYER_SEEK_CHAPTER,            //
     PLAYER_SETSPEED,                // set the playback speed

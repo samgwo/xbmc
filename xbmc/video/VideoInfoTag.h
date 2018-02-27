@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,12 +21,13 @@
 
 #include <string>
 #include <vector>
-#include "XBDateTime.h"
-#include "utils/ScraperUrl.h"
+#include "utils/EmbeddedArt.h"
 #include "utils/Fanart.h"
 #include "utils/ISortable.h"
+#include "utils/ScraperUrl.h"
 #include "utils/StreamDetails.h"
 #include "video/Bookmark.h"
+#include "XBDateTime.h"
 
 class CArchive;
 class TiXmlNode;
@@ -237,9 +238,13 @@ public:
   std::vector<std::string> m_artist;
   std::vector< SActorInfo > m_cast;
   typedef std::vector< SActorInfo >::const_iterator iCast;
-  std::string m_strSet;
-  int m_iSetId;
-  std::string m_strSetOverview;
+  struct SetInfo //!< Struct holding information about a movie set
+  {
+    std::string title; //!< Title of the movie set
+    int id; //!< ID of movie set in database
+    std::string overview; //!< Overview/description of the movie set
+  };
+  SetInfo m_set; //!< Assigned movie set
   std::vector<std::string> m_tags;
   std::string m_strFile;
   std::string m_strPath;
@@ -280,6 +285,7 @@ public:
   MediaType m_type;
   int m_relevance; // Used for actors' number of appearances
   int m_parsedDetails;
+  std::vector<EmbeddedArtInfo> m_coverArt; ///< art information
 
   // TODO: cannot be private, because of 'struct SDbTableOffsets'
   unsigned int m_duration; ///< duration in seconds

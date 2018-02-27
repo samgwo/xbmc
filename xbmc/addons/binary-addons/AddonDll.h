@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,9 @@ namespace ADDON
 
     virtual ADDON_STATUS GetStatus();
 
+    // Implementation of IAddon via CAddon
+    std::string LibPath() const override;
+
     // addon settings
     void SaveSettings() override;
     std::string GetSetting(const std::string& key) override;
@@ -70,8 +73,10 @@ namespace ADDON
 
     AddonPtr GetRunningInstance() const override;
 
+    bool Initialized() const { return m_initialized; }
+
   protected:
-    bool Initialized() { return m_initialized; }
+    static std::string GetDllPath(const std::string &strFileName);
 
     CAddonInterfaces* m_pHelpers;
     std::string m_parentLib;

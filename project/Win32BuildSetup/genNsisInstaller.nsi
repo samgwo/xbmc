@@ -330,7 +330,7 @@ Section "VS2015 C++ re-distributable Package (${TARGET_ARCHITECTURE})" SEC_VCRED
 DetailPrint "Running VS2015 re-distributable setup..."
   SectionIn 1 2 #section is in install type Full
   SetOutPath "$TEMP\vc2015"
-  File "${app_root}\..\dependencies\vcredist\2015\vcredist_${TARGET_ARCHITECTURE}.exe"
+  File "${app_root}\..\..\BuildDependencies\downloads\vcredist\2015\vcredist_${TARGET_ARCHITECTURE}.exe"
   ExecWait '"$TEMP\vc2015\vcredist_${TARGET_ARCHITECTURE}.exe" /install /quiet /norestart' $VSRedistSetupError
   RMDir /r "$TEMP\vc2015"
   DetailPrint "Finished VS2015 re-distributable setup"
@@ -345,6 +345,12 @@ Function .onInit
     ${IfNot} ${RunningX64}
       MessageBox MB_OK|MB_ICONSTOP 'This is the 64-bit ${APP_NAME} installer.$\nPlease download the 32-bit version from ${WEBSITE}.$\n$\nClick Ok to quit Setup.'
       Quit
+    ${Endif}
+  !else
+    ${If} ${RunningX64}
+      MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 'There is a specific 64-bit ${APP_NAME} version available for download. Please consider installing the 64-bit version instead.$\nFor details visit ${WEBSITE}.$\nProceed with 32-bit installation anyway?' IDYES noprob
+      Quit
+      noprob:
     ${Endif}
   !endif
 

@@ -21,10 +21,10 @@
 #include "AddonVideoCodec.h"
 #include "addons/binary-addons/BinaryAddonBase.h"
 #include "cores/VideoPlayer/DVDStreamInfo.h"
-#include "cores/VideoPlayer/DVDDemuxers/DemuxCrypto.h"
+#include "cores/VideoPlayer/Interface/Addon/DemuxCrypto.h"
 #include "cores/VideoPlayer/DVDCodecs/DVDCodecs.h"
 #include "cores/VideoPlayer/Process/VideoBuffer.h"
-#include "cores/VideoPlayer/TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 #include "utils/log.h"
 
 using namespace kodi::addon;
@@ -199,7 +199,7 @@ CDVDVideoCodec::VCReturn CAddonVideoCodec::GetPicture(VideoPicture* pVideoPictur
     pVideoPicture->pts = static_cast<double>(picture.pts);
     pVideoPicture->dts = DVD_NOPTS_VALUE;
     pVideoPicture->color_range = 0;
-    pVideoPicture->color_matrix = 4;
+    pVideoPicture->color_space = 4;
     pVideoPicture->iFlags = 0;
     if (m_codecFlags & DVD_CODEC_CTRL_DROP)
       pVideoPicture->iFlags |= DVP_FLAG_DROPPED;
@@ -241,6 +241,7 @@ CDVDVideoCodec::VCReturn CAddonVideoCodec::GetPicture(VideoPicture* pVideoPictur
 
     return CDVDVideoCodec::VC_PICTURE;
   case VIDEOCODEC_RETVAL::VC_EOF:
+    CLog::Log(LOGINFO, "CAddonVideoCodec: GetPicture: EOF");
     return CDVDVideoCodec::VC_EOF;
   default:
     return CDVDVideoCodec::VC_ERROR;

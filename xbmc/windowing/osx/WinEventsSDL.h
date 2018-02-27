@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,12 +19,6 @@
  */
 #pragma once
 
-#ifndef WINDOW_EVENTS_SDL_H
-#define WINDOW_EVENTS_SDL_H
-
-#include "system.h"
-
-#ifdef HAS_SDL
 #include <SDL/SDL_events.h>
 
 #include "windowing/WinEvents.h"
@@ -32,15 +26,8 @@
 class CWinEventsSDL : public IWinEvents
 {
 public:
-  virtual bool MessagePump();
+  bool MessagePump() override;
 
 private:
-#ifdef TARGET_DARWIN
   static bool ProcessOSXShortcuts(SDL_Event& event);
-#elif defined(TARGET_POSIX)
-  static bool ProcessLinuxShortcuts(SDL_Event& event);
-#endif
 };
-
-#endif
-#endif // WINDOW_EVENTS_SDL_H

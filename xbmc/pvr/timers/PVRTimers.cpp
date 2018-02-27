@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -100,7 +100,6 @@ CPVRTimers::CPVRTimers(void)
 
 CPVRTimers::~CPVRTimers(void)
 {
-  Unload();
 }
 
 bool CPVRTimers::Load(void)
@@ -560,6 +559,7 @@ bool CPVRTimers::GetRootDirectory(const CPVRTimersPath &path, CFileItemList &ite
   item->SetLabel(g_localizeStrings.Get(19026)); // "Add timer..."
   item->SetLabelPreformatted(true);
   item->SetSpecialSort(SortSpecialOnTop);
+  item->SetIconImage("DefaultTVShows.png");
   items.Add(item);
 
   bool bRadio = path.IsRadio();
@@ -660,7 +660,7 @@ bool CPVRTimers::DeleteTimersOnChannel(const CPVRChannelPtr &channel, bool bDele
         if (bDeleteActiveItem && bDeleteTimerRuleItem && bChannelsMatch)
         {
           CLog::Log(LOGDEBUG,"PVRTimers - %s - deleted timer %d on client %d", __FUNCTION__, (*timerIt)->m_iClientIndex, (*timerIt)->m_iClientId);
-          bReturn = (*timerIt)->DeleteFromClient(true) || bReturn;
+          bReturn = ((*timerIt)->DeleteFromClient(true) == TimerOperationResult::OK) || bReturn;
           bChanged = true;
         }
       }
@@ -677,15 +677,15 @@ bool CPVRTimers::DeleteTimersOnChannel(const CPVRChannelPtr &channel, bool bDele
 
 /********** static methods **********/
 
-bool CPVRTimers::AddTimer(const CPVRTimerInfoTagPtr &item)
+bool CPVRTimers::AddTimer(const CPVRTimerInfoTagPtr &tag)
 {
-  return item->AddToClient();
+  return tag->AddToClient();
 }
 
-bool CPVRTimers::DeleteTimer(const CPVRTimerInfoTagPtr &tag, bool bForce /* = false */, bool bDeleteRule /* = false */)
+TimerOperationResult CPVRTimers::DeleteTimer(const CPVRTimerInfoTagPtr &tag, bool bForce /* = false */, bool bDeleteRule /* = false */)
 {
   if (!tag)
-    return false;
+    return TimerOperationResult::FAILED;
 
   if (bDeleteRule)
   {
@@ -694,33 +694,21 @@ bool CPVRTimers::DeleteTimer(const CPVRTimerInfoTagPtr &tag, bool bForce /* = fa
     if (!ruleTag)
     {
       CLog::Log(LOGERROR, "PVRTimers - %s - unable to obtain timer rule for given timer", __FUNCTION__);
-      return false;
+      return TimerOperationResult::FAILED;
     }
-    return ruleTag->DeleteFromClient(bForce);
   }
 
   return tag->DeleteFromClient(bForce);
 }
 
-bool CPVRTimers::RenameTimer(CFileItem &item, const std::string &strNewName)
+bool CPVRTimers::RenameTimer(const CPVRTimerInfoTagPtr &tag, const std::string &strNewName)
 {
-  /* Check if a CPVRTimerInfoTag is inside file item */
-  if (!item.IsPVRTimer())
-  {
-    CLog::Log(LOGERROR, "PVRTimers - %s - no TimerInfoTag given", __FUNCTION__);
-    return false;
-  }
-
-  CPVRTimerInfoTagPtr tag = item.GetPVRTimerInfoTag();
-  if (!tag)
-    return false;
-
   return tag->RenameOnClient(strNewName);
 }
 
-bool CPVRTimers::UpdateTimer(const CPVRTimerInfoTagPtr &item)
+bool CPVRTimers::UpdateTimer(const CPVRTimerInfoTagPtr &tag)
 {
-  return item->UpdateOnClient();
+  return tag->UpdateOnClient();
 }
 
 bool CPVRTimers::IsRecordingOnChannel(const CPVRChannel &channel) const

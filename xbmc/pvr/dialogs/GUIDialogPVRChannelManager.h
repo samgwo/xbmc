@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -84,7 +84,6 @@ namespace PVR
     CFileItemList* m_channelItems;
     CGUIViewControl m_viewControl;
 
-    typedef std::vector<PVR_CLIENT>::iterator PVR_CLIENT_ITR;
-    std::vector<PVR_CLIENT> m_clientsWithSettingsList;
+    std::vector<CPVRClientPtr> m_clientsWithSettingsList;
   };
 }

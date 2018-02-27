@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2017 Christian Browet
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@ class CZeroconfBrowserAndroidDiscover : public jni::CJNIXBMCNsdManagerDiscoveryL
 {
 public:
   explicit CZeroconfBrowserAndroidDiscover(CZeroconfBrowserAndroid* browser);
+  bool IsActive() { return m_isActive; }
   
   // CJNINsdManagerDiscoveryListener interface
 public:
@@ -46,6 +47,7 @@ public:
   
 protected:
   CZeroconfBrowserAndroid* m_browser;
+  bool m_isActive;
 };
 
 class CZeroconfBrowserAndroidResolve : public jni::CJNIXBMCNsdManagerResolveListener

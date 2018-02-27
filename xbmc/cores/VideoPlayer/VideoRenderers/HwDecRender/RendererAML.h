@@ -20,10 +20,6 @@
 
 #pragma once
 
-#include "system.h"
-
-#if defined(HAS_LIBAMCODEC)
-
 #include "cores/VideoPlayer/VideoRenderers/BaseRenderer.h"
 
 class CRendererAML : public CBaseRenderer
@@ -39,12 +35,11 @@ public:
   virtual bool RenderCapture(CRenderCapture* capture) override;
   virtual void AddVideoPicture(const VideoPicture &picture, int index, double currentClock) override;
   virtual void ReleaseBuffer(int idx) override;
-  virtual bool Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation) override;
+  virtual bool Configure(const VideoPicture &picture, float fps, unsigned int orientation) override;
   virtual bool IsConfigured() override { return m_bConfigured; };
   virtual bool ConfigChanged(const VideoPicture &picture) { return false; };
   virtual CRenderInfo GetRenderInfo() override;
   virtual void UnInit() override {};
-  virtual void Reset() override;
   virtual void Update() override {};
   virtual void RenderUpdate(int index, int index2, bool clear, unsigned int flags, unsigned int alpha) override;
   virtual bool SupportsMultiPassRendering()override { return false; };
@@ -57,6 +52,8 @@ public:
   virtual bool Supports(ERENDERFEATURE feature) override;
 
 private:
+  void Reset();
+
   static const int m_numRenderBuffers = 4;
 
   struct BUFFER
@@ -69,5 +66,3 @@ private:
   int m_prevVPts;
   bool m_bConfigured;
 };
-
-#endif

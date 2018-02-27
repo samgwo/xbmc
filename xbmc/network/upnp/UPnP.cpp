@@ -4,7 +4,7 @@
  *      Portions Copyright (c) by the authors of libPlatinum
  *      http://www.plutinosoft.com/blog/category/platinum/
  *      Copyright (C) 2006-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,7 +32,6 @@
 #include "UPnPServer.h"
 #include "UPnPSettings.h"
 #include "utils/URIUtils.h"
-#include "Application.h"
 #include "ServiceBroker.h"
 #include "messaging/ApplicationMessenger.h"
 #include "network/Network.h"
@@ -384,7 +383,9 @@ public:
     if (device->GetUUID().IsEmpty() || device->GetUUID().GetChars() == NULL)
       return false;
 
-    CPlayerCoreFactory::GetInstance().OnPlayerDiscovered((const char*)device->GetUUID()
+    CPlayerCoreFactory &playerCoreFactory = CServiceBroker::GetPlayerCoreFactory();
+
+    playerCoreFactory.OnPlayerDiscovered((const char*)device->GetUUID()
                                           ,(const char*)device->GetFriendlyName());
     
     m_registeredRenderers.insert(std::string(device->GetUUID().GetChars()));
@@ -404,7 +405,9 @@ public:
 private:
   void unregisterRenderer(const std::string &deviceUUID)
   {
-    CPlayerCoreFactory::GetInstance().OnPlayerRemoved(deviceUUID);
+    CPlayerCoreFactory &playerCoreFactory = CServiceBroker::GetPlayerCoreFactory();
+
+    playerCoreFactory.OnPlayerRemoved(deviceUUID);
   }
 
   std::set<std::string> m_registeredRenderers;
@@ -429,8 +432,8 @@ CUPnP::CUPnP() :
     m_UPnP = new PLT_UPnP();
 
     // keep main IP around
-    if (g_application.getNetwork().GetFirstConnectedInterface()) {
-        m_IP = g_application.getNetwork().GetFirstConnectedInterface()->GetCurrentIPAddress().c_str();
+    if (CServiceBroker::GetNetwork().GetFirstConnectedInterface()) {
+        m_IP = CServiceBroker::GetNetwork().GetFirstConnectedInterface()->GetCurrentIPAddress().c_str();
     }
     NPT_List<NPT_IpAddress> list;
     if (NPT_SUCCEEDED(PLT_UPnPMessageHelper::GetIPAddresses(list)) && list.GetItemCount()) {
@@ -659,8 +662,10 @@ CUPnP::StartServer()
 {
     if (!m_ServerHolder->m_Device.IsNull()) return false;
 
+    const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
     // load upnpserver.xml
-    std::string filename = URIUtils::AddFileToFolder(CProfilesManager::GetInstance().GetUserDataFolder(), "upnpserver.xml");
+    std::string filename = URIUtils::AddFileToFolder(profileManager.GetUserDataFolder(), "upnpserver.xml");
     CUPnPSettings::GetInstance().Load(filename);
 
     // create the server with a XBox compatible friendlyname and UUID from upnpserver.xml if found
@@ -739,7 +744,9 @@ bool CUPnP::StartRenderer()
 {
     if (!m_RendererHolder->m_Device.IsNull()) return false;
 
-    std::string filename = URIUtils::AddFileToFolder(CProfilesManager::GetInstance().GetUserDataFolder(), "upnpserver.xml");
+    const CProfilesManager &profileManager = CServiceBroker::GetProfileManager();
+
+    std::string filename = URIUtils::AddFileToFolder(profileManager.GetUserDataFolder(), "upnpserver.xml");
     CUPnPSettings::GetInstance().Load(filename);
 
     m_RendererHolder->m_Device = CreateRenderer(CUPnPSettings::GetInstance().GetRendererPort());

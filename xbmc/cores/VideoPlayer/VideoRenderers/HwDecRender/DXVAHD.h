@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,7 +23,9 @@
 #include "DVDCodecs/Video/DVDVideoCodecFFmpeg.h"
 #include "DVDCodecs/Video/DXVA.h"
 #include "guilib/D3DResource.h"
-#include "guilib/Geometry.h"
+#include "utils/Geometry.h"
+
+#include <wrl/client.h>
 
 class CRenderBuffer;
 
@@ -50,15 +52,13 @@ public:
   void UnInit();
   bool Open(UINT width, UINT height);
   void Close();
-  bool Render(CRect src, CRect dst, ID3D11Resource* target, CRenderBuffer **views, DWORD flags, UINT frameIdx, UINT rotation);
+  bool Render(CRect src, CRect dst, ID3D11Resource* target, CRenderBuffer **views, DWORD flags, UINT frameIdx, UINT rotation, float contrast, float brightness);
   uint8_t Size() const { return m_pVideoProcessor ? m_size : 0; }
   uint8_t PastRefs() const { return m_max_back_refs; }
 
   // ID3DResource overrides
   void OnCreateDevice() override  {}
   void OnDestroyDevice(bool fatal) override { CSingleLock lock(m_section); UnInit(); }
-  void OnLostDevice() override    { CSingleLock lock(m_section); UnInit(); }
-  void OnResetDevice() override   { CSingleLock lock(m_section); Close();  }
 
 protected:
   bool ReInit();
@@ -86,10 +86,10 @@ protected:
     D3D11_VIDEO_PROCESSOR_FILTER_RANGE Range;
   };
   ProcAmpInfo m_Filters[NUM_FILTERS];
-  ID3D11VideoDevice *m_pVideoDevice;
-  ID3D11VideoContext *m_pVideoContext;
-  ID3D11VideoProcessorEnumerator *m_pEnumerator;
-  ID3D11VideoProcessor *m_pVideoProcessor;
+  Microsoft::WRL::ComPtr<ID3D11VideoDevice> m_pVideoDevice;
+  Microsoft::WRL::ComPtr<ID3D11VideoContext> m_pVideoContext;
+  Microsoft::WRL::ComPtr<ID3D11VideoProcessorEnumerator> m_pEnumerator;
+  Microsoft::WRL::ComPtr<ID3D11VideoProcessor> m_pVideoProcessor;
 };
 
 };

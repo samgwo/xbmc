@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -44,8 +44,9 @@
 #include "utils/RegExp.h"
 #include "utils/StringUtils.h"
 #include "utils/Variant.h"
-#include "windowing/WindowingFactory.h"
+#include "rendering/RenderSystem.h"
 #include "guiinfo/GUIInfoLabels.h"
+#include "cores/DataCacheCore.h"
 
 using namespace KODI::MESSAGING;
 
@@ -143,7 +144,7 @@ void CStereoscopicsManager::SetStereoMode(const RENDER_STEREO_MODE &mode)
 
   if (applyMode != currentMode && applyMode >= RENDER_STEREO_MODE_OFF)
   {
-    if (!g_Windowing.SupportsStereo(applyMode))
+    if (!CServiceBroker::GetRenderSystem().SupportsStereo(applyMode))
       return;
     CServiceBroker::GetSettings().SetInt(CSettings::SETTING_VIDEOSCREEN_STEREOSCOPICMODE, applyMode);
   }
@@ -154,7 +155,7 @@ RENDER_STEREO_MODE CStereoscopicsManager::GetNextSupportedStereoMode(const RENDE
   RENDER_STEREO_MODE mode = currentMode;
   do {
     mode = (RENDER_STEREO_MODE) ((mode + step) % RENDER_STEREO_MODE_COUNT);
-    if(g_Windowing.SupportsStereo(mode))
+    if(CServiceBroker::GetRenderSystem().SupportsStereo(mode))
       break;
    } while (mode != currentMode);
   return mode;
@@ -162,7 +163,7 @@ RENDER_STEREO_MODE CStereoscopicsManager::GetNextSupportedStereoMode(const RENDE
 
 std::string CStereoscopicsManager::DetectStereoModeByString(const std::string &needle)
 {
-  std::string stereoMode = "mono";
+  std::string stereoMode;
   std::string searchString(needle);
   CRegExp re(true);
 
@@ -218,7 +219,7 @@ RENDER_STEREO_MODE CStereoscopicsManager::GetStereoModeByUserChoice(const std::s
   for (int i = RENDER_STEREO_MODE_OFF; i < RENDER_STEREO_MODE_COUNT; i++)
   {
     RENDER_STEREO_MODE selectableMode = (RENDER_STEREO_MODE) i;
-    if (g_Windowing.SupportsStereo(selectableMode))
+    if (CServiceBroker::GetRenderSystem().SupportsStereo(selectableMode))
     {
       selectableModes.push_back(selectableMode);
       std::string label = GetLabelForStereoMode((RENDER_STEREO_MODE) i);
@@ -394,9 +395,6 @@ bool CStereoscopicsManager::OnMessage(CGUIMessage &message)
 {
   switch (message.GetMessage())
   {
-  case GUI_MSG_PLAYBACK_STARTED:
-    OnPlaybackStarted();
-    break;
   case GUI_MSG_PLAYBACK_STOPPED:
   case GUI_MSG_PLAYLISTPLAYER_STOPPED:
     OnPlaybackStopped();
@@ -501,12 +499,8 @@ void CStereoscopicsManager::ApplyStereoMode(const RENDER_STEREO_MODE &mode, bool
 std::string CStereoscopicsManager::GetVideoStereoMode()
 {
   std::string playerMode;
-  if (g_application.m_pPlayer->IsPlaying())
-  {
-    SPlayerVideoStreamInfo videoInfo;
-    g_application.m_pPlayer->GetVideoStreamInfo(CURRENT_STREAM, videoInfo);
-    playerMode = videoInfo.stereoMode;
-  }
+  if (g_application.GetAppPlayer().IsPlaying())
+    playerMode = CServiceBroker::GetDataCacheCore().GetVideoStereoMode();
   return playerMode;
 }
 
@@ -516,7 +510,7 @@ bool CStereoscopicsManager::IsVideoStereoscopic()
   return !mode.empty() && mode != "mono";
 }
 
-void CStereoscopicsManager::OnPlaybackStarted(void)
+void CStereoscopicsManager::OnStreamChange()
 {
   STEREOSCOPIC_PLAYBACK_MODE playbackMode = (STEREOSCOPIC_PLAYBACK_MODE) CServiceBroker::GetSettings().GetInt(CSettings::SETTING_VIDEOPLAYER_STEREOSCOPICPLAYBACKMODE);
   RENDER_STEREO_MODE mode = GetStereoMode();
@@ -578,7 +572,7 @@ void CStereoscopicsManager::OnPlaybackStarted(void)
 
       int idx_mono = pDlgSelect->Add(GetLabelForStereoMode(RENDER_STEREO_MODE_MONO)); // mono / 2d
 
-      if (playing != RENDER_STEREO_MODE_OFF && playing != preferred && preferred != RENDER_STEREO_MODE_AUTO && g_Windowing.SupportsStereo(playing)) // same as movie
+      if (playing != RENDER_STEREO_MODE_OFF && playing != preferred && preferred != RENDER_STEREO_MODE_AUTO && CServiceBroker::GetRenderSystem().SupportsStereo(playing)) // same as movie
         idx_playing = pDlgSelect->Add(g_localizeStrings.Get(36532)
                                     + " ("
                                     + GetLabelForStereoMode(playing)

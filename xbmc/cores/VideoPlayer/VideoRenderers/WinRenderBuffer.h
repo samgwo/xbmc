@@ -19,6 +19,7 @@
  */
 #pragma once
 #include "DVDCodecs/Video/DXVA.h"
+#include <wrl/client.h>
 
 class CVideoBuffer;
 struct VideoPicture;
@@ -50,6 +51,7 @@ public:
 
   bool CreateBuffer(EBufferFormat format, unsigned width, unsigned height, bool software);
   bool UploadBuffer();
+  void AppendPicture(const VideoPicture &picture);
 
   unsigned int GetActivePlanes() const { return m_activePlanes; }
   ID3D11View* GetView(unsigned idx = 0);
@@ -68,9 +70,18 @@ public:
 
   bool loaded;
   unsigned int frameIdx;
-  unsigned int flags;
   EBufferFormat format;
   CVideoBuffer* videoBuffer;
+  AVColorPrimaries primaries;
+  AVColorSpace color_space;
+  AVColorTransferCharacteristic color_transfer;
+  bool full_range;
+  int bits;
+
+  bool hasDisplayMetadata = false;
+  bool hasLightMetadata = false;
+  AVMasteringDisplayMetadata displayMetadata;
+  AVContentLightMetadata lightMetadata;
 
 private:
   bool CopyToD3D11();
@@ -90,7 +101,7 @@ private:
   unsigned int m_activePlanes;
   D3D11_MAP m_mapType;
   CD3D11_TEXTURE2D_DESC m_sDesc;
-  ID3D11Texture2D* m_staging;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> m_staging;
 
   D3D11_MAPPED_SUBRESOURCE m_rects[YuvImage::MAX_PLANES];
   CD3DTexture m_textures[YuvImage::MAX_PLANES];

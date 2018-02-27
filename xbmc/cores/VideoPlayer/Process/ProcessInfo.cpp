@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 
 #include "ProcessInfo.h"
 #include "cores/DataCacheCore.h"
+#include "settings/AdvancedSettings.h"
 #include "threads/SingleLock.h"
 
 CCriticalSection createSection;
@@ -47,12 +48,17 @@ CProcessInfo* CProcessInfo::CreateInstance()
   return new CProcessInfo();
 }
 
+CProcessInfo::CProcessInfo()
+{
+  m_videoSettingsLocked.reset(new CVideoSettingsLocked(m_videoSettings, m_settingsSection));
+}
+
 void CProcessInfo::SetDataCache(CDataCacheCore *cache)
 {
   m_dataCache = cache;;
 
   ResetVideoCodecInfo();
-  m_renderGuiLayer = true;
+  m_renderGuiLayer = false;
   m_renderVideoLayer = false;
   m_dataCache->SetGuiRender(m_renderGuiLayer);
   m_dataCache->SetVideoRender(m_renderVideoLayer);
@@ -69,6 +75,7 @@ void CProcessInfo::ResetVideoCodecInfo()
   m_videoDecoderName = "unknown";
   m_videoDeintMethod = "unknown";
   m_videoPixelFormat = "unknown";
+  m_videoStereoMode.clear();
   m_videoWidth = 0;
   m_videoHeight = 0;
   m_videoFPS = 0.0;
@@ -87,6 +94,7 @@ void CProcessInfo::ResetVideoCodecInfo()
     m_dataCache->SetVideoFps(m_videoFPS);
     m_dataCache->SetVideoDAR(m_videoDAR);
     m_dataCache->SetStateSeeking(m_stateSeeking);
+    m_dataCache->SetVideoStereoMode(m_videoStereoMode);
   }
 }
 
@@ -147,6 +155,23 @@ std::string CProcessInfo::GetVideoPixelFormat()
   CSingleLock lock(m_videoCodecSection);
 
   return m_videoPixelFormat;
+}
+
+void CProcessInfo::SetVideoStereoMode(const std::string &mode)
+{
+  CSingleLock lock(m_videoCodecSection);
+
+  m_videoStereoMode = mode;
+
+  if (m_dataCache)
+    m_dataCache->SetVideoStereoMode(m_videoStereoMode);
+}
+
+std::string CProcessInfo::GetVideoStereoMode()
+{
+  CSingleLock lock(m_videoCodecSection);
+
+  return m_videoStereoMode;
 }
 
 void CProcessInfo::SetVideoDimensions(int width, int height)
@@ -505,9 +530,20 @@ float CProcessInfo::GetNewTempo()
   return m_newTempo;
 }
 
+float CProcessInfo::MinTempoPlatform()
+{
+  return 0.75f;
+}
+
+float CProcessInfo::MaxTempoPlatform()
+{
+  return 1.55f;
+}
+
 bool CProcessInfo::IsTempoAllowed(float tempo)
 {
-  if (tempo > 0.75 && tempo < 1.55)
+  if (tempo > MinTempoPlatform() &&
+      (tempo < MaxTempoPlatform() || tempo < g_advancedSettings.m_maxTempo))
     return true;
 
   return false;
@@ -581,4 +617,25 @@ int64_t CProcessInfo::GetMaxTime()
 {
   CSingleLock lock(m_stateSection);
   return m_timeMax;
+}
+
+//******************************************************************************
+// settings
+//******************************************************************************
+CVideoSettings CProcessInfo::GetVideoSettings()
+{
+  CSingleLock lock(m_settingsSection);
+  return m_videoSettings;
+}
+
+CVideoSettingsLocked& CProcessInfo::UpdateVideoSettings()
+{
+  CSingleLock lock(m_settingsSection);
+  return *m_videoSettingsLocked.get();
+}
+
+void CProcessInfo::SetVideoSettings(CVideoSettings &settings)
+{
+  CSingleLock lock(m_settingsSection);
+  m_videoSettings = settings;
 }

@@ -1,9 +1,17 @@
-set(SOURCES GUIRenderSettings.cpp
+set(SOURCES RenderContext.cpp
+            RenderGeometry.cpp
+            RenderSettings.cpp
+            RenderTranslator.cpp
+            RenderVideoSettings.cpp
             RPRenderManager.cpp
 )
 
-set(HEADERS GUIRenderSettings.h
-            IRenderSettingsCallback.h
+set(HEADERS IRenderManager.h
+            RenderContext.h
+            RenderGeometry.h
+            RenderSettings.h
+            RenderTranslator.h
+            RenderVideoSettings.h
             RPRenderManager.h
 )
 

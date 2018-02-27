@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,10 +24,10 @@
 
 #include "cores/VideoPlayer/VideoRenderers/BaseRenderer.h"
 #include "cores/VideoPlayer/VideoRenderers/OverlayRenderer.h"
-#include "guilib/Geometry.h"
+#include "utils/Geometry.h"
 #include "guilib/Resolution.h"
 #include "threads/CriticalSection.h"
-#include "settings/VideoSettings.h"
+#include "cores/VideoSettings.h"
 #include "OverlayRenderer.h"
 #include "DebugRenderer.h"
 #include <deque>
@@ -60,6 +60,7 @@ protected:
   virtual void UpdateRenderBuffers(int queued, int discard, int free) = 0;
   virtual void UpdateGuiRender(bool gui) = 0;
   virtual void UpdateVideoRender(bool video) = 0;
+  virtual CVideoSettings GetVideoSettings() = 0;
 };
 
 class CRenderManager
@@ -77,7 +78,7 @@ public:
   bool IsVideoLayer();
   RESOLUTION GetResolution();
   void UpdateResolution();
-  void TriggerUpdateResolution(float fps, int width, int flags);
+  void TriggerUpdateResolution(float fps, int width, std::string &stereomode);
   void SetViewMode(int iViewMode);
   void PreInit();
   void UnInit();
@@ -96,19 +97,8 @@ public:
 
   int GetSkippedFrames()  { return m_QueueSkip; }
 
-  // Functions called from mplayer
-  /**
-   * Called by video player to configure renderer
-   * @param picture
-   * @param fps frames per second of video
-   * @param flags see RenderFlags.h
-   * @param orientation
-   * @param numbers of kept buffer references
-   */
-  bool Configure(const VideoPicture& picture, float fps, unsigned flags, unsigned int orientation, int buffers = 0);
-
+  bool Configure(const VideoPicture& picture, float fps, bool fullscreen, unsigned int orientation, int buffers = 0);
   bool AddVideoPicture(const VideoPicture& picture, volatile std::atomic_bool& bStop, EINTERLACEMETHOD deintMethod, bool wait);
-
   void AddOverlay(CDVDOverlay* o, double pts);
 
   /**
@@ -132,6 +122,8 @@ public:
 
   void SetDelay(int delay) { m_videoDelay = delay; };
   int GetDelay() { return m_videoDelay; };
+
+  void SetVideoSettings(CVideoSettings settings);
 
 protected:
 
@@ -159,7 +151,6 @@ protected:
   CCriticalSection m_datalock;
   bool m_bTriggerUpdateResolution = false;
   bool m_bRenderGUI = true;
-  int m_rendermethod = 0;
   bool m_renderedOverlay = false;
   bool m_renderDebug = false;
   XbmcThreads::EndTime m_debugTimer;
@@ -216,10 +207,11 @@ protected:
   unsigned int m_height = 0;
   unsigned int m_dwidth = 0;
   unsigned int m_dheight = 0;
-  unsigned int m_flags = 0;
   float m_fps = 0.0;
   unsigned int m_orientation = 0;
   int m_NumberBuffers = 0;
+  bool m_fullscreen = false;
+  std::string m_stereomode;
 
   int m_lateframes = -1;
   double m_presentpts = 0.0;

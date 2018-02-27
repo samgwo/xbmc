@@ -18,7 +18,6 @@
  *
  */
 
-#include "system.h"
 #include "GUIDialogContextMenu.h"
 #include "guilib/GUIButtonControl.h"
 #include "guilib/GUIControlGroupList.h"
@@ -222,7 +221,7 @@ void CGUIDialogContextMenu::GetContextButtons(const std::string &type, const CFi
   // Next, Add buttons to the ContextMenu that should ONLY be visible for sources and not autosourced items
   CMediaSource *share = GetShare(type, item.get());
 
-  if (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() || g_passwordManager.bMasterUser)
+  if (CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() || g_passwordManager.bMasterUser)
   {
     if (share)
     {
@@ -244,9 +243,9 @@ void CGUIDialogContextMenu::GetContextButtons(const std::string &type, const CFi
     if (!GetDefaultShareNameByType(type).empty())
       buttons.Add(CONTEXT_BUTTON_CLEAR_DEFAULT, 13403); // Clear Default
   }
-  if (share && LOCK_MODE_EVERYONE != CProfilesManager::GetInstance().GetMasterProfile().getLockMode())
+  if (share && LOCK_MODE_EVERYONE != CServiceBroker::GetProfileManager().GetMasterProfile().getLockMode())
   {
-    if (share->m_iHasLock == 0 && (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() || g_passwordManager.bMasterUser))
+    if (share->m_iHasLock == 0 && (CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() || g_passwordManager.bMasterUser))
       buttons.Add(CONTEXT_BUTTON_ADD_LOCK, 12332);
     else if (share->m_iHasLock == 1)
       buttons.Add(CONTEXT_BUTTON_REMOVE_LOCK, 12335);
@@ -279,7 +278,7 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
   switch (button)
   {
   case CONTEXT_BUTTON_EDIT_SOURCE:
-    if (CProfilesManager::GetInstance().IsMasterProfile())
+    if (CServiceBroker::GetProfileManager().IsMasterProfile())
     {
       if (!g_passwordManager.IsMasterLockUnlocked(true))
         return false;
@@ -291,16 +290,16 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
 
   case CONTEXT_BUTTON_REMOVE_SOURCE:
   {
-    if (CProfilesManager::GetInstance().IsMasterProfile())
+    if (CServiceBroker::GetProfileManager().IsMasterProfile())
     {
       if (!g_passwordManager.IsMasterLockUnlocked(true))
         return false;
     }
     else
     {
-      if (!CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsMasterLockUnlocked(false))
+      if (!CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsMasterLockUnlocked(false))
         return false;
-      if (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
+      if (CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
         return false;
     }
     // prompt user if they want to really delete the source
@@ -318,7 +317,7 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
     return true;
   }
   case CONTEXT_BUTTON_SET_DEFAULT:
-    if (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
+    if (CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
       return false;
     else if (!g_passwordManager.IsMasterLockUnlocked(true))
       return false;
@@ -328,7 +327,7 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
     return true;
 
   case CONTEXT_BUTTON_CLEAR_DEFAULT:
-    if (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
+    if (CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
       return false;
     else if (!g_passwordManager.IsMasterLockUnlocked(true))
       return false;
@@ -338,7 +337,7 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
 
   case CONTEXT_BUTTON_SET_THUMB:
     {
-      if (CProfilesManager::GetInstance().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
+      if (CServiceBroker::GetProfileManager().GetCurrentProfile().canWriteSources() && !g_passwordManager.IsProfileLockUnlocked())
         return false;
       else if (!g_passwordManager.IsMasterLockUnlocked(true))
         return false;
@@ -644,7 +643,7 @@ int CGUIDialogContextMenu::ShowAndGetChoice(const CContextButtons &choices)
 
 void CGUIDialogContextMenu::PositionAtCurrentFocus()
 {
-  CGUIWindow *window = g_windowManager.GetWindow(g_windowManager.GetFocusedWindow());
+  CGUIWindow *window = g_windowManager.GetWindow(g_windowManager.GetActiveWindowOrDialog());
   if (window)
   {
     const CGUIControl *focusedControl = window->GetFocusedControl();

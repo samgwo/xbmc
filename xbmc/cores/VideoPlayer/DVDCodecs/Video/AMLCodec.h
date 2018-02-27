@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,9 +22,9 @@
 #include "DVDVideoCodec.h"
 #include "cores/VideoPlayer/DVDStreamInfo.h"
 #include "cores/IPlayer.h"
-#include "guilib/Geometry.h"
 #include "guilib/Resolution.h"
 #include "rendering/RenderSystem.h"
+#include "utils/Geometry.h"
 
 #include <deque>
 #include <atomic>
@@ -36,10 +36,12 @@ class DllLibAmCodec;
 class PosixFile;
 typedef std::shared_ptr<PosixFile> PosixFilePtr;
 
+class CProcessInfo;
+
 class CAMLCodec
 {
 public:
-  CAMLCodec();
+  CAMLCodec(CProcessInfo &processInfo);
   virtual ~CAMLCodec();
 
   bool          OpenDecoder(CDVDStreamInfo &hints);
@@ -69,8 +71,6 @@ private:
   void          SetVideoContrast(const int contrast);
   void          SetVideoBrightness(const int brightness);
   void          SetVideoSaturation(const int saturation);
-  bool          SetVideo3dMode(const int mode3d);
-  std::string   GetStereoMode();
   bool          OpenAmlVideo(const CDVDStreamInfo &hints);
   void          CloseAmlVideo();
   std::string   GetVfmMap(const std::string &name);
@@ -94,8 +94,8 @@ private:
   CRect            m_display_rect;
 
   int              m_view_mode = -1;
-  RENDER_STEREO_MODE m_stereo_mode = RENDER_STEREO_MODE_OFF;
-  RENDER_STEREO_VIEW m_stereo_view = RENDER_STEREO_VIEW_OFF;
+  RENDER_STEREO_MODE m_guiStereoMode = RENDER_STEREO_MODE_OFF;
+  RENDER_STEREO_VIEW m_guiStereoView = RENDER_STEREO_VIEW_OFF;
   float            m_zoom = -1.0f;
   int              m_contrast = -1;
   int              m_brightness = -1;
@@ -114,4 +114,5 @@ private:
 
   static std::atomic_flag  m_pollSync;
   static int m_pollDevice;
+  CProcessInfo &m_processInfo;
 };

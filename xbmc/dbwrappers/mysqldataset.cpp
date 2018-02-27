@@ -24,17 +24,19 @@
 #include <algorithm>
 
 #include "utils/log.h"
-#include "system.h" // for GetLastError()
 #include "network/WakeOnAccess.h"
 #include "Util.h"
 #include "utils/StringUtils.h"
 
-#ifdef HAS_MYSQL
 #include "mysqldataset.h"
+#ifdef HAS_MYSQL
 #include "mysql/errmsg.h"
+#elif defined(HAS_MARIADB)
+#include <mariadb/errmsg.h>
+#endif
 
 #ifdef TARGET_POSIX
-#include "linux/ConvUtils.h"
+#include "platform/linux/ConvUtils.h"
 #endif
 
 #define MYSQL_OK          0
@@ -1744,5 +1746,3 @@ void MysqlDataset::interrupt() {
 }
 
 }//namespace
-#endif //HAS_MYSQL
-

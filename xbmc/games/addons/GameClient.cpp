@@ -20,31 +20,26 @@
 
 #include "GameClient.h"
 #include "GameClientCallbacks.h"
-#include "GameClientHardware.h"
 #include "GameClientInGameSaves.h"
-#include "GameClientJoystick.h"
-#include "GameClientKeyboard.h"
-#include "GameClientMouse.h"
+#include "GameClientProperties.h"
 #include "GameClientTranslator.h"
 #include "addons/AddonManager.h"
 #include "addons/BinaryAddonCache.h"
 #include "cores/AudioEngine/Utils/AEChannelInfo.h"
 #include "filesystem/Directory.h"
+#include "filesystem/File.h"
 #include "filesystem/SpecialProtocol.h"
+#include "games/addons/input/GameClientInput.h"
 #include "games/addons/playback/GameClientRealtimePlayback.h"
 #include "games/addons/playback/GameClientReversiblePlayback.h"
-#include "games/controllers/Controller.h"
-#include "games/ports/PortManager.h"
 #include "games/GameServices.h"
 #include "guilib/GUIWindowManager.h"
 #include "guilib/LocalizeStrings.h"
 #include "guilib/WindowIDs.h"
-#include "input/joysticks/JoystickTypes.h"
-#include "input/InputManager.h"
+#include "input/Action.h"
+#include "input/ActionIDs.h"
 #include "messaging/ApplicationMessenger.h"
 #include "messaging/helpers/DialogOKHelper.h"
-#include "peripherals/Peripherals.h"
-#include "profiles/ProfilesManager.h"
 #include "settings/Settings.h"
 #include "threads/SingleLock.h"
 #include "utils/log.h"
@@ -69,8 +64,6 @@ using namespace KODI::MESSAGING;
 #define GAME_PROPERTY_EXTENSIONS           "extensions"
 #define GAME_PROPERTY_SUPPORTS_VFS         "supports_vfs"
 #define GAME_PROPERTY_SUPPORTS_STANDALONE  "supports_standalone"
-#define GAME_PROPERTY_SUPPORTS_KEYBOARD    "supports_keyboard"
-#define GAME_PROPERTY_SUPPORTS_MOUSE       "supports_mouse"
 
 // --- NormalizeExtension ------------------------------------------------------
 
@@ -105,8 +98,6 @@ std::unique_ptr<CGameClient> CGameClient::FromExtension(ADDON::CAddonInfo addonI
       GAME_PROPERTY_EXTENSIONS,
       GAME_PROPERTY_SUPPORTS_VFS,
       GAME_PROPERTY_SUPPORTS_STANDALONE,
-      GAME_PROPERTY_SUPPORTS_KEYBOARD,
-      GAME_PROPERTY_SUPPORTS_MOUSE,
   };
 
   for (const auto& property : properties)
@@ -121,11 +112,9 @@ std::unique_ptr<CGameClient> CGameClient::FromExtension(ADDON::CAddonInfo addonI
 
 CGameClient::CGameClient(ADDON::CAddonInfo addonInfo) :
   CAddonDll(std::move(addonInfo)),
-  m_libraryProps(this, m_struct.props),
+  m_subsystems(CGameClientSubsystem::CreateSubsystems(*this, m_struct, m_critSection)),
   m_bSupportsVFS(false),
   m_bSupportsStandalone(false),
-  m_bSupportsKeyboard(false),
-  m_bSupportsMouse(false),
   m_bSupportsAllExtensions(false),
   m_bIsPlaying(false),
   m_serializeSize(0),
@@ -159,29 +148,22 @@ CGameClient::CGameClient(ADDON::CAddonInfo addonInfo) :
   if (it != extraInfo.end())
     m_bSupportsStandalone = (it->second == "true");
 
-  it = extraInfo.find(GAME_PROPERTY_SUPPORTS_KEYBOARD);
-  if (it != extraInfo.end())
-    m_bSupportsKeyboard = (it->second == "true");
-
-  it = extraInfo.find(GAME_PROPERTY_SUPPORTS_MOUSE);
-  if (it != extraInfo.end())
-    m_bSupportsMouse = (it->second == "true");
-
   ResetPlayback();
 }
 
 CGameClient::~CGameClient(void)
 {
   CloseFile();
+  CGameClientSubsystem::DestroySubsystems(m_subsystems);
 }
 
 std::string CGameClient::LibPath() const
 {
   // If the game client requires a proxy, load its DLL instead
   if (m_struct.props.proxy_dll_count > 0)
-    return m_struct.props.proxy_dll_paths[0];
+    return GetDllPath(m_struct.props.proxy_dll_paths[0]);
 
-  return CAddon::LibPath();
+  return CAddonDll::LibPath();
 }
 
 ADDON::AddonPtr CGameClient::GetRunningInstance() const
@@ -217,11 +199,12 @@ bool CGameClient::Initialize(void)
     CDirectory::Create(Profile());
 
   // Ensure directory exists for savestates
-  std::string savestatesDir = URIUtils::AddFileToFolder(CProfilesManager::GetInstance().GetSavestatesFolder(), ID());
+  const CGameServices &gameServices = CServiceBroker::GetGameServices();
+  std::string savestatesDir = URIUtils::AddFileToFolder(gameServices.GetSavestatesFolder(), ID());
   if (!CDirectory::Exists(savestatesDir))
     CDirectory::Create(savestatesDir);
 
-  m_libraryProps.InitializeProperties();
+  AddonProperties().InitializeProperties();
 
   m_struct.toKodi.kodiInstance = this;
   m_struct.toKodi.CloseGame = cb_close_game;
@@ -235,12 +218,11 @@ bool CGameClient::Initialize(void)
   m_struct.toKodi.HwGetCurrentFramebuffer = cb_hw_get_current_framebuffer;
   m_struct.toKodi.HwGetProcAddress = cb_hw_get_proc_address;
   m_struct.toKodi.RenderFrame = cb_render_frame;
-  m_struct.toKodi.OpenPort = cb_open_port;
-  m_struct.toKodi.ClosePort = cb_close_port;
   m_struct.toKodi.InputEvent = cb_input_event;
 
   if (Create(ADDON_INSTANCE_GAME, &m_struct, &m_struct.props) == ADDON_STATUS_OK)
   {
+    Input().Initialize();
     LogAddonProperties();
     return true;
   }
@@ -250,6 +232,8 @@ bool CGameClient::Initialize(void)
 
 void CGameClient::Unload()
 {
+  Input().Deinitialize();
+
   Destroy();
 }
 
@@ -261,6 +245,16 @@ bool CGameClient::OpenFile(const CFileItem& file, IGameAudioCallback* audio, IGa
   // Check if we should open in standalone mode
   if (file.GetPath().empty())
     return false;
+
+  // Some cores "succeed" to load the file even if it doesn't exist
+  if (!XFILE::CFile::Exists(file.GetPath()))
+  {
+
+    // Failed to play game
+    // The required files can't be found.
+    HELPERS::ShowOKDialogText(CVariant{ 35210 }, CVariant{ g_localizeStrings.Get(35219) });
+    return false;
+  }
 
   // Resolve special:// URLs
   CURL translatedUrl(CSpecialProtocol::TranslatePath(file.GetPath()));
@@ -337,12 +331,6 @@ bool CGameClient::InitializeGameplay(const std::string& gamePath, IGameAudioCall
     m_audio           = audio;
     m_video           = video;
     m_input           = input;
-
-    if (m_bSupportsKeyboard)
-      OpenKeyboard();
-
-    if (m_bSupportsMouse)
-      OpenMouse();
 
     m_inGameSaves.reset(new CGameClientInGameSaves(this, &m_struct.toAddon));
     m_inGameSaves->Load();
@@ -445,10 +433,10 @@ std::string CGameClient::GetMissingResource()
 
   std::string strAddonId;
 
-  const ADDONDEPS& dependencies = GetDeps();
-  for (ADDONDEPS::const_iterator it = dependencies.begin(); it != dependencies.end(); ++it)
+  const auto& dependencies = GetDependencies();
+  for (auto it = dependencies.begin(); it != dependencies.end(); ++it)
   {
-    const std::string& strDependencyId = it->first;
+    const std::string& strDependencyId = it->id;
     if (StringUtils::StartsWith(strDependencyId, "resource.games"))
     {
       AddonPtr addon;
@@ -486,7 +474,7 @@ void CGameClient::ResetPlayback()
   m_playback.reset(new CGameClientRealtimePlayback);
 }
 
-void CGameClient::Reset(unsigned int port)
+void CGameClient::Reset()
 {
   ResetPlayback();
 
@@ -515,16 +503,6 @@ void CGameClient::CloseFile()
     try { LogError(m_struct.toAddon.UnloadGame(), "UnloadGame()"); }
     catch (...) { LogException("UnloadGame()"); }
   }
-
-  ClearPorts();
-
-  m_hardware.reset();
-
-  if (m_bSupportsKeyboard)
-    CloseKeyboard();
-
-  if (m_bSupportsMouse)
-    CloseMouse();
 
   m_bIsPlaying = false;
   m_gamePath.clear();
@@ -585,7 +563,7 @@ bool CGameClient::OpenPixelStream(GAME_PIXEL_FORMAT format, unsigned int width, 
     break;
   }
 
-  return m_video->OpenPixelStream(pixelFormat, width, height, m_timing.GetFrameRate(), orientation);
+  return m_video->OpenPixelStream(pixelFormat, width, height, orientation);
 }
 
 bool CGameClient::OpenVideoStream(GAME_VIDEO_CODEC codec)
@@ -747,194 +725,6 @@ bool CGameClient::Deserialize(const uint8_t* data, size_t size)
   return bSuccess;
 }
 
-bool CGameClient::OpenPort(unsigned int port)
-{
-  // Fail if port is already open
-  if (m_ports.find(port) != m_ports.end())
-    return false;
-
-  // Ensure hardware is open to receive events from the port
-  if (!m_hardware)
-    m_hardware.reset(new CGameClientHardware(this));
-
-  ControllerVector controllers = GetControllers();
-  if (!controllers.empty())
-  {
-    //! @todo Choose controller
-    ControllerPtr& controller = controllers[0];
-
-    m_ports[port].reset(new CGameClientJoystick(this, port, controller, &m_struct.toAddon));
-
-    // If keyboard input is being captured by this add-on, force the port type to PERIPHERAL_JOYSTICK
-    PERIPHERALS::PeripheralType device = PERIPHERALS::PERIPHERAL_UNKNOWN;
-    if (m_bSupportsKeyboard)
-      device = PERIPHERALS::PERIPHERAL_JOYSTICK;
-
-    CServiceBroker::GetGameServices().PortManager().OpenPort(m_ports[port].get(), m_hardware.get(), this, port, device);
-
-    UpdatePort(port, controller);
-
-    return true;
-  }
-
-  return false;
-}
-
-void CGameClient::ClosePort(unsigned int port)
-{
-  // Can't close port if it doesn't exist
-  if (m_ports.find(port) == m_ports.end())
-    return;
-
-  CServiceBroker::GetGameServices().PortManager().ClosePort(m_ports[port].get());
-
-  m_ports.erase(port);
-
-  UpdatePort(port, CController::EmptyPtr);
-}
-
-void CGameClient::UpdatePort(unsigned int port, const ControllerPtr& controller)
-{
-  using namespace JOYSTICK;
-
-  CSingleLock lock(m_critSection);
-
-  if (Initialized())
-  {
-    if (controller != CController::EmptyPtr)
-    {
-      std::string strId = controller->ID();
-
-      game_controller controllerStruct;
-
-      controllerStruct.controller_id        = strId.c_str();
-      controllerStruct.digital_button_count = controller->FeatureCount(FEATURE_TYPE::SCALAR, INPUT_TYPE::DIGITAL);
-      controllerStruct.analog_button_count  = controller->FeatureCount(FEATURE_TYPE::SCALAR, INPUT_TYPE::ANALOG);
-      controllerStruct.analog_stick_count   = controller->FeatureCount(FEATURE_TYPE::ANALOG_STICK);
-      controllerStruct.accelerometer_count  = controller->FeatureCount(FEATURE_TYPE::ACCELEROMETER);
-      controllerStruct.key_count            = 0; //! @todo
-      controllerStruct.rel_pointer_count    = controller->FeatureCount(FEATURE_TYPE::RELPOINTER);
-      controllerStruct.abs_pointer_count    = controller->FeatureCount(FEATURE_TYPE::ABSPOINTER);
-      controllerStruct.motor_count          = controller->FeatureCount(FEATURE_TYPE::MOTOR);
-
-      try { m_struct.toAddon.UpdatePort(port, true, &controllerStruct); }
-      catch (...) { LogException("UpdatePort()"); }
-    }
-    else
-    {
-      try { m_struct.toAddon.UpdatePort(port, false, nullptr); }
-      catch (...) { LogException("UpdatePort()"); }
-    }
-  }
-}
-
-bool CGameClient::AcceptsInput(void) const
-{
-  return g_windowManager.GetActiveWindowID() == WINDOW_FULLSCREEN_GAME;
-}
-
-void CGameClient::ClearPorts(void)
-{
-  while (!m_ports.empty())
-    ClosePort(m_ports.begin()->first);
-}
-
-ControllerVector CGameClient::GetControllers(void) const
-{
-  using namespace ADDON;
-
-  ControllerVector controllers;
-
-  CGameServices& gameServices = CServiceBroker::GetGameServices();
-
-  const ADDONDEPS& dependencies = GetDeps();
-  for (ADDONDEPS::const_iterator it = dependencies.begin(); it != dependencies.end(); ++it)
-  {
-    ControllerPtr controller = gameServices.GetController(it->first);
-    if (controller)
-      controllers.push_back(controller);
-  }
-
-  if (controllers.empty())
-  {
-    // Use the default controller
-    ControllerPtr controller = gameServices.GetDefaultController();
-    if (controller)
-      controllers.push_back(controller);
-  }
-
-  return controllers;
-}
-
-bool CGameClient::ReceiveInputEvent(const game_input_event& event)
-{
-  bool bHandled = false;
-
-  switch (event.type)
-  {
-  case GAME_INPUT_EVENT_MOTOR:
-    if (event.feature_name)
-      bHandled = SetRumble(event.port, event.feature_name, event.motor.magnitude);
-    break;
-  default:
-    break;
-  }
-
-  return bHandled;
-}
-
-bool CGameClient::SetRumble(unsigned int port, const std::string& feature, float magnitude)
-{
-  bool bHandled = false;
-
-  if (m_ports.find(port) != m_ports.end())
-    bHandled = m_ports[port]->SetRumble(feature, magnitude);
-
-  return bHandled;
-}
-
-void CGameClient::OpenKeyboard(void)
-{
-  m_keyboard.reset(new CGameClientKeyboard(this, &m_struct.toAddon, &CServiceBroker::GetInputManager()));
-}
-
-void CGameClient::CloseKeyboard(void)
-{
-  m_keyboard.reset();
-}
-
-void CGameClient::OpenMouse(void)
-{
-  m_mouse.reset(new CGameClientMouse(this, &m_struct.toAddon, &CServiceBroker::GetInputManager()));
-
-  CSingleLock lock(m_critSection);
-
-  if (Initialized())
-  {
-    std::string strId = m_mouse->ControllerID();
-
-    game_controller controllerStruct = { strId.c_str() };
-
-    try { m_struct.toAddon.UpdatePort(GAME_INPUT_PORT_MOUSE, true, &controllerStruct); }
-    catch (...) { LogException("UpdatePort()"); }
-  }
-}
-
-void CGameClient::CloseMouse(void)
-{
-  {
-    CSingleLock lock(m_critSection);
-
-    if (Initialized())
-    {
-      try { m_struct.toAddon.UpdatePort(GAME_INPUT_PORT_MOUSE, false, nullptr); }
-      catch (...) { LogException("UpdatePort()"); }
-    }
-  }
-
-  m_mouse.reset();
-}
-
 void CGameClient::LogAddonProperties(void) const
 {
   CLog::Log(LOGINFO, "GAME: ------------------------------------");
@@ -943,8 +733,6 @@ void CGameClient::LogAddonProperties(void) const
   CLog::Log(LOGINFO, "GAME: Valid extensions: %s", StringUtils::Join(m_extensions, " ").c_str());
   CLog::Log(LOGINFO, "GAME: Supports VFS:                  %s", m_bSupportsVFS ? "yes" : "no");
   CLog::Log(LOGINFO, "GAME: Supports standalone execution: %s", m_bSupportsStandalone ? "yes" : "no");
-  CLog::Log(LOGINFO, "GAME: Supports keyboard:             %s", m_bSupportsKeyboard ? "yes" : "no");
-  CLog::Log(LOGINFO, "GAME: Supports mouse:                %s", m_bSupportsMouse ? "yes" : "no");
   CLog::Log(LOGINFO, "GAME: ------------------------------------");
 }
 
@@ -1066,24 +854,6 @@ void CGameClient::cb_render_frame(void* kodiInstance)
   //! @todo
 }
 
-bool CGameClient::cb_open_port(void* kodiInstance, unsigned int port)
-{
-  CGameClient *gameClient = static_cast<CGameClient*>(kodiInstance);
-  if (!gameClient)
-    return false;
-
-  return gameClient->OpenPort(port);
-}
-
-void CGameClient::cb_close_port(void* kodiInstance, unsigned int port)
-{
-  CGameClient *gameClient = static_cast<CGameClient*>(kodiInstance);
-  if (!gameClient)
-    return;
-
-  gameClient->ClosePort(port);
-}
-
 bool CGameClient::cb_input_event(void* kodiInstance, const game_input_event* event)
 {
   CGameClient *gameClient = static_cast<CGameClient*>(kodiInstance);
@@ -1093,5 +863,5 @@ bool CGameClient::cb_input_event(void* kodiInstance, const game_input_event* eve
   if (event == nullptr)
     return false;
 
-  return gameClient->ReceiveInputEvent(*event);
+  return gameClient->Input().ReceiveInputEvent(*event);
 }

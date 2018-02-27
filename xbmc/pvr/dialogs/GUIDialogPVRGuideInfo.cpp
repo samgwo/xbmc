@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -225,7 +225,8 @@ void CGUIDialogPVRGuideInfo::OnInitWindow()
       bHideRecord = false;
     }
   }
-  else if (CServiceBroker::GetPVRManager().Clients()->SupportsTimers() && m_progItem->IsRecordable())
+  else if (m_progItem->Channel() && CServiceBroker::GetPVRManager().Clients()->GetClientCapabilities(m_progItem->Channel()->ClientID()).SupportsTimers() &&
+           m_progItem->IsRecordable())
   {
     SET_CONTROL_LABEL(CONTROL_BTN_RECORD, 264);     /* Record */
     bHideRecord = false;

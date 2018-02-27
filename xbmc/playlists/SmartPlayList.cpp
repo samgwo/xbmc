@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -120,7 +120,10 @@ static const translateField fields[] = {
   { "born",              FieldBorn,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21893 },
   { "bandformed",        FieldBandFormed,              CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21894 },
   { "disbanded",         FieldDisbanded,               CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21896 },
-  { "died",              FieldDied,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21897 }
+  { "died",              FieldDied,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21897 },
+  { "artisttype",        FieldArtistType,              CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 564 },
+  { "gender",            FieldGender,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 39025 },
+  { "disambiguation",    FieldDisambiguation,          CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 39026 }
 };
 
 static const size_t NUM_FIELDS = sizeof(fields) / sizeof(translateField);
@@ -344,6 +347,9 @@ std::vector<Field> CSmartPlaylistRule::GetFields(const std::string &type)
     fields.push_back(FieldStyles);
     fields.push_back(FieldInstruments);
     fields.push_back(FieldBiography);
+    fields.push_back(FieldArtistType);
+    fields.push_back(FieldGender);
+    fields.push_back(FieldDisambiguation);
     fields.push_back(FieldBorn);
     fields.push_back(FieldBandFormed);
     fields.push_back(FieldDisbanded);
@@ -684,7 +690,12 @@ std::string CSmartPlaylistRule::GetVideoResolutionQuery(const std::string &param
   int iRes = (int)std::strtol(parameter.c_str(), NULL, 10);
 
   int min, max;
-  if (iRes >= 1080)     { min = 1281; max = INT_MAX; }
+  if (iRes >= 2160)
+  {
+    min = 1921;
+    max = INT_MAX;
+  }
+  else if (iRes >= 1080) { min = 1281; max = 1920; }
   else if (iRes >= 720) { min =  961; max = 1280; }
   else if (iRes >= 540) { min =  721; max =  960; }
   else                  { min =    0; max =  720; }
@@ -820,7 +831,7 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
     {
       query = negate + " (EXISTS (SELECT DISTINCT song_artist.idArtist FROM song_artist, song_genre, genre WHERE song_artist.idArtist = " + GetField(FieldId, strType) + " AND song_artist.idSong = song_genre.idSong AND song_genre.idGenre = genre.idGenre AND genre.strGenre" + parameter + ")";
       query += " OR ";
-      query += "EXISTS (SELECT DISTINCT album_artist.idArtist FROM album_artist, album_genre, genre WHERE album_artist.idArtist = " + GetField(FieldId, strType) + " AND album_artist.idAlbum = album_genre.idAlbum AND album_genre.idGenre = genre.idGenre AND genre.strGenre" + parameter + "))";
+      query += "EXISTS (SELECT DISTINCT album_artist.idArtist FROM album_artist, song, song_genre, genre WHERE album_artist.idArtist = " + GetField(FieldId, strType) + " AND song.idAlbum = album_artist.idAlbum AND song.idSong = song_genre.idSong AND song_genre.idGenre = genre.idGenre AND genre.strGenre" + parameter + "))";
     }
     else if (m_field == FieldRole)
     {

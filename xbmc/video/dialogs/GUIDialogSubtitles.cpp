@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
  *
  */
 
-#include "system.h"
 #include "GUIUserMessages.h"
 #include "Application.h"
 #include "ServiceBroker.h"
@@ -159,8 +158,8 @@ bool CGUIDialogSubtitles::OnMessage(CGUIMessage& message)
   else if (message.GetMessage() == GUI_MSG_WINDOW_DEINIT)
   {
     // Resume the video if the user has requested it
-    if (g_application.m_pPlayer->IsPaused() && m_pausedOnRun)
-      g_application.m_pPlayer->Pause();
+    if (g_application.GetAppPlayer().IsPaused() && m_pausedOnRun)
+      g_application.GetAppPlayer().Pause();
 
     CGUIDialog::OnMessage(message);
 
@@ -175,9 +174,9 @@ void CGUIDialogSubtitles::OnInitWindow()
 {
   // Pause the video if the user has requested it
   m_pausedOnRun = false;
-  if (CServiceBroker::GetSettings().GetBool(CSettings::SETTING_SUBTITLES_PAUSEONSEARCH) && !g_application.m_pPlayer->IsPaused())
+  if (CServiceBroker::GetSettings().GetBool(CSettings::SETTING_SUBTITLES_PAUSEONSEARCH) && !g_application.GetAppPlayer().IsPaused())
   {
-    g_application.m_pPlayer->Pause();
+    g_application.GetAppPlayer().Pause();
     m_pausedOnRun = true;
   }
 
@@ -293,7 +292,7 @@ bool CGUIDialogSubtitles::SetService(const std::string &service)
       SET_CONTROL_FILENAME(CONTROL_NAMELOGO, icon);
     }
 
-    if (g_application.m_pPlayer->GetSubtitleCount() == 0)
+    if (g_application.GetAppPlayer().GetSubtitleCount() == 0)
       SET_CONTROL_HIDDEN(CONTROL_SUBSEXIST);
     else
       SET_CONTROL_VISIBLE(CONTROL_SUBSEXIST);
@@ -342,10 +341,10 @@ void CGUIDialogSubtitles::Search(const std::string &search/*=""*/)
 
   if(StringUtils::EqualsNoCase(preferredLanguage, "original"))
   {
-    SPlayerAudioStreamInfo info;
+    AudioStreamInfo info;
     std::string strLanguage;
 
-    g_application.m_pPlayer->GetAudioStreamInfo(CURRENT_STREAM, info);
+    g_application.GetAppPlayer().GetAudioStreamInfo(CURRENT_STREAM, info);
 
     if (!g_LangCodeExpander.Lookup(info.language, strLanguage))
       strLanguage = "Unknown";
@@ -379,7 +378,7 @@ void CGUIDialogSubtitles::OnSearchComplete(const CFileItemList *items)
   UpdateStatus(SEARCH_COMPLETE);
   m_updateSubsList = true;
 
-  if (!items->IsEmpty() && g_application.m_pPlayer->GetSubtitleCount() == 0 &&
+  if (!items->IsEmpty() && g_application.GetAppPlayer().GetSubtitleCount() == 0 &&
     m_LastAutoDownloaded != g_application.CurrentFile() && CServiceBroker::GetSettings().GetBool(CSettings::SETTING_SUBTITLES_DOWNLOADFIRST))
   {
     CFileItemPtr item = items->Get(0);
@@ -598,8 +597,5 @@ void CGUIDialogSubtitles::ClearServices()
 
 void CGUIDialogSubtitles::SetSubtitles(const std::string &subtitle)
 {
-  if (g_application.m_pPlayer)
-  {
-    g_application.m_pPlayer->AddSubtitle(subtitle);
-  }
+  g_application.GetAppPlayer().AddSubtitle(subtitle);
 }

@@ -34,6 +34,7 @@ namespace KODI
 namespace GAME
 {
 class CControllerLayout;
+class CControllerTopology;
 
 using JOYSTICK::FEATURE_TYPE;
 
@@ -54,6 +55,15 @@ public:
    * \return The features
    */
   const std::vector<CControllerFeature>& Features(void) const { return m_features; }
+
+  /*!
+   * \brief Get a feature by its name
+   *
+   * \param name The feature name
+   *
+   * \return The feature, or a feature of type FEATURE_TYPE::UNKNOWN if the name is invalid
+   */
+  const CControllerFeature& GetFeature(const std::string &name) const;
 
   /*!
    * \brief Get the count of controller features matching the specified types
@@ -99,33 +109,21 @@ public:
   bool LoadLayout(void);
 
   /*!
-   * \brief Get the primary layout
-   *
-   * \return The layout of the primary controller model
+   * \brief Get the controller layout
    */
   const CControllerLayout& Layout(void) const { return *m_layout; }
 
   /*!
-   * \brief Get the models defined by this controller
+   * \brief Get the controller's physical topology
    *
-   * \return The models, or empty if no models are defined
+   * This defines how controllers physically connect to each other.
+   *
+   * \return The physical topology of the controller
    */
-  std::vector<std::string> Models() const;
-
-  /*!
-   * \brief Get the layout for the specified model
-   *
-   * \param model The model name
-   *
-   * \return The model layout, or the primary layout if the model name is invalid
-   */
-  const CControllerLayout& GetModel(const std::string& model) const;
+  const CControllerTopology& Topology() const;
 
 private:
-  void LoadModels(const std::string &modelXmlPath);
-
   std::unique_ptr<CControllerLayout> m_layout;
-  std::map<std::string, std::unique_ptr<CControllerLayout>> m_models;
   std::vector<CControllerFeature> m_features;
   bool m_bLoaded = false;
 };

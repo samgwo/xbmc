@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -44,6 +44,7 @@ void CGUIDialogVideoOSD::FrameMove()
     // check for movement of mouse or a submenu open
     if (CServiceBroker::GetInputManager().IsMouseActive()
                            || g_windowManager.IsWindowActive(WINDOW_DIALOG_AUDIO_OSD_SETTINGS)
+                           || g_windowManager.IsWindowActive(WINDOW_DIALOG_SUBTITLE_OSD_SETTINGS)
                            || g_windowManager.IsWindowActive(WINDOW_DIALOG_AUDIO_DSP_OSD_SETTINGS)
                            || g_windowManager.IsWindowActive(WINDOW_DIALOG_VIDEO_OSD_SETTINGS)
                            || g_windowManager.IsWindowActive(WINDOW_DIALOG_CMS_OSD_SETTINGS)
@@ -99,6 +100,9 @@ bool CGUIDialogVideoOSD::OnMessage(CGUIMessage& message)
       if (pDialog && pDialog->IsDialogRunning())
         pDialog->Close(true);
       pDialog = g_windowManager.GetDialog(WINDOW_DIALOG_AUDIO_OSD_SETTINGS);
+      if (pDialog && pDialog->IsDialogRunning())
+        pDialog->Close(true);
+      pDialog = g_windowManager.GetDialog(WINDOW_DIALOG_SUBTITLE_OSD_SETTINGS);
       if (pDialog && pDialog->IsDialogRunning())
         pDialog->Close(true);
     }

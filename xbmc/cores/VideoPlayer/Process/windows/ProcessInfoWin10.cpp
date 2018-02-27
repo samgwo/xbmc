@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2016 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 #include "ProcessInfoWin10.h"
 #include "cores/VideoPlayer/Process/ProcessInfo.h"
-#include "windowing/WindowingFactory.h"
+#include "rendering/dx/RenderContext.h"
 #include <set>
 
 using namespace VIDEOPLAYER;
@@ -42,8 +42,8 @@ EINTERLACEMETHOD CProcessInfoWin10::GetFallbackDeintMethod()
 
 std::vector<AVPixelFormat> CProcessInfoWin10::GetRenderFormats()
 {
-  auto processor = g_Windowing.m_processorFormats;
-  auto shaders = g_Windowing.m_shaderFormats;
+  auto processor = DX::Windowing().m_processorFormats;
+  auto shaders = DX::Windowing().m_shaderFormats;
 
   std::set<AVPixelFormat> formats;
   formats.insert(processor.begin(), processor.end());

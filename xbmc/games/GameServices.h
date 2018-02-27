@@ -24,6 +24,9 @@
 #include <memory>
 #include <string>
 
+class CProfilesManager;
+class CSettings;
+
 namespace PERIPHERALS
 {
   class CPeripherals;
@@ -33,35 +36,44 @@ namespace KODI
 {
 namespace RETRO
 {
-  class CGUIGameControlManager;
+  class CGUIGameRenderManager;
 }
 
 namespace GAME
 {
   class CControllerManager;
-  class CPortManager;
+  class CGameSettings;
 
   class CGameServices
   {
   public:
-    CGameServices(CControllerManager &controllerManager, PERIPHERALS::CPeripherals& peripheralManager);
+    CGameServices(CControllerManager &controllerManager,
+                  RETRO::CGUIGameRenderManager &renderManager,
+                  CSettings &settings,
+                  PERIPHERALS::CPeripherals &peripheralManager,
+                  const CProfilesManager &profileManager);
     ~CGameServices();
 
     ControllerPtr GetController(const std::string& controllerId);
     ControllerPtr GetDefaultController();
+    ControllerPtr GetDefaultKeyboard();
+    ControllerPtr GetDefaultMouse();
     ControllerVector GetControllers();
 
-    CPortManager& PortManager();
+    std::string GetSavestatesFolder() const;
 
-    RETRO::CGUIGameControlManager &GameControls() { return *m_gameControlManager; }
+    CGameSettings& GameSettings() { return *m_gameSettings; }
+
+    RETRO::CGUIGameRenderManager &GameRenderManager() { return m_gameRenderManager; }
 
   private:
     // Construction parameters
     CControllerManager &m_controllerManager;
+    RETRO::CGUIGameRenderManager &m_gameRenderManager;
+    const CProfilesManager &m_profileManager;
 
     // Game services
-    std::unique_ptr<CPortManager> m_portManager;
-    std::unique_ptr<RETRO::CGUIGameControlManager> m_gameControlManager;
+    std::unique_ptr<CGameSettings> m_gameSettings;
   };
 }
 }

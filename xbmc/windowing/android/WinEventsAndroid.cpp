@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
  *
  */
 
-#include "system.h"
-
 #include "WinEventsAndroid.h"
 
 #include "Application.h"
@@ -27,7 +25,6 @@
 #include "input/InputManager.h"
 #include "input/XBMC_vkeys.h"
 #include "utils/log.h"
-#include "windowing/WindowingFactory.h"
 
 #define ALMOST_ZERO 0.125f
 enum {

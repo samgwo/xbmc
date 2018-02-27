@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include "FileItem.h"
 #include "guilib/WindowIDs.h"
 #include "guilib/LocalizeStrings.h"
+#include "utils/FileExtensionProvider.h"
 #include "utils/log.h"
 #include "utils/SortUtils.h"
 #include "view/ViewStateSettings.h"
@@ -57,7 +58,7 @@ std::string CGUIViewStateWindowMusic::GetLockType()
 
 std::string CGUIViewStateWindowMusic::GetExtensions()
 {
-  return g_advancedSettings.GetMusicExtensions();
+  return CServiceBroker::GetFileExtensionProvider().GetMusicExtensions();
 }
 
 VECSOURCES& CGUIViewStateWindowMusic::GetSources()

@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -48,9 +48,10 @@ namespace PVR
     /*!
      * @brief Callback for add-ons to update a channel.
      * @param channel The updated channel.
+     * @param channelNumber A new channel number for the channel.
      * @return The new/updated channel.
      */
-    CPVRChannelPtr UpdateFromClient(const CPVRChannelPtr &channel, unsigned int iChannelNumber = 0);
+    CPVRChannelPtr UpdateFromClient(const CPVRChannelPtr &channel, const CPVRChannelNumber &channelNumber);
 
     /*!
      * @see CPVRChannelGroup::IsGroupMember
@@ -60,17 +61,12 @@ namespace PVR
     /*!
      * @see CPVRChannelGroup::AddToGroup
      */
-    bool AddToGroup(const CPVRChannelPtr &channel, int iChannelNumber = 0) override;
+    bool AddToGroup(const CPVRChannelPtr &channel, const CPVRChannelNumber &channelNumber, bool bUseBackendChannelNumbers) override;
 
     /*!
      * @see CPVRChannelGroup::RemoveFromGroup
      */
     bool RemoveFromGroup(const CPVRChannelPtr &channel) override;
-
-    /*!
-     * @see CPVRChannelGroup::MoveChannel
-     */
-    bool MoveChannel(unsigned int iOldChannelNumber, unsigned int iNewChannelNumber, bool bSaveInDb = true) override;
 
     /*!
      * @see CPVRChannelGroup::GetMembers

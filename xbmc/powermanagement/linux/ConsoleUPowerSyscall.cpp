@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,11 +18,8 @@
  *
  */
 
-#include "system.h"
 #include "ConsoleUPowerSyscall.h"
 #include "utils/log.h"
-
-#ifdef HAS_DBUS
 
 CConsoleUPowerSyscall::CConsoleUPowerSyscall()
 {
@@ -62,4 +59,3 @@ bool CConsoleUPowerSyscall::ConsoleKitMethodCall(const char *method)
 
   return false;
 }
-#endif

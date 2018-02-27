@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,8 +40,8 @@ namespace WAYLAND
 class CWinEventsWayland : public IWinEvents
 {
 public:
-  virtual bool MessagePump() override;
-  virtual void MessagePush(XBMC_Event* ev) override;
+  bool MessagePump() override;
+  void MessagePush(XBMC_Event* ev);
   /// Write buffered messages to the compositor
   static void Flush();
   /// Do a roundtrip on the specified queue from the event processing thread

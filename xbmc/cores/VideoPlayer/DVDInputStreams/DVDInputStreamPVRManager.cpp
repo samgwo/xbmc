@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 #include "DVDFactoryInputStream.h"
 #include "DVDInputStreamPVRManager.h"
-#include "DVDDemuxers/DVDDemuxPacket.h"
+#include "cores/VideoPlayer/Interface/Addon/DemuxPacket.h"
 #include "ServiceBroker.h"
 #include "URL.h"
 #include "pvr/PVRManager.h"
@@ -160,7 +160,7 @@ void CDVDInputStreamPVRManager::Close()
 
 int CDVDInputStreamPVRManager::Read(uint8_t* buf, int buf_size)
 {
-  int ret = CServiceBroker::GetPVRManager().Clients()->ReadStream((BYTE*)buf, buf_size);
+  int ret = CServiceBroker::GetPVRManager().Clients()->ReadStream(buf, buf_size);
   if (ret < 0)
     ret = -1;
 
@@ -226,7 +226,7 @@ bool CDVDInputStreamPVRManager::GetTimes(Times &times)
 
 CPVRChannelPtr CDVDInputStreamPVRManager::GetSelectedChannel()
 {
-  return CServiceBroker::GetPVRManager().GetCurrentChannel();
+  return CServiceBroker::GetPVRManager().GetPlayingChannel();
 }
 
 CDVDInputStream::ENextStream CDVDInputStreamPVRManager::NextStream()
@@ -241,23 +241,6 @@ CDVDInputStream::ENextStream CDVDInputStreamPVRManager::NextStream()
       return NEXTSTREAM_RETRY;
   }
   return NEXTSTREAM_NONE;
-}
-
-bool CDVDInputStreamPVRManager::CanRecord()
-{
-  if (!m_isRecording)
-    return CServiceBroker::GetPVRManager().Clients()->CanRecordInstantly();
-  return false;
-}
-
-bool CDVDInputStreamPVRManager::IsRecording()
-{
-  return CServiceBroker::GetPVRManager().Clients()->IsRecordingOnPlayingChannel();
-}
-
-void CDVDInputStreamPVRManager::Record(bool bOnOff)
-{
-  CServiceBroker::GetPVRManager().StartRecordingOnPlayingChannel(bOnOff);
 }
 
 bool CDVDInputStreamPVRManager::CanPause()
@@ -275,11 +258,6 @@ void CDVDInputStreamPVRManager::Pause(bool bPaused)
   CServiceBroker::GetPVRManager().Clients()->PauseStream(bPaused);
 }
 
-std::string CDVDInputStreamPVRManager::GetInputFormat()
-{
-  return CServiceBroker::GetPVRManager().Clients()->GetCurrentInputFormat();
-}
-
 bool CDVDInputStreamPVRManager::IsRealtime()
 {
   return CServiceBroker::GetPVRManager().Clients()->IsRealTimeStream();
@@ -295,7 +273,7 @@ inline CDVDInputStream::IDemux* CDVDInputStreamPVRManager::GetIDemux()
 
 bool CDVDInputStreamPVRManager::OpenDemux()
 {
-  PVR_CLIENT client;
+  CPVRClientPtr client;
   if (!CServiceBroker::GetPVRManager().Clients()->GetPlayingClient(client))
   {
     return false;
@@ -308,13 +286,14 @@ bool CDVDInputStreamPVRManager::OpenDemux()
 
 DemuxPacket* CDVDInputStreamPVRManager::ReadDemux()
 {
-  PVR_CLIENT client;
+  CPVRClientPtr client;
   if (!CServiceBroker::GetPVRManager().Clients()->GetPlayingClient(client))
   {
     return nullptr;
   }
 
-  DemuxPacket* pPacket = client->DemuxRead();
+  DemuxPacket* pPacket = nullptr;
+  client->DemuxRead(pPacket);
   if (!pPacket)
   {
     return nullptr;
@@ -363,7 +342,7 @@ int CDVDInputStreamPVRManager::GetNrOfStreams() const
 
 void CDVDInputStreamPVRManager::SetSpeed(int Speed)
 {
-  PVR_CLIENT client;
+  CPVRClientPtr client;
   if (CServiceBroker::GetPVRManager().Clients()->GetPlayingClient(client))
   {
     client->SetSpeed(Speed);
@@ -372,17 +351,17 @@ void CDVDInputStreamPVRManager::SetSpeed(int Speed)
 
 bool CDVDInputStreamPVRManager::SeekTime(double timems, bool backwards, double *startpts)
 {
-  PVR_CLIENT client;
+  CPVRClientPtr client;
   if (CServiceBroker::GetPVRManager().Clients()->GetPlayingClient(client))
   {
-    return client->SeekTime(timems, backwards, startpts);
+    return client->SeekTime(timems, backwards, startpts) == PVR_ERROR_NO_ERROR;
   }
   return false;
 }
 
 void CDVDInputStreamPVRManager::AbortDemux()
 {
-  PVR_CLIENT client;
+  CPVRClientPtr client;
   if (CServiceBroker::GetPVRManager().Clients()->GetPlayingClient(client))
   {
     client->DemuxAbort();
@@ -391,7 +370,7 @@ void CDVDInputStreamPVRManager::AbortDemux()
 
 void CDVDInputStreamPVRManager::FlushDemux()
 {
-  PVR_CLIENT client;
+  CPVRClientPtr client;
   if (CServiceBroker::GetPVRManager().Clients()->GetPlayingClient(client))
   {
     client->DemuxFlush();
@@ -451,7 +430,6 @@ void CDVDInputStreamPVRManager::UpdateStreamMap()
       streamVideo->iHeight = stream.iHeight;
       streamVideo->iWidth = stream.iWidth;
       streamVideo->fAspect = stream.fAspect;
-      streamVideo->stereo_mode = "mono";
 
       dStream = streamVideo;
     }

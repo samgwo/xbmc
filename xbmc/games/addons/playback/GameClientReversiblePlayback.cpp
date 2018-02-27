@@ -26,10 +26,12 @@
 #include "games/addons/savestates/Savestate.h"
 #include "games/addons/savestates/SavestateReader.h"
 #include "games/addons/savestates/SavestateWriter.h"
+#include "games/GameServices.h"
 #include "games/GameSettings.h"
 #include "settings/Settings.h"
 #include "threads/SingleLock.h"
 #include "utils/MathUtils.h"
+#include "ServiceBroker.h"
 
 #include <algorithm>
 
@@ -52,24 +54,16 @@ CGameClientReversiblePlayback::CGameClientReversiblePlayback(CGameClient* gameCl
 {
   UpdateMemoryStream();
 
-  CGameSettings::GetInstance().RegisterObserver(this);
+  CServiceBroker::GetGameServices().GameSettings().RegisterObserver(this);
 
   m_gameLoop.Start();
 }
 
 CGameClientReversiblePlayback::~CGameClientReversiblePlayback()
 {
-  CGameSettings::GetInstance().UnregisterObserver(this);
+  CServiceBroker::GetGameServices().GameSettings().UnregisterObserver(this);
 
   m_gameLoop.Stop();
-}
-
-void CGameClientReversiblePlayback::PauseUnpause()
-{
-  if (GetSpeed() == 0.0)
-    m_gameLoop.SetSpeed(1.0);
-  else
-    m_gameLoop.SetSpeed(0.0);
 }
 
 void CGameClientReversiblePlayback::SeekTimeMs(unsigned int timeMs)
@@ -110,6 +104,11 @@ void CGameClientReversiblePlayback::SetSpeed(double speedFactor)
     m_gameLoop.SetSpeed(speedFactor);
   else
     m_gameLoop.SetSpeed(speedFactor * REWIND_FACTOR);
+}
+
+void CGameClientReversiblePlayback::PauseAsync()
+{
+  m_gameLoop.PauseAsync();
 }
 
 std::string CGameClientReversiblePlayback::CreateSavestate()

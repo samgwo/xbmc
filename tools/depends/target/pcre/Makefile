@@ -1,5 +1,5 @@
 include ../../Makefile.include
-DEPS= ../../Makefile.include Makefile tvos-bitcode-fix.patch
+DEPS= ../../Makefile.include Makefile tvos-bitcode-fix.patch jit_aarch64.patch
 
 # lib name, version
 LIBNAME=pcre
@@ -16,7 +16,6 @@ CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; ./configure --prefix=$(PREFIX) 
 
 
 LIBDYLIB=$(PLATFORM)/.libs/lib$(LIBNAME).a
-CLEAN_FILES=$(ARCHIVE) $(PLATFORM)
 
 all: .installed-$(PLATFORM)
 

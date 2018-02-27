@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -147,7 +147,7 @@ static int ToggleDPMS(const std::vector<std::string>& params)
  */
 static int WakeOnLAN(const std::vector<std::string>& params)
 {
-  g_application.getNetwork().WakeOnLan(params[0].c_str());
+  CServiceBroker::GetNetwork().WakeOnLan(params[0].c_str());
 
   return 0;
 }

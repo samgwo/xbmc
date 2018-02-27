@@ -1,9 +1,6 @@
-#ifndef LINUXRENDERERGLES_RENDERER
-#define LINUXRENDERERGLES_RENDERER
-
 /*
  *      Copyright (C) 2010-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,14 +18,15 @@
  *
  */
 
-#if HAS_GLES >= 2
+#pragma once
+
 #include <vector>
 
 #include "system_gl.h"
 
 #include "FrameBufferObject.h"
 #include "xbmc/guilib/Shader.h"
-#include "settings/VideoSettings.h"
+#include "cores/VideoSettings.h"
 #include "RenderFlags.h"
 #include "RenderInfo.h"
 #include "guilib/GraphicContext.h"
@@ -36,6 +34,7 @@
 #include "xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodec.h"
 
 class CRenderCapture;
+class CRenderSystemGLES;
 
 class CBaseTexture;
 namespace Shaders { class BaseYUV2RGBShader; }
@@ -72,7 +71,6 @@ enum RenderMethod
   RENDER_CVREF  = 0x080,
   RENDER_MEDIACODEC = 0x400,
   RENDER_MEDIACODECSURFACE = 0x800,
-  RENDER_IMXMAP = 0x1000
 };
 
 enum RenderQuality
@@ -111,11 +109,10 @@ public:
   static bool Register();
 
   // Player functions
-  virtual bool Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation) override;
+  virtual bool Configure(const VideoPicture &picture, float fps, unsigned int orientation) override;
   virtual bool IsConfigured() override { return m_bConfigured; }
   virtual void AddVideoPicture(const VideoPicture &picture, int index, double currentClock) override;
   virtual void UnInit() override;
-  virtual void Reset() override;
   virtual void Flush() override;
   virtual void ReorderDrawPoints() override;
   virtual void SetBufferSize(int numBuffers) override { m_NumYV12Buffers = numBuffers; }
@@ -189,6 +186,7 @@ protected:
   // Raw data used by renderer
   int m_currentField;
   int m_reloadShaders;
+  CRenderSystemGLES *m_renderSystem;
 
   struct YUVPLANE
   {
@@ -236,17 +234,3 @@ protected:
   float m_clearColour;
 };
 
-
-inline int NP2( unsigned x )
-{
-    --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    return ++x;
-}
-#endif
-
-#endif

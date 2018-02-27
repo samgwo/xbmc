@@ -23,8 +23,8 @@
 
 #include <array> // Requires c++11
 #include <cstring>
-#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #define PERIPHERAL_SAFE_DELETE(x)        do { delete   (x); (x) = NULL; } while (0)
@@ -164,62 +164,70 @@ namespace addon
   class PeripheralEvent
   {
   public:
-    PeripheralEvent(void) :
-      m_event()
+    PeripheralEvent(void)
     {
     }
 
     PeripheralEvent(unsigned int peripheralIndex, unsigned int buttonIndex, JOYSTICK_STATE_BUTTON state) :
-      m_event()
+      m_type(PERIPHERAL_EVENT_TYPE_DRIVER_BUTTON),
+      m_peripheralIndex(peripheralIndex),
+      m_driverIndex(buttonIndex),
+      m_buttonState(state)
     {
-      SetType(PERIPHERAL_EVENT_TYPE_DRIVER_BUTTON);
-      SetPeripheralIndex(peripheralIndex);
-      SetDriverIndex(buttonIndex);
-      SetButtonState(state);
     }
 
     PeripheralEvent(unsigned int peripheralIndex, unsigned int hatIndex, JOYSTICK_STATE_HAT state) :
-      m_event()
+      m_type(PERIPHERAL_EVENT_TYPE_DRIVER_HAT),
+      m_peripheralIndex(peripheralIndex),
+      m_driverIndex(hatIndex),
+      m_hatState(state)
     {
-      SetType(PERIPHERAL_EVENT_TYPE_DRIVER_HAT);
-      SetPeripheralIndex(peripheralIndex);
-      SetDriverIndex(hatIndex);
-      SetHatState(state);
     }
 
     PeripheralEvent(unsigned int peripheralIndex, unsigned int axisIndex, JOYSTICK_STATE_AXIS state) :
-      m_event()
+      m_type(PERIPHERAL_EVENT_TYPE_DRIVER_AXIS),
+      m_peripheralIndex(peripheralIndex),
+      m_driverIndex(axisIndex),
+      m_axisState(state)
     {
-      SetType(PERIPHERAL_EVENT_TYPE_DRIVER_AXIS);
-      SetPeripheralIndex(peripheralIndex);
-      SetDriverIndex(axisIndex);
-      SetAxisState(state);
     }
 
     explicit PeripheralEvent(const PERIPHERAL_EVENT& event) :
-      m_event(event)
+      m_type(event.type),
+      m_peripheralIndex(event.peripheral_index),
+      m_driverIndex(event.driver_index),
+      m_buttonState(event.driver_button_state),
+      m_hatState(event.driver_hat_state),
+      m_axisState(event.driver_axis_state),
+      m_motorState(event.motor_state)
     {
     }
 
-    PERIPHERAL_EVENT_TYPE Type(void) const            { return m_event.type; }
-    unsigned int          PeripheralIndex(void) const { return m_event.peripheral_index; }
-    unsigned int          DriverIndex(void) const     { return m_event.driver_index; }
-    JOYSTICK_STATE_BUTTON ButtonState(void) const     { return m_event.driver_button_state; }
-    JOYSTICK_STATE_HAT    HatState(void) const        { return m_event.driver_hat_state; }
-    JOYSTICK_STATE_AXIS   AxisState(void) const       { return m_event.driver_axis_state; }
-    JOYSTICK_STATE_MOTOR  MotorState(void) const      { return m_event.motor_state; }
+    PERIPHERAL_EVENT_TYPE Type(void) const            { return m_type; }
+    unsigned int          PeripheralIndex(void) const { return m_peripheralIndex; }
+    unsigned int          DriverIndex(void) const     { return m_driverIndex; }
+    JOYSTICK_STATE_BUTTON ButtonState(void) const     { return m_buttonState; }
+    JOYSTICK_STATE_HAT    HatState(void) const        { return m_hatState; }
+    JOYSTICK_STATE_AXIS   AxisState(void) const       { return m_axisState; }
+    JOYSTICK_STATE_MOTOR  MotorState(void) const      { return m_motorState; }
 
-    void SetType(PERIPHERAL_EVENT_TYPE type)         { m_event.type                = type; }
-    void SetPeripheralIndex(unsigned int index)      { m_event.peripheral_index    = index; }
-    void SetDriverIndex(unsigned int index)          { m_event.driver_index        = index; }
-    void SetButtonState(JOYSTICK_STATE_BUTTON state) { m_event.driver_button_state = state; }
-    void SetHatState(JOYSTICK_STATE_HAT state)       { m_event.driver_hat_state    = state; }
-    void SetAxisState(JOYSTICK_STATE_AXIS state)     { m_event.driver_axis_state   = state; }
-    void SetMotorState(JOYSTICK_STATE_MOTOR state)   { m_event.motor_state         = state; }
+    void SetType(PERIPHERAL_EVENT_TYPE type)         { m_type            = type; }
+    void SetPeripheralIndex(unsigned int index)      { m_peripheralIndex = index; }
+    void SetDriverIndex(unsigned int index)          { m_driverIndex     = index; }
+    void SetButtonState(JOYSTICK_STATE_BUTTON state) { m_buttonState     = state; }
+    void SetHatState(JOYSTICK_STATE_HAT state)       { m_hatState        = state; }
+    void SetAxisState(JOYSTICK_STATE_AXIS state)     { m_axisState       = state; }
+    void SetMotorState(JOYSTICK_STATE_MOTOR state)   { m_motorState      = state; }
 
     void ToStruct(PERIPHERAL_EVENT& event) const
     {
-      event = m_event;
+      event.type                = m_type;
+      event.peripheral_index    = m_peripheralIndex;
+      event.driver_index        = m_driverIndex;
+      event.driver_button_state = m_buttonState;
+      event.driver_hat_state    = m_hatState;
+      event.driver_axis_state   = m_axisState;
+      event.motor_state         = m_motorState;
     }
 
     static void FreeStruct(PERIPHERAL_EVENT& event)
@@ -228,7 +236,13 @@ namespace addon
     }
 
   private:
-    PERIPHERAL_EVENT m_event;
+    PERIPHERAL_EVENT_TYPE m_type = PERIPHERAL_EVENT_TYPE_NONE;
+    unsigned int          m_peripheralIndex = 0;
+    unsigned int          m_driverIndex = 0;
+    JOYSTICK_STATE_BUTTON m_buttonState = JOYSTICK_STATE_BUTTON_UNPRESSED;
+    JOYSTICK_STATE_HAT    m_hatState = JOYSTICK_STATE_HAT_UNPRESSED;
+    JOYSTICK_STATE_AXIS   m_axisState = 0.0f;
+    JOYSTICK_STATE_MOTOR  m_motorState = 0.0f;
   };
 
   typedef PeripheralVector<PeripheralEvent, PERIPHERAL_EVENT> PeripheralEvents;
@@ -298,9 +312,6 @@ namespace addon
     unsigned int       MotorCount(void) const    { return m_motorCount; }
     bool               SupportsPowerOff(void) const { return m_supportsPowerOff; }
 
-    // Derived property: Counts are unknown if all are zero
-    bool AreElementCountsKnown(void) const { return m_buttonCount != 0 || m_hatCount != 0 || m_axisCount != 0; }
-
     void SetProvider(const std::string& provider)     { m_provider      = provider; }
     void SetRequestedPort(int requestedPort)          { m_requestedPort = requestedPort; }
     void SetButtonCount(unsigned int buttonCount)     { m_buttonCount   = buttonCount; }
@@ -352,6 +363,9 @@ namespace addon
    *   2) a hat direction
    *   3) a semiaxis (either the positive or negative half of an axis)
    *   4) a motor
+   *   5) a keyboard key
+   *   6) a mouse button
+   *   7) a relative pointer direction
    *
    * The type determines the fields in use:
    *
@@ -370,6 +384,15 @@ namespace addon
    *
    *    Motor:
    *       - driver index
+   *
+   *    Key:
+   *       - key code
+   *
+   *    Mouse button:
+   *       - driver index
+   *
+   *    Relative pointer direction:
+   *       - relative pointer direction
    */
   struct DriverPrimitive
   {
@@ -383,7 +406,8 @@ namespace addon
       m_hatDirection(JOYSTICK_DRIVER_HAT_UNKNOWN),
       m_center(0),
       m_semiAxisDirection(JOYSTICK_DRIVER_SEMIAXIS_UNKNOWN),
-      m_range(1)
+      m_range(1),
+      m_relPointerDirection(JOYSTICK_DRIVER_RELPOINTER_UNKNOWN)
     {
     }
 
@@ -397,12 +421,13 @@ namespace addon
       m_hatDirection(JOYSTICK_DRIVER_HAT_UNKNOWN),
       m_center(0),
       m_semiAxisDirection(JOYSTICK_DRIVER_SEMIAXIS_UNKNOWN),
-      m_range(1)
+      m_range(1),
+      m_relPointerDirection(JOYSTICK_DRIVER_RELPOINTER_UNKNOWN)
     {
     }
 
     /*!
-     * \brief Construct a driver primitive representing a button
+     * \brief Construct a driver primitive representing a joystick button
      */
     static DriverPrimitive CreateButton(unsigned int buttonIndex)
     {
@@ -419,7 +444,8 @@ namespace addon
       m_hatDirection(direction),
       m_center(0),
       m_semiAxisDirection(JOYSTICK_DRIVER_SEMIAXIS_UNKNOWN),
-      m_range(1)
+      m_range(1),
+      m_relPointerDirection(JOYSTICK_DRIVER_RELPOINTER_UNKNOWN)
     {
     }
 
@@ -433,7 +459,8 @@ namespace addon
       m_hatDirection(JOYSTICK_DRIVER_HAT_UNKNOWN),
       m_center(center),
       m_semiAxisDirection(direction),
-      m_range(range)
+      m_range(range),
+      m_relPointerDirection(JOYSTICK_DRIVER_RELPOINTER_UNKNOWN)
     {
     }
 
@@ -445,13 +472,52 @@ namespace addon
       return DriverPrimitive(JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOTOR, motorIndex);
     }
 
+    /*!
+     * \brief Construct a driver primitive representing a key on a keyboard
+     */
+    DriverPrimitive(std::string keycode) :
+      m_type(JOYSTICK_DRIVER_PRIMITIVE_TYPE_KEY),
+      m_driverIndex(0),
+      m_hatDirection(JOYSTICK_DRIVER_HAT_UNKNOWN),
+      m_center(0),
+      m_semiAxisDirection(JOYSTICK_DRIVER_SEMIAXIS_UNKNOWN),
+      m_range(1),
+      m_keycode(std::move(keycode)),
+      m_relPointerDirection(JOYSTICK_DRIVER_RELPOINTER_UNKNOWN)
+    {
+    }
+
+    /*!
+     * \brief Construct a driver primitive representing a mouse button
+     */
+    static DriverPrimitive CreateMouseButton(JOYSTICK_DRIVER_MOUSE_INDEX buttonIndex)
+    {
+      return DriverPrimitive(JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOUSE_BUTTON, static_cast<unsigned int>(buttonIndex));
+    }
+
+    /*!
+     * \brief Construct a driver primitive representing one of the four
+     *        direction in which a relative pointer can move
+     */
+    DriverPrimitive(JOYSTICK_DRIVER_RELPOINTER_DIRECTION direction) :
+      m_type(JOYSTICK_DRIVER_PRIMITIVE_TYPE_RELPOINTER_DIRECTION),
+      m_driverIndex(0),
+      m_hatDirection(JOYSTICK_DRIVER_HAT_UNKNOWN),
+      m_center(0),
+      m_semiAxisDirection(JOYSTICK_DRIVER_SEMIAXIS_UNKNOWN),
+      m_range(1),
+      m_relPointerDirection(direction)
+    {
+    }
+
     explicit DriverPrimitive(const JOYSTICK_DRIVER_PRIMITIVE& primitive) :
       m_type(primitive.type),
       m_driverIndex(0),
       m_hatDirection(JOYSTICK_DRIVER_HAT_UNKNOWN),
       m_center(0),
       m_semiAxisDirection(JOYSTICK_DRIVER_SEMIAXIS_UNKNOWN),
-      m_range(1)
+      m_range(1),
+      m_relPointerDirection(JOYSTICK_DRIVER_RELPOINTER_UNKNOWN)
     {
       switch (m_type)
       {
@@ -479,6 +545,21 @@ namespace addon
           m_driverIndex = primitive.motor.index;
           break;
         }
+        case JOYSTICK_DRIVER_PRIMITIVE_TYPE_KEY:
+        {
+          m_keycode = primitive.key.keycode;
+          break;
+        }
+        case JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOUSE_BUTTON:
+        {
+          m_driverIndex = primitive.mouse.button;
+          break;
+        }
+        case JOYSTICK_DRIVER_PRIMITIVE_TYPE_RELPOINTER_DIRECTION:
+        {
+          m_relPointerDirection = primitive.relpointer.direction;
+          break;
+        }
         default:
           break;
       }
@@ -490,6 +571,9 @@ namespace addon
     int                                Center(void) const { return m_center; }
     JOYSTICK_DRIVER_SEMIAXIS_DIRECTION SemiAxisDirection(void) const { return m_semiAxisDirection; }
     unsigned int                       Range(void) const { return m_range; }
+    const std::string&                 Keycode(void) const { return m_keycode; }
+    JOYSTICK_DRIVER_MOUSE_INDEX        MouseIndex(void) const { return static_cast<JOYSTICK_DRIVER_MOUSE_INDEX>(m_driverIndex); }
+    JOYSTICK_DRIVER_RELPOINTER_DIRECTION RelPointerDirection(void) const { return m_relPointerDirection; }
 
     bool operator==(const DriverPrimitive& other) const
     {
@@ -498,7 +582,6 @@ namespace addon
         switch (m_type)
         {
           case JOYSTICK_DRIVER_PRIMITIVE_TYPE_BUTTON:
-          case JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOTOR:
           {
             return m_driverIndex == other.m_driverIndex;
           }
@@ -513,6 +596,22 @@ namespace addon
                    m_center            == other.m_center &&
                    m_semiAxisDirection == other.m_semiAxisDirection &&
                    m_range             == other.m_range;
+          }
+          case JOYSTICK_DRIVER_PRIMITIVE_TYPE_KEY:
+          {
+            return m_keycode == other.m_keycode;
+          }
+          case JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOTOR:
+          {
+            return m_driverIndex == other.m_driverIndex;
+          }
+          case JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOUSE_BUTTON:
+          {
+            return m_driverIndex == other.m_driverIndex;
+          }
+          case JOYSTICK_DRIVER_PRIMITIVE_TYPE_RELPOINTER_DIRECTION:
+          {
+            return m_relPointerDirection == other.m_relPointerDirection;
           }
           default:
             break;
@@ -550,6 +649,23 @@ namespace addon
           driver_primitive.motor.index = m_driverIndex;
           break;
         }
+        case JOYSTICK_DRIVER_PRIMITIVE_TYPE_KEY:
+        {
+          const size_t size = sizeof(driver_primitive.key.keycode);
+          std::strncpy(driver_primitive.key.keycode, m_keycode.c_str(), size - 1);
+          driver_primitive.key.keycode[size - 1] = '\0';
+          break;
+        }
+        case JOYSTICK_DRIVER_PRIMITIVE_TYPE_MOUSE_BUTTON:
+        {
+          driver_primitive.mouse.button = static_cast<JOYSTICK_DRIVER_MOUSE_INDEX>(m_driverIndex);
+          break;
+        }
+        case JOYSTICK_DRIVER_PRIMITIVE_TYPE_RELPOINTER_DIRECTION:
+        {
+          driver_primitive.relpointer.direction = m_relPointerDirection;
+          break;
+        }
         default:
           break;
       }
@@ -567,6 +683,8 @@ namespace addon
     int                                m_center;
     JOYSTICK_DRIVER_SEMIAXIS_DIRECTION m_semiAxisDirection;
     unsigned int                       m_range;
+    std::string                        m_keycode;
+    JOYSTICK_DRIVER_RELPOINTER_DIRECTION m_relPointerDirection;
   };
 
   typedef PeripheralVector<DriverPrimitive, JOYSTICK_DRIVER_PRIMITIVE> DriverPrimitives;
@@ -581,6 +699,10 @@ namespace addon
    *   3) accelerometer
    *   4) motor
    *   5) relative pointer[2]
+   *   6) absolute pointer
+   *   7) wheel
+   *   8) throttle
+   *   9) keyboard key
    *
    * [1] All three driver primitives (buttons, hats and axes) have a state that
    *     can be represented using a single scalar value. For this reason,
@@ -595,7 +717,7 @@ namespace addon
     JoystickFeature(const std::string& name = "", JOYSTICK_FEATURE_TYPE type = JOYSTICK_FEATURE_TYPE_UNKNOWN) :
       m_name(name),
       m_type(type),
-      m_primitives()
+      m_primitives{}
     {
     }
 
@@ -669,4 +791,3 @@ namespace addon
 
 } /* namespace addon */
 } /* namespace kodi */
-

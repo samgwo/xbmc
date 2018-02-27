@@ -3,7 +3,7 @@
 
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ public:
 
   bool Init(const CFileItem &file, unsigned int filecache) override;
   bool Seek(int64_t iSeekTime) override;
-  int ReadPCM(BYTE *pBuffer, int size, int *actualsize) override;
+  int ReadPCM(unsigned char *pBuffer, int size, int *actualsize) override;
   int ReadRaw(uint8_t **pBuffer, int *bufferSize) override;
   bool CanInit() override;
   bool CanSeek() override;
@@ -56,7 +56,7 @@ private:
   CAEStreamInfo::DataType GetPassthroughStreamType(AVCodecID codecId, int samplerate);
 
   CDVDDemux* m_pDemuxer;
-  CDVDInputStream* m_pInputStream;
+  std::shared_ptr<CDVDInputStream> m_pInputStream;
   CDVDAudioCodec* m_pAudioCodec;
 
   std::string m_strContentType;

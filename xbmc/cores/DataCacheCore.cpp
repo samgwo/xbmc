@@ -1,6 +1,6 @@
 /*
 *      Copyright (C) 2005-2014 Team XBMC
-*      http://xbmc.org
+*      http://kodi.tv
 *
 *  This Program is free software; you can redistribute it and/or modify
 *  it under the terms of the GNU General Public License as published by
@@ -114,6 +114,20 @@ std::string CDataCacheCore::GetVideoPixelFormat()
   CSingleLock lock(m_videoPlayerSection);
 
   return m_playerVideoInfo.pixFormat;
+}
+
+void CDataCacheCore::SetVideoStereoMode(std::string mode)
+{
+  CSingleLock lock(m_videoPlayerSection);
+
+  m_playerVideoInfo.stereoMode = mode;
+}
+
+std::string CDataCacheCore::GetVideoStereoMode()
+{
+  CSingleLock lock(m_videoPlayerSection);
+
+  return m_playerVideoInfo.stereoMode;
 }
 
 void CDataCacheCore::SetVideoDimensions(int width, int height)
@@ -246,7 +260,7 @@ void CDataCacheCore::SetStateSeeking(bool active)
   m_playerStateChanged = true;
 }
 
-bool CDataCacheCore::CDataCacheCore::IsSeeking()
+bool CDataCacheCore::IsSeeking()
 {
   CSingleLock lock(m_stateSection);
 
@@ -293,7 +307,7 @@ void CDataCacheCore::SetGuiRender(bool gui)
   m_playerStateChanged = true;
 }
 
-bool CDataCacheCore::CDataCacheCore::GetGuiRender()
+bool CDataCacheCore::GetGuiRender()
 {
   CSingleLock lock(m_stateSection);
 
@@ -308,7 +322,7 @@ void CDataCacheCore::SetVideoRender(bool video)
   m_playerStateChanged = true;
 }
 
-bool CDataCacheCore::CDataCacheCore::GetVideoRender()
+bool CDataCacheCore::GetVideoRender()
 {
   CSingleLock lock(m_stateSection);
 

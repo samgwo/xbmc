@@ -19,9 +19,11 @@
  */
 
 #include "PeripheralJoystick.h"
+#include "games/controllers/ControllerIDs.h"
+#include "input/joysticks/interfaces/IDriverHandler.h"
 #include "input/joysticks/keymaps/KeymapHandling.h"
 #include "input/joysticks/DeadzoneFilter.h"
-#include "input/joysticks/JoystickIDs.h"
+#include "input/joysticks/JoystickMonitor.h"
 #include "input/joysticks/JoystickTranslator.h"
 #include "input/joysticks/RumbleGenerator.h"
 #include "input/InputManager.h"
@@ -32,7 +34,6 @@
 #include "threads/SingleLock.h"
 #include "utils/log.h"
 #include "Application.h"
-#include "ServiceBroker.h"
 
 #include <algorithm>
 
@@ -56,9 +57,18 @@ CPeripheralJoystick::CPeripheralJoystick(CPeripherals& manager, const Peripheral
 
 CPeripheralJoystick::~CPeripheralJoystick(void)
 {
-  m_rumbleGenerator->AbortRumble();
-  UnregisterJoystickDriverHandler(&m_joystickMonitor);
-  m_rumbleGenerator->AbortRumble();
+  if (m_rumbleGenerator)
+  {
+    m_rumbleGenerator->AbortRumble();
+    m_rumbleGenerator.reset();
+  }
+
+  if (m_joystickMonitor)
+  {
+    UnregisterInputHandler(m_joystickMonitor.get());
+    m_joystickMonitor.reset();
+  }
+
   m_appInput.reset();
   m_deadzoneFilter.reset();
   m_buttonMap.reset();
@@ -82,8 +92,9 @@ bool CPeripheralJoystick::InitialiseFeature(const PeripheralFeature feature)
         InitializeDeadzoneFiltering();
 
         // Give joystick monitor priority over default controller
-        m_appInput.reset(new CKeymapHandling(this, false, CServiceBroker::GetInputManager().KeymapEnvironment()));
-        RegisterJoystickDriverHandler(&m_joystickMonitor, false);
+        m_appInput.reset(new CKeymapHandling(this, false, m_manager.GetInputManager().KeymapEnvironment()));
+        m_joystickMonitor.reset(new CJoystickMonitor);
+        RegisterInputHandler(m_joystickMonitor.get(), false);
       }
     }
     else if (feature == FEATURE_RUMBLE)
@@ -230,7 +241,7 @@ bool CPeripheralJoystick::OnHatMotion(unsigned int hatIndex, HAT_STATE state)
             DeviceName().c_str(), CJoystickTranslator::HatStateToString(state));
 
   // Avoid sending activated input if the app is in the background
-  if (state != HAT_STATE::UNPRESSED && !g_application.IsAppFocused())
+  if (state != HAT_STATE::NONE && !g_application.IsAppFocused())
     return false;
 
   CSingleLock lock(m_handlerMutex);
@@ -253,7 +264,7 @@ bool CPeripheralJoystick::OnHatMotion(unsigned int hatIndex, HAT_STATE state)
 
       // If hat is centered, force bHandled to false to notify all handlers.
       // This avoids "sticking".
-      if (state == HAT_STATE::UNPRESSED)
+      if (state == HAT_STATE::NONE)
         bHandled = false;
 
       // Once a hat is handled, we're done

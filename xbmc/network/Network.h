@@ -1,7 +1,7 @@
 #pragma once
 /*
  *      Copyright (C) 2005-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@
 
 #include <string>
 #include <vector>
-
-#include "system.h"
 
 #include "settings/lib/ISettingCallback.h"
 
@@ -158,8 +156,10 @@ public:
 #include "android/NetworkAndroid.h"
 #elif defined(HAS_LINUX_NETWORK)
 #include "linux/NetworkLinux.h"
-#else
+#elif defined(HAS_WIN32_NETWORK)
 #include "windows/NetworkWin32.h"
+#elif defined(HAS_WIN10_NETWORK)
+#include "win10/NetworkWin10.h"
 #endif
 
 //creates, binds and listens a tcp socket on the desired port. Set bindLocal to

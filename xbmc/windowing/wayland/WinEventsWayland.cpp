@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2017 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -186,6 +186,13 @@ private:
         {
           m_display.roundtrip_queue(*roundtripQueue);
           m_roundtripQueueEvent.Set();
+        }
+        if (cancelPoll.revents & POLLIN)
+        {
+          // Read away the char so we don't get another notification
+          // Indepentent from m_roundtripQueue so there are no races
+          char c;
+          read(m_pipeRead, &c, 1); 
         }
       }
 

@@ -2,7 +2,7 @@
 
 /*
  *      Copyright (C) 2005-2014 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "settings/dialogs/GUIDialogSettingsManualBase.h"
+#include "cores/VideoPlayer/Interface/StreamInfo.h"
 
 class CGUIDialogVideoSettings : public CGUIDialogSettingsManualBase
 {
@@ -39,6 +40,8 @@ protected:
 
   void AddVideoStreams(std::shared_ptr<CSettingGroup> group, const std::string & settingId);
   static void VideoStreamsOptionFiller(std::shared_ptr<const CSetting> setting, std::vector< std::pair<std::string, int> > &list, int &current, void *data);
+
+  static std::string FormatFlags(StreamFlags flags);
 
   // specialization of CGUIDialogSettingsBase
   bool AllowResettingSettings() const override { return false; }

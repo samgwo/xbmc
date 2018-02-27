@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 #include "DVDInputStreams/DVDInputStream.h"
 #include "DVDDemuxCDDA.h"
 #include "DVDDemuxUtils.h"
-#include "TimingConstants.h"
+#include "cores/VideoPlayer/Interface/Addon/TimingConstants.h"
 
 // CDDA audio demuxer based on AirTunes audio Demuxer.
 
@@ -42,7 +42,7 @@ CDVDDemuxCDDA::~CDVDDemuxCDDA()
   Dispose();
 }
 
-bool CDVDDemuxCDDA::Open(CDVDInputStream* pInput)
+bool CDVDDemuxCDDA::Open(std::shared_ptr<CDVDInputStream> pInput)
 {
   Abort();
 
@@ -77,11 +77,11 @@ void CDVDDemuxCDDA::Dispose()
   m_bytes  = 0;
 }
 
-void CDVDDemuxCDDA::Reset()
+bool CDVDDemuxCDDA::Reset()
 {
-  CDVDInputStream* pInputStream = m_pInput;
+  std::shared_ptr<CDVDInputStream> pInputStream = m_pInput;
   Dispose();
-  Open(pInputStream);
+  return Open(pInputStream);
 }
 
 void CDVDDemuxCDDA::Abort()

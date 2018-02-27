@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2007-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,9 +26,10 @@
 #include "settings/AdvancedSettings.h"
 #include "utils/log.h"
 #include "utils/GLUtils.h"
-#include "windowing/WindowingFactory.h"
 
 using namespace VAAPI;
+
+IVaapiWinSystem *CRendererVAAPI::m_pWinSystem = nullptr;
 
 CBaseRenderer* CRendererVAAPI::Create(CVideoBuffer *buffer)
 {
@@ -39,11 +40,14 @@ CBaseRenderer* CRendererVAAPI::Create(CVideoBuffer *buffer)
   return nullptr;
 }
 
-void CRendererVAAPI::Register(VADisplay vaDpy, EGLDisplay eglDisplay, bool &general, bool &hevc)
+void CRendererVAAPI::Register(IVaapiWinSystem *winSystem, VADisplay vaDpy, EGLDisplay eglDisplay, bool &general, bool &hevc)
 {
   CVaapiTexture::TestInterop(vaDpy, eglDisplay, general, hevc);
   if (general)
+  {
     VIDEOPLAYER::CRendererFactory::RegisterRenderer("vaapi", CRendererVAAPI::Create);
+    m_pWinSystem = winSystem;
+  }
 }
 
 CRendererVAAPI::CRendererVAAPI() = default;
@@ -56,7 +60,7 @@ CRendererVAAPI::~CRendererVAAPI()
   }
 }
 
-bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned flags, unsigned int orientation)
+bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned int orientation)
 {
   CVaapiRenderPicture *pic = dynamic_cast<CVaapiRenderPicture*>(picture.videoBuffer);
   if (pic->procPic.videoSurface != VA_INVALID_ID)
@@ -69,7 +73,7 @@ bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned 
   interop.eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
   interop.eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   interop.glEGLImageTargetTexture2DOES = (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)eglGetProcAddress("glEGLImageTargetTexture2DOES");
-  interop.eglDisplay = g_Windowing.GetEGLDisplay();
+  interop.eglDisplay = m_pWinSystem->GetEGLDisplay();
 
   for (auto &tex : m_vaapiTextures)
   {
@@ -80,7 +84,7 @@ bool CRendererVAAPI::Configure(const VideoPicture &picture, float fps, unsigned 
     fence = GL_NONE;
   }
 
-  return CLinuxRendererGLES::Configure(picture, fps, flags, orientation);
+  return CLinuxRendererGLES::Configure(picture, fps, orientation);
 }
 
 bool CRendererVAAPI::ConfigChanged(const VideoPicture &picture)
@@ -205,8 +209,6 @@ bool CRendererVAAPI::UploadTexture(int index)
   planes[1].id = m_vaapiTextures[index].m_textureVU;
   planes[2].id = m_vaapiTextures[index].m_textureVU;
 
-  glEnable(m_textureTarget);
-
   for (int p=0; p<2; p++)
   {
     glBindTexture(m_textureTarget, planes[p].id);
@@ -220,7 +222,6 @@ bool CRendererVAAPI::UploadTexture(int index)
   }
 
   CalculateTextureSourceRects(index, 3);
-  glDisable(m_textureTarget);
   return true;
 }
 

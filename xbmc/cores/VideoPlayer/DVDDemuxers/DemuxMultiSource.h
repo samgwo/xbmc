@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2005-2015 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@ public:
   CDemuxMultiSource();
   ~CDemuxMultiSource() override;
 
-  bool Open(CDVDInputStream* pInput);
+  bool Open(std::shared_ptr<CDVDInputStream> pInput);
 
   // implementation of CDVDDemux
   void Abort() override;
@@ -58,7 +58,7 @@ public:
   std::string GetStreamCodecName(int64_t demuxerId, int iStreamId) override;
   int GetStreamLength() override;
   DemuxPacket* Read() override;
-  void Reset() override;
+  bool Reset() override;
   bool SeekTime(double time, bool backwards = false, double* startpts = NULL) override;
 
 protected:
@@ -68,7 +68,7 @@ private:
   void Dispose();
   void SetMissingStreamDetails(DemuxPtr demuxer);
 
-  InputStreamMultiStreams* m_pInput = NULL;
+  std::shared_ptr<InputStreamMultiStreams> m_pInput = NULL;
   std::map<DemuxPtr, InputStreamPtr> m_DemuxerToInputStreamMap;
   DemuxQueue m_demuxerQueue;
   std::map<int64_t, DemuxPtr> m_demuxerMap;

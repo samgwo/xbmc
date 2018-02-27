@@ -248,7 +248,8 @@ void CDirectoryProvider::Announce(AnnouncementFlag flag, const char *sender, con
       if (strcmp(message, "OnPlay") == 0 ||
           strcmp(message, "OnStop") == 0)
       {
-        if (m_currentSort.sortBy == SortByLastPlayed ||
+        if (m_currentSort.sortBy == SortByNone || // not nice, but many directories that need to be refreshed on start/stop have no special sort order (e.g. in progress movies)
+            m_currentSort.sortBy == SortByLastPlayed ||
             m_currentSort.sortBy == SortByPlaycount ||
             m_currentSort.sortBy == SortByLastUsed)
           m_updateState = INVALIDATED;
@@ -289,7 +290,8 @@ void CDirectoryProvider::OnAddonEvent(const ADDON::AddonEvent& event)
   {
     if (typeid(event) == typeid(ADDON::AddonEvents::Enabled) ||
         typeid(event) == typeid(ADDON::AddonEvents::Disabled) ||
-        typeid(event) == typeid(ADDON::AddonEvents::InstalledChanged) ||
+        typeid(event) == typeid(ADDON::AddonEvents::ReInstalled) ||
+        typeid(event) == typeid(ADDON::AddonEvents::UnInstalled) ||
         typeid(event) == typeid(ADDON::AddonEvents::MetadataChanged))
       m_updateState = INVALIDATED;
   }

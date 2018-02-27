@@ -20,7 +20,6 @@
  *
  */
 
-#ifdef TARGET_WINDOWS
 #include "powermanagement/IPowerSyscall.h"
 #include "powermanagement/PowerManager.h"
 #include "threads/Event.h"
@@ -38,6 +37,8 @@ protected:
   virtual void OnStartup() { SetPriority(THREAD_PRIORITY_IDLE); };
 
 private:
+  static bool PowerManagement(PowerState State);
+
   std::atomic<PowerState> m_state;
   CEvent                  m_queryEvent;
 };
@@ -47,6 +48,9 @@ class CWin32PowerSyscall : public CAbstractPowerSyscall
 public:
   CWin32PowerSyscall();
   ~CWin32PowerSyscall();
+
+  static IPowerSyscall* CreateInstance();
+  static void Register();
 
   virtual bool Powerdown();
   virtual bool Suspend();
@@ -72,5 +76,3 @@ private:
   static bool m_OnSuspend;
 
 };
-#endif
-

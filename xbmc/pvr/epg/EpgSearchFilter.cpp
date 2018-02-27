@@ -1,6 +1,6 @@
 /*
  *      Copyright (C) 2012-2013 Team XBMC
- *      http://xbmc.org
+ *      http://kodi.tv
  *
  *  This Program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,8 @@
 
 using namespace PVR;
 
-CPVREpgSearchFilter::CPVREpgSearchFilter()
+CPVREpgSearchFilter::CPVREpgSearchFilter(bool bRadio)
+: m_bIsRadio(bRadio)
 {
   Reset();
 }
@@ -51,18 +52,23 @@ void CPVREpgSearchFilter::Reset()
 
   m_startDateTime.SetFromUTCDateTime(CServiceBroker::GetPVRManager().EpgContainer().GetFirstEPGDate());
   if (!m_startDateTime.IsValid())
+  {
+    CLog::Log(LOGWARNING, "%s - No valid epg start time. Defaulting search start time to 'now'", __FUNCTION__);
     m_startDateTime.SetFromUTCDateTime(CDateTime::GetUTCDateTime()); // default to 'now'
+  }
 
   m_endDateTime.SetFromUTCDateTime(CServiceBroker::GetPVRManager().EpgContainer().GetLastEPGDate());
   if (!m_endDateTime.IsValid())
+  {
+    CLog::Log(LOGWARNING, "%s - No valid epg end time. Defaulting search end time to search start time plus 10 days", __FUNCTION__);
     m_endDateTime.SetFromUTCDateTime(m_startDateTime + CDateTimeSpan(10, 0, 0, 0)); // default to start + 10 days
+  }
 
   m_bIncludeUnknownGenres    = false;
   m_bRemoveDuplicates        = false;
 
   /* pvr specific filters */
-  m_bIsRadio                 = false;
-  m_iChannelNumber           = EPG_SEARCH_UNSET;
+  m_channelNumber = CPVRChannelNumber();
   m_bFreeToAirOnly           = false;
   m_iChannelGroup            = EPG_SEARCH_UNSET;
   m_bIgnorePresentTimers     = true;
@@ -192,13 +198,13 @@ bool CPVREpgSearchFilter::MatchChannelNumber(const CPVREpgInfoTagPtr &tag) const
 {
   bool bReturn(true);
 
-  if (m_iChannelNumber != EPG_SEARCH_UNSET && CServiceBroker::GetPVRManager().IsStarted())
+  if (m_channelNumber.IsValid() && CServiceBroker::GetPVRManager().IsStarted())
   {
     CPVRChannelGroupPtr group = (m_iChannelGroup != EPG_SEARCH_UNSET) ? CServiceBroker::GetPVRManager().ChannelGroups()->GetByIdFromAll(m_iChannelGroup) : CServiceBroker::GetPVRManager().ChannelGroups()->GetGroupAllTV();
     if (!group)
       group = CServiceBroker::GetPVRManager().ChannelGroups()->GetGroupAllTV();
 
-    bReturn = (m_iChannelNumber == (int) group->GetChannelNumber(tag->Channel()));
+    bReturn = (m_channelNumber == group->GetChannelNumber(tag->Channel()));
   }
 
   return bReturn;
